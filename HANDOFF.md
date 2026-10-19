@@ -150,3 +150,28 @@ The page is published privately as **Smokebox KDS** (version 6 as of Oct 18): ht
 ## 9. Not in this package
 
 Pitcall materials and the large reference PDFs (Pitcall sibling spec, foodservice research report, UI design slides, web-design and Z-notation books) were left out to keep this package small and Smokebox-only. `reference/smokebox_original.html` (the original brief page) is included. Test output folders and old build variants were dropped; `node tools/build.mjs` recreates `dist/smokebox.html`.
+
+## 10. Session of 2026-10-19: the two-tap pivot (what was built)
+
+Freddy's direction: tickets are two taps (**Start**, then **Release**), the app tells the cook when to fire each item ("for dumb chefs", so plain imperative sentences), and the back office becomes Six Sigma style defect analysis.
+
+**Engine (`20-engine.js`)**
+- `createTicket` takes `awaitStart:true`. Such a ticket fires nothing until `startTicket`. `startTicket` re-times the plan from the Start moment (items get `rebased:true`, ticket gets `startedAt`), and is undoable. Items already worked by hand (fire now) keep their times.
+- `releaseTicket` finishes every open item (no prep-time learning, items marked `released`) and bumps in one step, undoable. Events: `ticket_started` (lagMs), `ticket_released` (startLagMs, cookMs, afterReadyMs), plus the usual `ticket_expedited`.
+- Invariant I5 now reads: `fireAt = (rebased ? startedAt : createdAt) + offset`; the due-but-queued check skips tickets waiting for Start. New report ids `notStarted`, `alreadyStarted`.
+- Tickets made without `awaitStart` behave exactly as before (the 14-day history sim still uses the old per-item taps).
+
+**Coach (`26-coach.js`, `SB.coach`)**: pure function `read(state, now)` turns open tickets into cards: phase (`start`, `fire`, `run`, `plate`), one headline sentence ("Drop 2 x Hush puppies in the fryer"), per-item steps (wait, fire, cook, pull) and the one button. Late tickets jump the queue. Wording tables (`SAY`, `SAY_BY_MENU`, `SAY_BY_ZONE`) are starter text.
+
+**Call screen (`75-floor-caller.js`, `24-floor-call.css`)**: first tab on the board and the home view. Big card for the most urgent job, smaller cards below, one giant button per ticket. Chime and spoken line (`speechSynthesis`) for a new ticket, an item to put on and a plate to release. `F.setCallMode(false)` switches back to the classic board (it starts every waiting ticket first). The order sheet and the demo crew create tickets with `awaitStart` while Call mode is on; the crew taps Start and Release itself.
+
+**Quality page (`41-quality.js`, `86-office-quality.js`, `33-office-quality.css`)**: first page in the back office. Defect types (late, started late, plate waited, released early, sent out incomplete, recalled, voided, ran out of an item, batch thrown away, temperature check late), DPMO and sigma level (1.5 shift), Pareto, likely causes of late tickets, p-chart and individuals chart of daily numbers, Cpk against the overdue limit, worst tickets, and a table saying how each defect is counted. Under 20 tickets there is no sigma score; under 5 days or 30 tickets the charts and Cpk say "not enough data". Targets in `SB.quality.TARGETS` (start within 60 s, plate wait under 90 s) are starter estimates.
+
+**Checks run this session**: `node tools/test.mjs` (396 pass, includes new `twotap`, `coach`, `quality` tests and the fuzz test extended with the two actions; also run with 1500 sequences x 3 seeds), comment audit passes, contract check shows 8/8 office pages clean, one quick browser group (`floor-sheets --only=order,recall`) passes. Real-browser flow checked at 1024x768, 1280x800 and 1920x1080: Start then Release is exactly 2 taps. The long browser suites were not run (per the ground rules), so `test/floor.e2e.mjs`, `shell.e2e.mjs` and `office*.e2e.mjs` may need their expectations updated for the Call tab and the eighth office page.
+
+**Not done yet / next**
+1. Learning loop: Release does not teach prep times, so the starter times stay fixed. Idea: learn from Start-to-ready only when the cook confirms "it was ready".
+2. Phase A leftovers still apply (staggered demo batches, temp-check badge wording). The attention strip is shown above the Call screen and is clamped to one line there.
+3. No cause codes yet for non-late defects; the page infers causes from timestamps only.
+4. Header at 1024 px still moves Recall, 86 and Hold into the menu (Phase B).
+5. Open product questions in section 8 still stand, especially whether a runner exists (Release meaning) and who stands at the pit.

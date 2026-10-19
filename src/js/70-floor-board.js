@@ -40,6 +40,8 @@
   // Loudness of this tablet's warnings: 0.2 to 1. It never reaches 0 (the sound toggle is the way to silence); the last warning and the expiry tone never go below half.
   const VOL_MIN = 0.2;
   const KEY_DOCK = 'smokebox.v1.dock';
+  // Whether the Call screen (two-tap tickets: Start, then Release) is the working view; on by default.
+  const KEY_CALL = 'smokebox.v1.call';
   // Set to "done" once the welcome card has been dismissed.
   const KEY_WELCOME = 'smokebox.v1.welcome';
   // All, then every station, in the order of the number keys 1 to 6.
@@ -56,6 +58,7 @@
   // Sound is on by default: a kitchen that misses a warning loses food. A browser still needs one tap to allow audio.
   let sound = U.storage.get(KEY_SOUND, true) !== false;
   let speech = U.storage.get(KEY_SPEECH, true) !== false;
+  let callMode = U.storage.get(KEY_CALL, true) !== false;
   let audio = null, audioHooked = false, lastChime = 0, lastCheck = 0;
   let volume = (() => { const v = U.storage.get(KEY_VOLUME, 1); return U.isNum(v) ? Math.min(1, Math.max(VOL_MIN, v)) : 1; })();
 
@@ -167,6 +170,19 @@
     if (!a) return;
     try { const t0 = a.currentTime + 0.01; for (let i = 0; i < 3; i++) tone(a, 1320, t0 + i * 0.22, 0.14, 0.16); } catch (e) { /* audio is optional */ }
   }
+  // Whether new tickets wait for the cook's Start tap and the Call screen is the working view.
+  F.callMode = () => callMode;
+  // Switches the Call screen on or off. Turning it off starts every ticket still waiting, so none is stranded
+  // on the classic board, which has no Start button.
+  F.setCallMode = function (on) {
+    callMode = !!on;
+    U.storage.set(KEY_CALL, callMode);
+    if (!callMode) {
+      for (const t of store().getState().tickets) if (t.status === 'active' && t.awaitStart) store().dispatchEx('startTicket', { ticketId: t.id }, { source: 'ui' });
+      if (m && m.callOn) showCall(false);
+    } else if (m && !m.cabOn) showCall(true);
+    return callMode;
+  };
   // Whether the chime is switched on.
   F.sound = () => sound;
   // Switches the chime on or off and remembers it; switching on plays one chime as a test.
@@ -378,6 +394,8 @@
     render();
     updateHeader(store().now());
     measureDock();
+    // The Call screen is the home view unless the address asked for a station.
+    if (callMode && zone0 === 'all') showCall(true);
   };
 
   // Stops every listener, timer and observer and empties the element. Safe to call twice.
@@ -388,6 +406,7 @@
     i.offs.forEach((fn) => { try { fn(); } catch (e) { /* ignore */ } });
     clearTimeout(i.sayT);
     if (i.cab) { try { i.cab.destroy(); } catch (e) { /* ignore */ } }
+    if (i.call) { try { i.call.destroy(); } catch (e) { /* ignore */ } }
     if (i.io) i.io.disconnect();
     if (i.ro) i.ro.disconnect();
     cancelAnimationFrame(i.raf);
@@ -401,6 +420,7 @@
     if (!m) { pendingZone = z; return z; }
     if (m.cabOn) showCabinet(false);
     if (z === m.zone) return z;
+    if (m.callOn) showCall(false);
     m.zone = z;
     clearBoard();
     syncZoneUi();
@@ -430,6 +450,8 @@
     });
     // The Cabinet tab is not a station: it swaps the tickets for the hold cabinet, on the same screen.
     tabOptions.push({ id: 'cabinet', label: 'Cabinet', icon: 'thermometer', iconSize: 20, count: 0, alert: false, alertLabel: 'needs attention' });
+    // The Call tab is first: the instruction-first screen with Start and Release.
+    tabOptions.unshift({ id: 'call', label: 'Call', icon: 'bell', iconSize: 20, count: 0, alert: false, alertLabel: 'has jobs to do' });
     const seg = SB.ui.segmented({ kind: 'tabs', label: 'Station', options: tabOptions, value: m.zone, onChange: goZone, class: 'fl-seg' });
     // Screen readers get the full station name and what the count means; the eye sees an icon and a code.
     TABS.forEach((id) => {
@@ -483,7 +505,8 @@
     const empty = h('div', { class: 'fl-empty', hidden: true });
     const welcome = buildWelcome();
     const cabEl = h('section', { class: 'fl-cabinet', hidden: true, 'aria-label': 'Hold cabinet' });
-    const main = h('main', { class: 'fl-main', id: 'fl-board', tabindex: -1, 'aria-label': 'Tickets' }, h('h1', { class: 'visually-hidden' }, 'Smokebox kitchen board'), welcome, grid, empty, cabEl);
+    const callEl = h('section', { class: 'fl-call', hidden: true, 'aria-label': 'Call screen: what to do now' });
+    const main = h('main', { class: 'fl-main', id: 'fl-board', tabindex: -1, 'aria-label': 'Tickets' }, h('h1', { class: 'visually-hidden' }, 'Smokebox kitchen board'), welcome, grid, empty, cabEl, callEl);
 
     // ----- dock
     const dockToggle = h('button', { type: 'button', class: 'fl-dock-toggle', 'aria-expanded': 'true', 'aria-controls': 'fl-dock-list', onClick: toggleDock },
@@ -507,7 +530,7 @@
     m.tabParts = {};
     TABS.forEach((id) => { const b = seg.querySelector('[data-id="' + id + '"]'); if (b) m.tabParts[id] = { count: b.querySelector('.seg-count'), n: -1 }; });
     m.sanText = sanChip.querySelector('.fl-chip-t');
-    Object.assign(m, { head, seg, tabs, sanChip, demoChip, status, tools, tool: { recall: tRecall, hold: tHold, board86: t86, demo: tDemo, orders: tOrders }, newBtn, officeBtn, menuBtn, strip, main, cabEl, grid, empty, dock, dockToggle, dockClear, dockList, dockEmpty, hlStyle });
+    Object.assign(m, { head, seg, tabs, sanChip, demoChip, status, tools, tool: { recall: tRecall, hold: tHold, board86: t86, demo: tDemo, orders: tOrders }, newBtn, officeBtn, menuBtn, strip, main, cabEl, callEl, grid, empty, dock, dockToggle, dockClear, dockList, dockEmpty, hlStyle });
 
     grid.addEventListener('click', onGridClick);
     dockList.addEventListener('click', (e) => {
@@ -635,14 +658,44 @@
     setHidden(m.cabEl, !on);
     m.seg.setValue(on ? 'cabinet' : m.zone);
     m.main.setAttribute('aria-label', on ? 'Hold cabinet' : m.zone === 'all' ? 'Tickets for all stations' : 'Tickets for ' + zoneById(m.zone).name);
-    if (!on) { m.dock.hidden = false; measureDock(); }
+    if (!on) { m.dock.hidden = false; measureDock(); if (callMode && !m.callOn) { showCall(true); return; } }
     if (on) { const lift = doc.documentElement.style; lift.setProperty('--fl-lift', '0px'); }
+  }
+  // Shows the Call screen in place of the classic ticket slips (on), or goes back to the slips (off). The strip
+  // and header stay. WATCH OUT: it leaves the slips hidden while the cabinet is open.
+  function showCall(on) {
+    if (!m || !SB.caller) return;
+    if (on && m.cabOn) showCabinet(false);
+    if (on && !m.call) {
+      // The Call screen borrows the board's sound, voice and tap helpers through these hooks.
+      const hooks = {};
+      // Plays the soft two-note chime for a new ticket.
+      hooks.chime = () => chime();
+      // Plays the three short beeps for an item to put on.
+      hooks.ding = () => checkChime();
+      // Says one short phrase with the tablet's voice.
+      hooks.speak = (txt) => speak(txt);
+      // Sends one action to the store, with the board's toast and undo handling.
+      hooks.run = (type, payload) => run(type, payload);
+      // Opens the three-dot menu for one ticket.
+      hooks.more = (id, anchor) => moreMenu({ id }, anchor);
+      m.call = SB.caller.mount(m.callEl, hooks);
+    } else if (!on && m.call) { m.call.destroy(); m.call = null; }
+    m.callOn = !!on;
+    m.root.dataset.call = on ? 'on' : 'off';
+    for (const el of [m.grid, m.empty, m.welcome, m.dock]) if (el) el.style.display = on || m.cabOn ? 'none' : '';
+    setHidden(m.callEl, !on);
+    m.seg.setValue(on ? 'call' : m.cabOn ? 'cabinet' : m.zone);
+    m.main.setAttribute('aria-label', on ? 'Call screen' : m.zone === 'all' ? 'Tickets for all stations' : 'Tickets for ' + zoneById(m.zone).name);
+    if (on) doc.documentElement.style.setProperty('--fl-lift', '0px'); else measureDock();
   }
   // Switches between the tickets and the cabinet (the Hold button and the H key).
   function toggleCabinet() { showCabinet(!(m && m.cabOn)); }
   // Called when a tab is chosen: asks the router to change the address (so Back works), then switches.
   function goZone(id) {
-    if (id === 'cabinet') { showCabinet(true); return; }
+    if (id === 'call') { showCall(true); return; }
+    if (id === 'cabinet') { if (m && m.callOn) showCall(false); showCabinet(true); return; }
+    if (m && m.callOn) showCall(false);
     if (m && m.cabOn) showCabinet(false);
     if (SB.router && SB.router.go) { try { SB.router.go({ kind: 'floor', zone: id }); } catch (e) { /* fall through */ } }
     if (m && m.zone !== id) F.setZone(id);
@@ -1331,6 +1384,8 @@
     toolCount(m.tool.recall, recentN, '', recentN ? recentN + ' recently bumped' : '');
     toolCount(m.tool.hold, c.hold, 'warn', holdReason(c));
     m.seg.setCount('cabinet', c.hold, { alert: c.hold > 0 });
+    // The Call tab counts jobs that need a tap now (tickets to start and plates to release).
+    try { const cc = SB.coach.read(S.getState(), now).counts; m.seg.setCount('call', cc.start + cc.plate, { alert: cc.late > 0 || cc.fire > 0 }); } catch (e) { /* the coach is optional */ }
     toolCount(m.tool.board86, c.out86, 'bad', c.out86 ? c.out86 + ' ' + U.plural(c.out86, 'item') + ' off the menu' : '');
     // Orders still open, counted again only when the orders list itself changed.
     const ords = S.getState().orders || [];
@@ -1623,11 +1678,13 @@
     SB.ui.menu(anchor, [
       // Rush fires every item now; Recall opens the recall sheet.
       { label: t.rush ? 'Take off rush' : 'Make it a rush', icon: 'zap', onClick: () => run('setRush', { ticketId: rec.id, on: !t.rush }, { okText: t.rush ? 'Ticket #' + t.num + ' is no longer a rush.' : 'Ticket #' + t.num + ' is a rush. Every item is fired now.' }) },
+      // Release now finishes the ticket without waiting for its plan (a started ticket only).
+      t.awaitStart ? null : { label: 'Release now', icon: 'check', onClick: () => run('releaseTicket', { ticketId: rec.id }) },
       { label: 'Recall a bumped ticket', icon: 'history', onClick: () => openSheet('recall') },
       { separator: true },
       // Void asks for a reason first, see openVoid.
       { label: 'Void ticket', icon: 'trash', danger: true, onClick: () => openVoid(rec.id, anchor) },
-    ], { label: 'Ticket #' + t.num });
+    ].filter(Boolean), { label: 'Ticket #' + t.num });
   }
 
   // Opens the void sheet: pick a reason chip (or Other, up to 40 typed characters), then confirm.

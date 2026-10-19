@@ -1,0 +1,101 @@
+/*
+ * WHAT THIS FILE IS: Styles for the Call screen: the big "do this now" card, the smaller ticket cards under
+ * it, the step rows and the one large button. Sizes use the board's scale tokens (--fs-*, --sp-*), so the
+ * screen grows with the TV and with Large text.
+ * PARTS: screen, calm state, card, big card, step rows, buttons, tones.
+ */
+
+/* The screen: a one-line summary, the big card, then the others in a grid. */
+.cl { display: flex; flex-direction: column; gap: var(--sp-4); padding: var(--sp-4); min-height: 100%; }
+.cl-sum { font-size: var(--fs-2); font-weight: var(--w-semi); color: var(--ink2); min-height: 1.2em; }
+.cl-hero { display: block; }
+.cl-hero:empty { display: none; }
+.cl-grid { display: grid; gap: var(--sp-4); grid-template-columns: repeat(auto-fill, minmax(calc(340px * var(--fl-k, 1)), 1fr)); align-items: start; }
+
+/* Nothing to do: a big calm message instead of an empty screen. */
+.cl-calm { display: none; flex-direction: column; align-items: center; justify-content: center; gap: var(--sp-3); padding: var(--sp-10) var(--sp-4); text-align: center; color: var(--ink2); }
+.cl[data-empty="true"] .cl-calm { display: flex; }
+.cl-calm-big { margin: 0; font-family: var(--font-display); font-size: var(--fs-8); font-weight: var(--w-heavy); color: var(--ink); }
+.cl-calm-small { margin: 0; font-size: var(--fs-4); max-width: 30em; }
+
+/* A ticket card: white paper with a thick edge that shows the kind of job. */
+.cl-card { display: flex; flex-direction: column; gap: var(--sp-3); padding: var(--sp-4); background: var(--paper); color: var(--ink); border: var(--bw) solid var(--line); border-left-width: calc(10px * var(--fl-k, 1)); border-radius: var(--r-panel); box-shadow: var(--shadow); }
+.cl-card[data-phase="start"] { border-color: var(--amber); }
+.cl-card[data-phase="fire"] { border-color: var(--danger); background: var(--tint-bad); }
+.cl-card[data-phase="plate"] { border-color: var(--success); background: var(--tint-ok); }
+.cl-card[data-tone="warn"] { background: var(--tint-warn); }
+.cl-card[data-tone="late"] { border-color: var(--crimson); background: var(--tint-bad); }
+
+/* The top line: number, name, job badge, age. */
+.cl-top { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2) var(--sp-3); }
+.cl-num { font-family: var(--font-display); font-size: var(--fs-ticket); font-weight: var(--w-heavy); line-height: var(--lh-tight); }
+.cl-who { font-size: var(--fs-4); font-weight: var(--w-semi); overflow-wrap: anywhere; }
+.cl-grow { flex: 1 1 0; }
+.cl-badge, .cl-rush, .cl-tone { display: inline-flex; align-items: center; gap: var(--sp-1); padding: 2px var(--sp-2); border: var(--bw) solid currentColor; border-radius: var(--r-chip); font-size: var(--fs-2); font-weight: var(--w-bold); }
+.cl-rush { color: var(--stamp); }
+.cl-tone:empty { display: none; }
+.cl-tone { color: var(--crimson); }
+.cl-age { font-size: var(--fs-timer); font-weight: var(--w-bold); font-variant-numeric: tabular-nums; }
+.cl-more { min-width: var(--tap); min-height: var(--tap); padding: 0; }
+
+/* The instruction itself: the biggest text on the card. */
+.cl-say { margin: 0; font-family: var(--font-display); font-size: var(--fs-7); font-weight: var(--w-heavy); line-height: var(--lh-tight); overflow-wrap: anywhere; }
+.cl-hint { margin: 0; font-size: var(--fs-3); color: var(--ink2); }
+.cl-note { display: flex; gap: var(--sp-2); align-items: center; margin: 0; font-size: var(--fs-3); font-weight: var(--w-semi); }
+
+/* The big card at the top gets a much larger instruction, readable across the kitchen. */
+.cl-card.is-hero { padding: var(--sp-6); }
+.cl-card.is-hero .cl-say { font-size: var(--fs-8); }
+.cl-card.is-hero .cl-hint { font-size: var(--fs-4); }
+.cl-card.is-hero .cl-num { font-size: calc(var(--fs-ticket) * 1.5); }
+.cl-card.is-hero .cl-item { font-size: var(--fs-5); }
+
+/* One row per item: station tag, name, the step word and a time. */
+.cl-items { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--sp-1); }
+.cl-item { display: grid; grid-template-columns: auto 1fr auto auto; align-items: center; gap: var(--sp-3); padding: var(--sp-2) var(--sp-3); font-size: var(--fs-4); font-weight: var(--w-semi); background: var(--sub); border-radius: var(--r-chip); }
+.cl-item-name { overflow-wrap: anywhere; }
+.cl-zone { display: inline-flex; align-items: center; gap: var(--sp-1); font-size: var(--fs-1); font-weight: var(--w-bold); color: var(--ink2); }
+.cl-step-word { font-weight: var(--w-bold); text-transform: none; }
+.cl-step-time { min-width: 4.5em; text-align: right; font-variant-numeric: tabular-nums; color: var(--ink2); }
+.cl-item[data-step="fire"] { background: var(--danger); color: var(--on-danger); }
+.cl-item[data-step="fire"] .cl-zone, .cl-item[data-step="fire"] .cl-step-time { color: var(--on-danger); }
+.cl-item[data-step="pull"] { background: var(--success); color: var(--on-success); }
+.cl-item[data-step="pull"] .cl-zone, .cl-item[data-step="pull"] .cl-step-time { color: var(--on-success); }
+.cl-item[data-step="done"] { opacity: 0.55; }
+.cl-item[data-step="wait"] .cl-step-word { color: var(--ink3); }
+
+/* The one big button: the whole bottom of the card, far bigger than the 56 px minimum. */
+.cl-go { display: flex; align-items: center; justify-content: center; gap: var(--sp-3); width: 100%; min-height: calc(88px * var(--fl-k, 1)); font-family: var(--font-display); font-size: var(--fs-7); font-weight: var(--w-heavy); letter-spacing: 0.04em; border-radius: var(--r-btn); }
+.cl-go[data-act="start"] { --b-bg: var(--primary); --b-fg: var(--on-primary); --b-edge: var(--primary-edge); --b-lift: 5px; }
+.cl-go[data-act="release"] { --b-bg: var(--success); --b-fg: var(--on-success); --b-edge: var(--success-edge); --b-lift: 5px; }
+.cl-card.is-hero .cl-go { min-height: calc(120px * var(--fl-k, 1)); font-size: var(--fs-8); }
+
+/* A job that needs doing right now pulses its edge; reduced motion keeps it still. */
+@media (prefers-reduced-motion: no-preference) {
+  .cl-card[data-phase="fire"], .cl-card[data-phase="plate"], .cl-card[data-tone="late"] { animation: cl-pulse 1.4s ease-in-out infinite; }
+  @keyframes cl-pulse { 50% { box-shadow: 0 0 0 calc(6px * var(--fl-k, 1)) rgba(155, 44, 44, 0.35); } }
+}
+
+/* A ticket that has not started shows its items as a compact row of chips, so the Start button stays on screen. */
+.cl-card[data-phase="start"] .cl-items { flex-direction: row; flex-wrap: wrap; gap: var(--sp-2); }
+.cl-card[data-phase="start"] .cl-item { grid-template-columns: auto auto; padding: var(--sp-1) var(--sp-3); }
+.cl-card[data-phase="start"] .cl-step-word, .cl-card[data-phase="start"] .cl-step-time { display: none; }
+
+/* On a wide screen the big card puts the big button on its right, so nothing important falls below the fold. */
+@media (min-width: 860px) {
+  .cl-card.is-hero[data-go="true"] { display: grid; grid-template-columns: minmax(0, 1fr) minmax(calc(220px * var(--fl-k, 1)), 30%); grid-template-areas: "top top" "say go" "hint go" "items go" "note go"; column-gap: var(--sp-6); }
+  .cl-card.is-hero .cl-top { grid-area: top; }
+  .cl-card.is-hero .cl-say { grid-area: say; }
+  .cl-card.is-hero .cl-hint { grid-area: hint; }
+  .cl-card.is-hero .cl-items { grid-area: items; }
+  .cl-card.is-hero .cl-note { grid-area: note; }
+  .cl-card.is-hero .cl-go { grid-area: go; align-self: stretch; flex-direction: column; min-height: 0; }
+}
+
+/* On the Call screen the warning strip stays, but shrinks: one line of reason, and only the top row on short screens. */
+.fl[data-call="on"] .fl-strip-why { -webkit-line-clamp: 1; }
+@media (max-height: 900px) { .fl[data-call="on"] .fl-strip-row[data-i="1"], .fl[data-call="on"] .fl-strip-row[data-i="2"] { display: none; } }
+
+/* Small cards: the customer name drops to its own line so the number, badge, timer and menu button fit. */
+.cl-card:not(.is-hero) .cl-who { order: 5; flex-basis: 100%; }
+.cl-card:not(.is-hero) .cl-say { font-size: var(--fs-6); }

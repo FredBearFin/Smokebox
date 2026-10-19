@@ -63,12 +63,13 @@ const providerFile = (p) => { const s = p.split('.'); return SUB_FILE[s.slice(1,
  * The contract (what the specs promise exists)
  * ========================================================================================================================== */
 const PAGE_TABLE = [
+  { id: 'quality', title: 'Quality', icon: 'target', order: 0 },
   { id: 'pace', title: 'Pace', icon: 'gauge', order: 1 }, { id: 'tickets', title: 'Tickets', icon: 'receipt', order: 2 },
   { id: 'stations', title: 'Stations', icon: 'layers', order: 3 }, { id: 'money', title: 'Sales and money', icon: 'dollar', order: 4 },
   { id: 'safety', title: 'Safety', icon: 'shield-check', order: 5 }, { id: 'stock', title: 'Stock and 86', icon: 'package', order: 6 },
   { id: 'data', title: 'Menu and settings', icon: 'sliders', order: 7 },
 ];
-const PAGE_FILE = { pace: '81-office-pace.js', tickets: '81-office-pace.js', stations: '81-office-pace.js', money: '82-office-money.js', safety: '83-office-safety.js', stock: '85-office-stock.js', data: '84-office-data.js' };
+const PAGE_FILE = { quality: '86-office-quality.js', pace: '81-office-pace.js', tickets: '81-office-pace.js', stations: '81-office-pace.js', money: '82-office-money.js', safety: '83-office-safety.js', stock: '85-office-stock.js', data: '84-office-data.js' };
 const SHEET_NAMES = 'order hold board86 recall demo help specs menu'.split(' ');
 const CTX_KEYS = 'filters dataset opts prepared now metrics onFilterChange navigate openSheet theme kit'.split(' ');
 const PAGE_METHODS = 'headline tiles section card panel table insights refresh destroy'.split(' ');
@@ -899,7 +900,7 @@ export function analyze(S, R, CSS, extras) {
   for (const [id, regs] of Object.entries(byPage)) {
     const filesN = [...new Set(regs.map((r) => r.file))];
     const def = PAGE_TABLE.find((p) => p.id === id);
-    if (!def) { problem('page-id', regs[0].file, regs[0].line, id, 'Page id "' + id + '" is not one of pace tickets stations money safety stock data.', 'Use the ids in docs/office-contract.md section 1.'); continue; }
+    if (!def) { problem('page-id', regs[0].file, regs[0].line, id, 'Page id "' + id + '" is not one of quality pace tickets stations money safety stock data.', 'Use the ids in docs/office-contract.md section 1.'); continue; }
     if (filesN.length > 1) problem('dup-page', regs[1].file, regs[1].line, id, 'Page "' + id + '" is registered by ' + filesN.join(' and ') + '.', 'Only the owner registers a page.');
     for (const r of regs) {
       if (r.inFallback) continue;

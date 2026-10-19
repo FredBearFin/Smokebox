@@ -19,6 +19,7 @@
 
   /** The seven pages, in order. A page file may override title / icon / order when it registers. */
   const PAGES = [
+    { id: 'quality', title: 'Quality', short: 'Quality', icon: 'target' },
     { id: 'pace', title: 'Pace', short: 'Pace', icon: 'gauge' },
     { id: 'tickets', title: 'Tickets', short: 'Tickets', icon: 'receipt' },
     { id: 'stations', title: 'Stations', short: 'Stations', icon: 'layers' },
@@ -28,7 +29,7 @@
     { id: 'data', title: 'Menu and settings', short: 'Settings', icon: 'sliders' },
   ];
   const PAGE_IDS = PAGES.map((p) => p.id);
-  // Turns any page name into one of the seven page ids. A name we do not know gives the Pace page.
+  // Turns any page name into one of the eight page ids. A name we do not know gives the Pace page.
   const pageIdOf = (s) => (PAGE_IDS.indexOf(s) >= 0 ? s : 'pace');
 
   /** Start of a service day (local dayStartHour on a YYYY-MM-DD key). */

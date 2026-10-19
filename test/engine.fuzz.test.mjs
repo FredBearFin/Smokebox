@@ -68,7 +68,7 @@ function genAction(rng, s) {
   const paidOrders = orders.filter((o) => o.status === 'paid');
   const anyOrder = pick(rng.next() < 0.8 && openOrders.length ? openOrders : orders);
   const tcs = s.ingredients.filter((i) => i.tcs);
-  const W = [['createTicket', 16], ['advanceItem', 18], ['completeItem', 5], ['fireNow', 5], ['completeZone', 4], ['bumpTicket', 8], ['recallTicket', 3],
+  const W = [['createTicket', 16], ['advanceItem', 18], ['completeItem', 5], ['fireNow', 5], ['completeZone', 4], ['bumpTicket', 8], ['startTicket', 6], ['releaseTicket', 5], ['recallTicket', 3],
     ['voidTicket', 3], ['setRush', 3], ['toggle86', 4], ['restock', 3], ['addBatch', 5], ['logTemp', 5], ['reheatBatch', 2], ['startCooling', 1],
     ['discardBatch', 2], ['pullBatch', 3], ['keepServing', 2], ['endKeepServing', 1], ['planBatch', 1.5], ['cancelPlan', 2], ['snoozeAlert', 2], ['clearSnooze', 1.5], ['sanitizeDone', 2], ['updateSettings', 2], ['updateMenuItem', 1], ['addMenuItem', 0.6], ['payOrder', 4], ['reopenOrder', 1], ['voidOrder', 1], ['updateIngredient', 1], ['undo', 7], ['resetLive', 0.2], ['junkType', 2]];
   let r = rng.next() * W.reduce((a, x) => a + x[1], 0);
@@ -82,6 +82,7 @@ function genAction(rng, s) {
       const items = [];
       for (let i = 0; i < n; i++) items.push({ menuId: pick(s.menu).id, qty: rng.next() < 0.8 ? 1 : 1 + Math.floor(rng.next() * 4), mods: rng.next() < 0.2 ? ['No pickles'] : undefined });
       p = { customer: pick(['Table 1', 'Pickup', '', 'Drive 3']), channel: pick(['dine_in', 'takeout', 'drive_thru', 'third_party']), items, rush: rng.next() < 0.1, note: rng.next() < 0.1 ? 'Peanut allergy' : undefined };
+      if (rng.next() < 0.4) p.awaitStart = true; // two-tap tickets wait for their Start tap
       if (rng.next() < 0.05) p.createdAt = s.events.length ? undefined : undefined;
       // some orders are added to an existing one, and some are paid at the counter in the same tap
       if (openOrders.length && rng.next() < 0.3) p.orderId = pick(openOrders).id;
@@ -90,6 +91,7 @@ function genAction(rng, s) {
     }
     case 'advanceItem': case 'completeItem': case 'fireNow': p = { ticketId: t && t.id, itemId: it && it.id }; break;
     case 'completeZone': p = { ticketId: t && t.id, zone: it ? it.zone : 'pit' }; break;
+    case 'startTicket': case 'releaseTicket': p = { ticketId: t && t.id }; break;
     case 'bumpTicket': p = { ticketId: t && t.id, force: rng.next() < 0.4 }; break;
     case 'recallTicket': p = { ticketId: (pick(expedited) || t || {}).id }; break;
     case 'voidTicket': p = { ticketId: t && t.id, reason: pick(['wrong order', 'customer left', 'dropped', '']) }; break;

@@ -1,0 +1,42 @@
+/*
+ * WHAT THIS FILE IS: Styles for the Quality back-office page: the score tiles, the SVG charts (bars, control
+ * charts, histogram) and the cause list. Colours come from the office tokens, so day and night looks both work.
+ * PARTS: tiles, notes, charts, causes.
+ */
+
+/* The row of score tiles at the top of a panel. */
+.qc-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; margin-bottom: 8px; }
+.qc-tile { display: flex; flex-direction: column; gap: 2px; padding: 12px 14px; background: var(--sub); border: 2px solid var(--line); border-radius: 6px; }
+.qc-tile[data-tone="good"] { border-color: var(--sage); }
+.qc-tile[data-tone="warn"] { border-color: var(--amber); }
+.qc-tile[data-tone="bad"] { border-color: var(--crimson); }
+.qc-tile-l { font-size: 14px; font-weight: 600; color: var(--ink2); }
+.qc-tile-v { font-family: var(--font-display); font-size: 40px; font-weight: 800; line-height: 1.05; color: var(--ink); }
+.qc-tile-s { font-size: 14px; color: var(--ink2); }
+.qc-note { margin: 8px 0 0; font-size: 15px; color: var(--ink2); max-width: 70ch; }
+
+/* The SVG charts: scale with the card, text drawn in the page font. */
+.qc-svg { width: 100%; height: auto; display: block; font-family: var(--font-body); }
+.qc-grid { stroke: var(--line-soft); stroke-width: 1; }
+.qc-axis { font-size: 12px; fill: var(--ink2); }
+.qc-val { font-size: 13px; font-weight: 700; fill: var(--ink); }
+.qc-bar { fill: var(--amber); }
+.qc-bar[data-process="cabinet"] { fill: var(--z-cold); }
+.qc-bar--late { fill: var(--crimson); }
+.qc-cum { fill: none; stroke: var(--ink); stroke-width: 2.5; }
+.qc-cum-dot { fill: var(--paper); stroke: var(--ink); stroke-width: 2.5; }
+.qc-path { fill: none; stroke: var(--ink2); stroke-width: 2; }
+.qc-dot { fill: var(--ink); }
+.qc-dot--out { fill: var(--crimson); stroke: var(--paper); stroke-width: 2; }
+.qc-flag { font-size: 12px; font-weight: 800; fill: var(--crimson); }
+.qc-centre { stroke: var(--sage); stroke-width: 2; }
+.qc-ucl, .qc-lcl { stroke: var(--crimson); stroke-width: 2; stroke-dasharray: 8 5; }
+.qc-lim { font-size: 12px; font-weight: 600; fill: var(--ink2); }
+
+/* Why tickets ran late: a label, a bar and a count per cause. */
+.qc-causes { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.qc-causes li { display: grid; grid-template-columns: 1fr auto; gap: 4px 10px; align-items: center; }
+.qc-cause-l { font-weight: 600; }
+.qc-cause-n { font-variant-numeric: tabular-nums; color: var(--ink2); }
+.qc-cause-bar { grid-column: 1 / -1; height: 10px; background: var(--sub); border-radius: 5px; overflow: hidden; }
+.qc-cause-bar > span { display: block; height: 100%; background: var(--amber); }

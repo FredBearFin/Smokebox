@@ -722,6 +722,8 @@
       if (note.length > L.maxNoteLen) { paintNote(); showError('The note is too long. It holds ' + L.maxNoteLen + ' characters. Keep the allergy and cut the rest.'); setPane('order'); noteInput.focus(); return; }
       const items = D.lines.map((l) => { const it = { menuId: l.menuId, qty: l.qty }; if (l.mods.length) it.mods = l.mods.slice(); return it; });
       const payload = { customer: name, channel: D.channel, items, note, rush: D.rush };
+      // In Call mode the ticket waits for the cook's Start tap.
+      if (SB.floor && SB.floor.callMode && SB.floor.callMode()) payload.awaitStart = true;
       if (D.orderId) payload.orderId = D.orderId;
       if (D.pay) {
         const tip = dollars(D.tip);

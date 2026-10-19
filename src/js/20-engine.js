@@ -54,7 +54,7 @@
     'ticketNotExpedited', 'notAllDone', 'alreadyDone', 'alreadyFired', 'notQueued', 'nothingToDo', 'reasonRequired', 'badTemp',
     'tempTooLow', 'notReheatable', 'notEnoughData', 'batchNotServable', 'badWeight', 'badPatch', 'outOfBounds', 'undoExpired',
     'undoNothing', 'undoConflict', 'invalidBackup', 'exportTooLarge', 'storageBlocked', 'unknownOrder', 'orderNotOpen', 'orderNotPaid', 'orderEmpty',
-    'orderNotEmpty', 'badPayment', 'qualityNotDue', 'tempReadingNeeded', 'whoRequired', 'badUntil', 'badPlanTime', 'unknownPlan', 'badSnooze'];
+    'orderNotEmpty', 'badPayment', 'qualityNotDue', 'tempReadingNeeded', 'whoRequired', 'badUntil', 'badPlanTime', 'unknownPlan', 'badSnooze', 'notStarted', 'alreadyStarted'];
 
   // Added to every safety message: the reminder that the local health code overrides this app.
   const SAFETY = ' ' + C.safetyLine;
@@ -109,6 +109,8 @@
     badUntil: 'Pick a time later than now, or choose 30 minutes or 1 hour.',
     badPlanTime: 'Pick a time when the batch comes off the smoker: within the next day and a half, and not already past its serving time.',
     unknownPlan: 'That planned batch is gone. It may have been used, cancelled or expired.',
+    notStarted: 'Start this ticket first, then release it when the food is ready.',
+    alreadyStarted: 'This ticket was already started.',
     badSnooze: 'A reminder can be put off for 1 to 30 minutes, only for a batch still on the menu, and never past 5 minutes before its last warning. The last warning, a past-quality batch and a thrown-out batch cannot be put off.',
   };
 
@@ -117,7 +119,7 @@
   // the docs.
   // audit:data-start
   const ACTIONS = {
-    createTicket: '{ customer?, channel?, orderId?, pay?:{ method, tip?, discount? }, items:[{ menuId, qty?=1, mods?:string[] }], note?, rush?, src?:"live"|"demo"|"sample", createdAt?, allowPast? }',
+    createTicket: '{ customer?, channel?, orderId?, pay?:{ method, tip?, discount? }, items:[{ menuId, qty?=1, mods?:string[] }], note?, rush?, src?:"live"|"demo"|"sample", createdAt?, allowPast?, awaitStart?:true }',
     payOrder: '{ orderId, method:"cash"|"card"|"other", tip?, discount? }',
     reopenOrder: '{ orderId }',
     voidOrder: '{ orderId, reason }',
@@ -125,6 +127,8 @@
     completeItem: '{ ticketId, itemId }',
     fireNow: '{ ticketId, itemId, start?:true }',
     completeZone: '{ ticketId, zone }',
+    startTicket: '{ ticketId }',
+    releaseTicket: '{ ticketId }',
     bumpTicket: '{ ticketId, force?:true }',
     recallTicket: '{ ticketId }',
     voidTicket: '{ ticketId, reason }',
@@ -154,7 +158,7 @@
   };
   // audit:data-end
   // The actions that can be undone inside the undo window.
-  const UNDOABLE = ['advanceItem', 'completeItem', 'completeZone', 'bumpTicket', 'voidTicket', 'toggle86', 'fireNow', 'pullBatch', 'discardBatch', 'sanitizeDone', 'planBatch', 'cancelPlan', 'snoozeAlert', 'clearSnooze'];
+  const UNDOABLE = ['startTicket', 'releaseTicket', 'advanceItem', 'completeItem', 'completeZone', 'bumpTicket', 'voidTicket', 'toggle86', 'fireNow', 'pullBatch', 'discardBatch', 'sanitizeDone', 'planBatch', 'cancelPlan', 'snoozeAlert', 'clearSnooze'];
 
   // Time units in milliseconds: H is one hour, MIN is one minute.
   const H = 3600e3, MIN = 60e3;
@@ -1221,6 +1225,8 @@
     }
     order.rounds = (isInt(order.rounds) ? order.rounds : 0) + 1;
     const ticket = { id, num, serviceDate: sd, customer, channel, createdAt, rush, note, src, pacing: !!P.enabled, dmaxSec: dmax, status: 'active', recalls: 0, orderId: order.id, round: order.rounds, items };
+    // Two-tap kitchens: the ticket waits for the cook's Start tap, and the plan clock begins then (see startTicket).
+    if (p.awaitStart === true) ticket.awaitStart = true;
     tx.own.add(ticket);
     const tickets = tx.mut('tickets');
     tickets.push(ticket);
@@ -1230,7 +1236,7 @@
     for (const it of items) { qtyTotal += it.qty; value += it.qty * it.price; }
     tx.event('ticket_created', { ticketId: id, num, channel, items: items.length, qty: qtyTotal, rush, src, value: round(value, 2), orderId: order.id, round: order.rounds });
     for (const it of items) {
-      if (it.fireAt <= now) {
+      if (it.fireAt <= now && !ticket.awaitStart) {
         it.status = 'displayed'; it.firedAt = it.fireAt;
         tx.event('item_fired', { ticketId: id, itemId: it.id, zone: it.zone, menuId: it.menuId, at: it.firedAt });
       }
@@ -1462,6 +1468,69 @@
     return 'ok';
   };
 
+  // The cook's first tap on a ticket. The pacing clock starts now: every item is re-timed so the slowest one
+  // fires at this moment and the rest follow their usual offsets, so the whole ticket still finishes together.
+  // Refuses a ticket that is not waiting for its start (alreadyStarted).
+  A.startTicket = function (tx, p) {
+    const tickets = tx.get('tickets');
+    const ti = findTicketIdx(tickets, p.ticketId);
+    if (ti < 0) return 'unknownTicket';
+    const t = tickets[ti];
+    if (t.status !== 'active') return 'ticketNotActive';
+    if (!t.awaitStart) return 'alreadyStarted';
+    const start = stampAfter(t.createdAt, tx.now);
+    const before = t.items.map((it) => Object.assign({}, it));
+    const w = tx.ticket(ti);
+    delete w.awaitStart; w.startedAt = start;
+    let fired = 0;
+    for (let ii = 0; ii < t.items.length; ii++) {
+      const it = t.items[ii];
+      if (it.status !== 'queued') continue; // already worked by hand (fire now): its times stay as they are
+      const wi = tx.item(ti, ii);
+      wi.rebased = true; wi.fireAt = start + it.offsetSec * 1000;
+      if (wi.fireAt <= start) {
+        wi.status = 'displayed'; wi.firedAt = wi.fireAt; fired++;
+        tx.event('item_fired', { ticketId: t.id, itemId: it.id, zone: it.zone, menuId: it.menuId, at: wi.firedAt });
+      }
+    }
+    tx.event('ticket_started', { ticketId: t.id, lagMs: start - t.createdAt, fired });
+    pushUndo(tx, 'start', 'Ticket #' + t.num + ' started', { ticketId: t.id, startedAt: start, items: before });
+    tx.info = { ticketId: t.id, num: t.num, fired, lagMs: start - t.createdAt };
+    return 'ok';
+  };
+
+  // The cook's last tap: the plate is ready and leaves the pass. Every item not yet done is finished and the
+  // ticket is bumped in one step. Items finished this way do not teach the app prep times (their stamp is the
+  // release tap, not a real finish). Refuses a ticket still waiting for its start (notStarted).
+  A.releaseTicket = function (tx, p) {
+    const tickets = tx.get('tickets');
+    const ti = findTicketIdx(tickets, p.ticketId);
+    if (ti < 0) return 'unknownTicket';
+    const t = tickets[ti];
+    if (t.status !== 'active') return 'ticketNotActive';
+    if (t.awaitStart) return 'notStarted';
+    const lb = new Map();
+    const recs = [];
+    for (let ii = 0; ii < t.items.length; ii++) {
+      if (t.items[ii].status === 'done') continue;
+      recs.push(completeInto(tx, ti, ii, lb, { noLearn: true }));
+      tx.item(ti, ii).released = true;
+    }
+    const cur = tx.get('tickets')[ti];
+    let exp = stampAfter(cur.createdAt, tx.now);
+    for (const it of cur.items) {
+      for (const k of ['doneAt', 'startedAt', 'firedAt']) if (isNum(it[k]) && it[k] > exp) exp = it[k];
+    }
+    const w = tx.ticket(ti);
+    w.status = 'expedited'; w.expeditedAt = exp; w.released = true; delete w.forced;
+    const readyAt = isNum(t.startedAt) ? t.startedAt + (t.dmaxSec || 0) * 1000 : null;
+    tx.event('ticket_expedited', { ticketId: t.id, totalMs: exp - t.createdAt, forced: false, released: true });
+    tx.event('ticket_released', { ticketId: t.id, totalMs: exp - t.createdAt, startLagMs: isNum(t.startedAt) ? t.startedAt - t.createdAt : null, cookMs: isNum(t.startedAt) ? exp - t.startedAt : null, afterReadyMs: readyAt === null ? null : exp - readyAt });
+    pushUndo(tx, 'release', 'Ticket #' + t.num + ' released', { ticketId: t.id, expeditedAt: exp, items: recs, hadReleased: t.released === true });
+    tx.info = { ticketId: t.id, num: t.num, finished: recs.length };
+    return 'ok';
+  };
+
   // Sends the ticket out. All items must be done unless force is true, which marks the ticket forced.
   // expeditedAt is never earlier than any item time (I4).
   A.bumpTicket = function (tx, p) {
@@ -1544,6 +1613,7 @@
         if (it.status !== 'queued') continue;
         const wi = tx.item(ti, ii);
         wi.offsetSec = 0; wi.fireAt = t.createdAt; wi.rushed = true; /*@I5b*/
+        if (it.rebased && isNum(t.startedAt)) wi.fireAt = t.startedAt; // a started ticket counts its plan from the Start tap
         wi.status = 'displayed'; wi.firedAt = stampAfter(t.createdAt, tx.now);
         fired++;
         tx.event('item_fired', { ticketId: t.id, itemId: it.id, zone: it.zone, menuId: it.menuId, rush: true, at: wi.firedAt });
@@ -2349,6 +2419,33 @@
     if (partial) tx.info.partial = true;
     return 'ok';
   };
+  // Undo of a Start tap: puts the ticket back to waiting, with its items as they were, if nothing has been done on it since.
+  UNDO.start = function (tx, d) {
+    const tickets = tx.get('tickets');
+    const ti = findTicketIdx(tickets, d.ticketId);
+    if (ti < 0) return 'undoConflict';
+    const t = tickets[ti];
+    if (t.status !== 'active' || t.startedAt !== d.startedAt) return 'undoConflict';
+    // Only items the Start tap re-timed must still be untouched; items worked by hand before the Start keep their state.
+    for (let ii = 0; ii < t.items.length; ii++) {
+      const was = d.items[ii], cur = t.items[ii];
+      if (!was || !cur) return 'undoConflict';
+      if (was.status === 'queued' ? (cur.status !== 'queued' && cur.status !== 'displayed') : !sameTimes(cur, was)) return 'undoConflict';
+    }
+    const w = tx.ticket(ti);
+    delete w.startedAt; w.awaitStart = true;
+    const items = tx.mutIn(w, 'items');
+    for (let ii = 0; ii < items.length; ii++) { items[ii] = Object.assign({}, d.items[ii]); tx.own.add(items[ii]); }
+    return 'ok';
+  };
+  // Undo of a release: brings the ticket back and puts every item it finished back as it was (stock returns too).
+  UNDO.release = function (tx, d) {
+    const r = UNDO.bump(tx, d);
+    if (r !== 'ok') return r;
+    const w = tx.ticket(findTicketIdx(tx.get('tickets'), d.ticketId));
+    if (!d.hadReleased) delete w.released;
+    return UNDO.items(tx, { ticketId: d.ticketId, items: d.items, learned: [] });
+  };
   // Undo of a bump: only if the ticket is still bumped at that same time.
   UNDO.bump = function (tx, d) {
     const tickets = tx.get('tickets');
@@ -2493,6 +2590,7 @@
     let fs = Infinity, bd = Infinity;
     const tickets = state.tickets;
     for (const ti of activeIdx(tickets)) {
+      if (tickets[ti].awaitStart) continue;
       const items = tickets[ti].items;
       for (let i = 0; i < items.length; i++) if (items[i].status === 'queued' && items[i].fireAt < fs) fs = items[i].fireAt;
     }
@@ -2513,6 +2611,7 @@
     const tickets = s.tickets;
     for (const ti of activeIdx(tickets)) {
       const t = tickets[ti];
+      if (t.awaitStart) continue; // waiting for the Start tap: nothing fires yet
       for (let ii = 0; ii < t.items.length; ii++) {
         const it = t.items[ii];
         if (it.status === 'queued' && it.fireAt <= now) {
@@ -2563,7 +2662,7 @@
     const idx = tx.pruned ? activeIdx(tickets) : Array.from(tx.touched);
     for (const ti of idx) {
       const t = tickets[ti];
-      if (!t || t.status !== 'active') continue;
+      if (!t || t.status !== 'active' || t.awaitStart) continue;
       for (let ii = 0; ii < t.items.length; ii++) {
         const it = t.items[ii];
         if (it.status !== 'queued' || !(it.fireAt <= tx.now)) continue;
@@ -2879,8 +2978,10 @@
       const want = it.rushed || !(t.dmaxSec > 0) ? 0 : t.dmaxSec - it.prepSec;
       if (it.offsetSec !== want) add('I5 ' + it.id + ' offsetSec ' + it.offsetSec + ' != ' + want);
       if (!(it.offsetSec >= 0 && it.offsetSec <= (t.dmaxSec || 0))) add('I5 ' + it.id + ' offset outside [0, dmax]');
-      if (it.fireAt !== t.createdAt + it.offsetSec * 1000) add('I5 ' + it.id + ' fireAt != createdAt + offset');
-      if (isNum(now) && t.status === 'active' && it.status === 'queued' && it.fireAt <= now) add('I5 ' + it.id + ' due but still queued');
+      // Items re-timed by the Start tap count their plan from the start moment, not from creation.
+      const base = it.rebased && isNum(t.startedAt) ? t.startedAt : t.createdAt;
+      if (it.fireAt !== base + it.offsetSec * 1000) add('I5 ' + it.id + ' fireAt != plan start + offset');
+      if (isNum(now) && t.status === 'active' && !t.awaitStart && it.status === 'queued' && it.fireAt <= now) add('I5 ' + it.id + ' due but still queued');
       // I6
       if (C.workZones.indexOf(it.zone) < 0) add('I6 ' + it.id + ' routed to ' + it.zone);
     }

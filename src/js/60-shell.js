@@ -17,7 +17,7 @@
    * ================================================================================================================== */
   // Five stations and seven office pages; any other name in an address falls back to the floor or Pace.
   const ZONES = ['pit', 'sides', 'fry', 'cold', 'expo'];
-  const SECTIONS = ['pace', 'tickets', 'stations', 'money', 'safety', 'stock', 'data'];
+  const SECTIONS = ['quality', 'pace', 'tickets', 'stations', 'money', 'safety', 'stock', 'data'];
 
   // Turns the part of the web address after the # (the hash, like #/office/money) into a view:
   // {kind:'floor', zone} or {kind:'office', section}. Never fails: garbage lands on the whole floor.
