@@ -8,6 +8,7 @@ The shell already provides the office layer, the ignition, the PIN gate, `SB.rou
 
 | order | id | title | icon | owner |
 |---|---|---|---|---|
+| 0 | `quality` | Quality | `target` | Quality (`41-quality.js`, `86-office-quality.js`, `33-office-quality.css`): defect analysis in the Six Sigma style |
 | 1 | `pace` | Pace | `gauge` | A |
 | 2 | `tickets` | Tickets | `receipt` | A |
 | 3 | `stations` | Stations | `layers` | A |

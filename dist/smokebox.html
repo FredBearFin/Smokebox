@@ -2483,6 +2483,109 @@ html[data-cabinet="on"] .sb-shell[data-view="floor"] .toast-host { bottom: auto;
   .ox-pay-go { min-width: 0; flex: 1 1 auto; }
 }
 
+/* ===== 24-floor-call.css ===== */
+/*
+ * WHAT THIS FILE IS: Styles for the Call screen: the big "do this now" card, the smaller ticket cards under
+ * it, the step rows and the one large button. Sizes use the board's scale tokens (--fs-*, --sp-*), so the
+ * screen grows with the TV and with Large text.
+ * PARTS: screen, calm state, card, big card, step rows, buttons, tones.
+ */
+
+/* The screen: a one-line summary, the big card, then the others in a grid. */
+.cl { display: flex; flex-direction: column; gap: var(--sp-4); padding: var(--sp-4); min-height: 100%; }
+.cl-sum { font-size: var(--fs-2); font-weight: var(--w-semi); color: var(--ink2); min-height: 1.2em; }
+.cl-hero { display: block; }
+.cl-hero:empty { display: none; }
+.cl-grid { display: grid; gap: var(--sp-4); grid-template-columns: repeat(auto-fill, minmax(calc(340px * var(--fl-k, 1)), 1fr)); align-items: start; }
+
+/* Nothing to do: a big calm message instead of an empty screen. */
+.cl-calm { display: none; flex-direction: column; align-items: center; justify-content: center; gap: var(--sp-3); padding: var(--sp-10) var(--sp-4); text-align: center; color: var(--ink2); }
+.cl[data-empty="true"] .cl-calm { display: flex; }
+.cl-calm-big { margin: 0; font-family: var(--font-display); font-size: var(--fs-8); font-weight: var(--w-heavy); color: var(--ink); }
+.cl-calm-small { margin: 0; font-size: var(--fs-4); max-width: 30em; }
+
+/* A ticket card: white paper with a thick edge that shows the kind of job. */
+.cl-card { display: flex; flex-direction: column; gap: var(--sp-3); padding: var(--sp-4); background: var(--paper); color: var(--ink); border: var(--bw) solid var(--line); border-left-width: calc(10px * var(--fl-k, 1)); border-radius: var(--r-panel); box-shadow: var(--shadow); }
+.cl-card[data-phase="start"] { border-color: var(--amber); }
+.cl-card[data-phase="fire"] { border-color: var(--danger); background: var(--tint-bad); }
+.cl-card[data-phase="plate"] { border-color: var(--success); background: var(--tint-ok); }
+.cl-card[data-tone="warn"] { background: var(--tint-warn); }
+.cl-card[data-tone="late"] { border-color: var(--crimson); background: var(--tint-bad); }
+
+/* The top line: number, name, job badge, age. */
+.cl-top { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2) var(--sp-3); }
+.cl-num { font-family: var(--font-display); font-size: var(--fs-ticket); font-weight: var(--w-heavy); line-height: var(--lh-tight); }
+.cl-who { font-size: var(--fs-4); font-weight: var(--w-semi); overflow-wrap: anywhere; }
+.cl-grow { flex: 1 1 0; }
+.cl-badge, .cl-rush, .cl-tone { display: inline-flex; align-items: center; gap: var(--sp-1); padding: 2px var(--sp-2); border: var(--bw) solid currentColor; border-radius: var(--r-chip); font-size: var(--fs-2); font-weight: var(--w-bold); }
+.cl-rush { color: var(--stamp); }
+.cl-tone:empty { display: none; }
+.cl-tone { color: var(--crimson); }
+.cl-age { font-size: var(--fs-timer); font-weight: var(--w-bold); font-variant-numeric: tabular-nums; }
+.cl-more { min-width: var(--tap); min-height: var(--tap); padding: 0; }
+
+/* The instruction itself: the biggest text on the card. */
+.cl-say { margin: 0; font-family: var(--font-display); font-size: var(--fs-7); font-weight: var(--w-heavy); line-height: var(--lh-tight); overflow-wrap: anywhere; }
+.cl-hint { margin: 0; font-size: var(--fs-3); color: var(--ink2); }
+.cl-note { display: flex; gap: var(--sp-2); align-items: center; margin: 0; font-size: var(--fs-3); font-weight: var(--w-semi); }
+
+/* The big card at the top gets a much larger instruction, readable across the kitchen. */
+.cl-card.is-hero { padding: var(--sp-6); }
+.cl-card.is-hero .cl-say { font-size: var(--fs-8); }
+.cl-card.is-hero .cl-hint { font-size: var(--fs-4); }
+.cl-card.is-hero .cl-num { font-size: calc(var(--fs-ticket) * 1.5); }
+.cl-card.is-hero .cl-item { font-size: var(--fs-5); }
+
+/* One row per item: station tag, name, the step word and a time. */
+.cl-items { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--sp-1); }
+.cl-item { display: grid; grid-template-columns: auto 1fr auto auto; align-items: center; gap: var(--sp-3); padding: var(--sp-2) var(--sp-3); font-size: var(--fs-4); font-weight: var(--w-semi); background: var(--sub); border-radius: var(--r-chip); }
+.cl-item-name { overflow-wrap: anywhere; }
+.cl-zone { display: inline-flex; align-items: center; gap: var(--sp-1); font-size: var(--fs-1); font-weight: var(--w-bold); color: var(--ink2); }
+.cl-step-word { font-weight: var(--w-bold); text-transform: none; }
+.cl-step-time { min-width: 4.5em; text-align: right; font-variant-numeric: tabular-nums; color: var(--ink2); }
+.cl-item[data-step="fire"] { background: var(--danger); color: var(--on-danger); }
+.cl-item[data-step="fire"] .cl-zone, .cl-item[data-step="fire"] .cl-step-time { color: var(--on-danger); }
+.cl-item[data-step="pull"] { background: var(--success); color: var(--on-success); }
+.cl-item[data-step="pull"] .cl-zone, .cl-item[data-step="pull"] .cl-step-time { color: var(--on-success); }
+.cl-item[data-step="done"] { opacity: 0.55; }
+.cl-item[data-step="wait"] .cl-step-word { color: var(--ink3); }
+
+/* The one big button: the whole bottom of the card, far bigger than the 56 px minimum. */
+.cl-go { display: flex; align-items: center; justify-content: center; gap: var(--sp-3); width: 100%; min-height: calc(88px * var(--fl-k, 1)); font-family: var(--font-display); font-size: var(--fs-7); font-weight: var(--w-heavy); letter-spacing: 0.04em; border-radius: var(--r-btn); }
+.cl-go[data-act="start"] { --b-bg: var(--primary); --b-fg: var(--on-primary); --b-edge: var(--primary-edge); --b-lift: 5px; }
+.cl-go[data-act="release"] { --b-bg: var(--success); --b-fg: var(--on-success); --b-edge: var(--success-edge); --b-lift: 5px; }
+.cl-card.is-hero .cl-go { min-height: calc(120px * var(--fl-k, 1)); font-size: var(--fs-8); }
+
+/* A job that needs doing right now pulses its edge; reduced motion keeps it still. */
+@media (prefers-reduced-motion: no-preference) {
+  .cl-card[data-phase="fire"], .cl-card[data-phase="plate"], .cl-card[data-tone="late"] { animation: cl-pulse 1.4s ease-in-out infinite; }
+  @keyframes cl-pulse { 50% { box-shadow: 0 0 0 calc(6px * var(--fl-k, 1)) rgba(155, 44, 44, 0.35); } }
+}
+
+/* A ticket that has not started shows its items as a compact row of chips, so the Start button stays on screen. */
+.cl-card[data-phase="start"] .cl-items { flex-direction: row; flex-wrap: wrap; gap: var(--sp-2); }
+.cl-card[data-phase="start"] .cl-item { grid-template-columns: auto auto; padding: var(--sp-1) var(--sp-3); }
+.cl-card[data-phase="start"] .cl-step-word, .cl-card[data-phase="start"] .cl-step-time { display: none; }
+
+/* On a wide screen the big card puts the big button on its right, so nothing important falls below the fold. */
+@media (min-width: 860px) {
+  .cl-card.is-hero[data-go="true"] { display: grid; grid-template-columns: minmax(0, 1fr) minmax(calc(220px * var(--fl-k, 1)), 30%); grid-template-areas: "top top" "say go" "hint go" "items go" "note go"; column-gap: var(--sp-6); }
+  .cl-card.is-hero .cl-top { grid-area: top; }
+  .cl-card.is-hero .cl-say { grid-area: say; }
+  .cl-card.is-hero .cl-hint { grid-area: hint; }
+  .cl-card.is-hero .cl-items { grid-area: items; }
+  .cl-card.is-hero .cl-note { grid-area: note; }
+  .cl-card.is-hero .cl-go { grid-area: go; align-self: stretch; flex-direction: column; min-height: 0; }
+}
+
+/* On the Call screen the warning strip stays, but shrinks: one line of reason, and only the top row on short screens. */
+.fl[data-call="on"] .fl-strip-why { -webkit-line-clamp: 1; }
+@media (max-height: 900px) { .fl[data-call="on"] .fl-strip-row[data-i="1"], .fl[data-call="on"] .fl-strip-row[data-i="2"] { display: none; } }
+
+/* Small cards: the customer name drops to its own line so the number, badge, timer and menu button fit. */
+.cl-card:not(.is-hero) .cl-who { order: 5; flex-basis: 100%; }
+.cl-card:not(.is-hero) .cl-say { font-size: var(--fs-6); }
+
 /* ===== 30-office.css ===== */
 /*
  * WHAT THIS FILE IS: Styles for the back office frame and kit: rail, title row, sticky filters, banner,
@@ -3210,6 +3313,50 @@ a.of-nav:active { background: var(--press); }
   .od-panel, .od-card, .od-safetyline, .od-warn, .od-warnline, .od-toc-link, .od-archived, .od-pinstate { border-color: CanvasText; }
   .od-toc-link[aria-current="location"] { outline: 2px solid Highlight; }
 }
+
+/* ===== 33-office-quality.css ===== */
+/*
+ * WHAT THIS FILE IS: Styles for the Quality back-office page: the score tiles, the SVG charts (bars, control
+ * charts, histogram) and the cause list. Colours come from the office tokens, so day and night looks both work.
+ * PARTS: tiles, notes, charts, causes.
+ */
+
+/* The row of score tiles at the top of a panel. */
+.qc-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; margin-bottom: 8px; }
+.qc-tile { display: flex; flex-direction: column; gap: 2px; padding: 12px 14px; background: var(--sub); border: 2px solid var(--line); border-radius: 6px; }
+.qc-tile[data-tone="good"] { border-color: var(--sage); }
+.qc-tile[data-tone="warn"] { border-color: var(--amber); }
+.qc-tile[data-tone="bad"] { border-color: var(--crimson); }
+.qc-tile-l { font-size: 14px; font-weight: 600; color: var(--ink2); }
+.qc-tile-v { font-family: var(--font-display); font-size: 40px; font-weight: 800; line-height: 1.05; color: var(--ink); }
+.qc-tile-s { font-size: 14px; color: var(--ink2); }
+.qc-note { margin: 8px 0 0; font-size: 15px; color: var(--ink2); max-width: 70ch; }
+
+/* The SVG charts: scale with the card, text drawn in the page font. */
+.qc-svg { width: 100%; height: auto; display: block; font-family: var(--font-body); }
+.qc-grid { stroke: var(--line-soft); stroke-width: 1; }
+.qc-axis { font-size: 12px; fill: var(--ink2); }
+.qc-val { font-size: 13px; font-weight: 700; fill: var(--ink); }
+.qc-bar { fill: var(--amber); }
+.qc-bar[data-process="cabinet"] { fill: var(--z-cold); }
+.qc-bar--late { fill: var(--crimson); }
+.qc-cum { fill: none; stroke: var(--ink); stroke-width: 2.5; }
+.qc-cum-dot { fill: var(--paper); stroke: var(--ink); stroke-width: 2.5; }
+.qc-path { fill: none; stroke: var(--ink2); stroke-width: 2; }
+.qc-dot { fill: var(--ink); }
+.qc-dot--out { fill: var(--crimson); stroke: var(--paper); stroke-width: 2; }
+.qc-flag { font-size: 12px; font-weight: 800; fill: var(--crimson); }
+.qc-centre { stroke: var(--sage); stroke-width: 2; }
+.qc-ucl, .qc-lcl { stroke: var(--crimson); stroke-width: 2; stroke-dasharray: 8 5; }
+.qc-lim { font-size: 12px; font-weight: 600; fill: var(--ink2); }
+
+/* Why tickets ran late: a label, a bar and a count per cause. */
+.qc-causes { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.qc-causes li { display: grid; grid-template-columns: 1fr auto; gap: 4px 10px; align-items: center; }
+.qc-cause-l { font-weight: 600; }
+.qc-cause-n { font-variant-numeric: tabular-nums; color: var(--ink2); }
+.qc-cause-bar { grid-column: 1 / -1; height: 10px; background: var(--sub); border-radius: 5px; overflow: hidden; }
+.qc-cause-bar > span { display: block; height: 100%; background: var(--amber); }
 
 /* ===== 40-charts.css ===== */
 /*
@@ -4347,7 +4494,7 @@ a.of-nav:active { background: var(--press); }
     'ticketNotExpedited', 'notAllDone', 'alreadyDone', 'alreadyFired', 'notQueued', 'nothingToDo', 'reasonRequired', 'badTemp',
     'tempTooLow', 'notReheatable', 'notEnoughData', 'batchNotServable', 'badWeight', 'badPatch', 'outOfBounds', 'undoExpired',
     'undoNothing', 'undoConflict', 'invalidBackup', 'exportTooLarge', 'storageBlocked', 'unknownOrder', 'orderNotOpen', 'orderNotPaid', 'orderEmpty',
-    'orderNotEmpty', 'badPayment', 'qualityNotDue', 'tempReadingNeeded', 'whoRequired', 'badUntil', 'badPlanTime', 'unknownPlan', 'badSnooze'];
+    'orderNotEmpty', 'badPayment', 'qualityNotDue', 'tempReadingNeeded', 'whoRequired', 'badUntil', 'badPlanTime', 'unknownPlan', 'badSnooze', 'notStarted', 'alreadyStarted'];
 
   // Added to every safety message: the reminder that the local health code overrides this app.
   const SAFETY = ' ' + C.safetyLine;
@@ -4402,6 +4549,8 @@ a.of-nav:active { background: var(--press); }
     badUntil: 'Pick a time later than now, or choose 30 minutes or 1 hour.',
     badPlanTime: 'Pick a time when the batch comes off the smoker: within the next day and a half, and not already past its serving time.',
     unknownPlan: 'That planned batch is gone. It may have been used, cancelled or expired.',
+    notStarted: 'Start this ticket first, then release it when the food is ready.',
+    alreadyStarted: 'This ticket was already started.',
     badSnooze: 'A reminder can be put off for 1 to 30 minutes, only for a batch still on the menu, and never past 5 minutes before its last warning. The last warning, a past-quality batch and a thrown-out batch cannot be put off.',
   };
 
@@ -4410,7 +4559,7 @@ a.of-nav:active { background: var(--press); }
   // the docs.
   // audit:data-start
   const ACTIONS = {
-    createTicket: '{ customer?, channel?, orderId?, pay?:{ method, tip?, discount? }, items:[{ menuId, qty?=1, mods?:string[] }], note?, rush?, src?:"live"|"demo"|"sample", createdAt?, allowPast? }',
+    createTicket: '{ customer?, channel?, orderId?, pay?:{ method, tip?, discount? }, items:[{ menuId, qty?=1, mods?:string[] }], note?, rush?, src?:"live"|"demo"|"sample", createdAt?, allowPast?, awaitStart?:true }',
     payOrder: '{ orderId, method:"cash"|"card"|"other", tip?, discount? }',
     reopenOrder: '{ orderId }',
     voidOrder: '{ orderId, reason }',
@@ -4418,6 +4567,8 @@ a.of-nav:active { background: var(--press); }
     completeItem: '{ ticketId, itemId }',
     fireNow: '{ ticketId, itemId, start?:true }',
     completeZone: '{ ticketId, zone }',
+    startTicket: '{ ticketId }',
+    releaseTicket: '{ ticketId }',
     bumpTicket: '{ ticketId, force?:true }',
     recallTicket: '{ ticketId }',
     voidTicket: '{ ticketId, reason }',
@@ -4447,7 +4598,7 @@ a.of-nav:active { background: var(--press); }
   };
   // audit:data-end
   // The actions that can be undone inside the undo window.
-  const UNDOABLE = ['advanceItem', 'completeItem', 'completeZone', 'bumpTicket', 'voidTicket', 'toggle86', 'fireNow', 'pullBatch', 'discardBatch', 'sanitizeDone', 'planBatch', 'cancelPlan', 'snoozeAlert', 'clearSnooze'];
+  const UNDOABLE = ['startTicket', 'releaseTicket', 'advanceItem', 'completeItem', 'completeZone', 'bumpTicket', 'voidTicket', 'toggle86', 'fireNow', 'pullBatch', 'discardBatch', 'sanitizeDone', 'planBatch', 'cancelPlan', 'snoozeAlert', 'clearSnooze'];
 
   // Time units in milliseconds: H is one hour, MIN is one minute.
   const H = 3600e3, MIN = 60e3;
@@ -5514,6 +5665,8 @@ a.of-nav:active { background: var(--press); }
     }
     order.rounds = (isInt(order.rounds) ? order.rounds : 0) + 1;
     const ticket = { id, num, serviceDate: sd, customer, channel, createdAt, rush, note, src, pacing: !!P.enabled, dmaxSec: dmax, status: 'active', recalls: 0, orderId: order.id, round: order.rounds, items };
+    // Two-tap kitchens: the ticket waits for the cook's Start tap, and the plan clock begins then (see startTicket).
+    if (p.awaitStart === true) ticket.awaitStart = true;
     tx.own.add(ticket);
     const tickets = tx.mut('tickets');
     tickets.push(ticket);
@@ -5523,7 +5676,7 @@ a.of-nav:active { background: var(--press); }
     for (const it of items) { qtyTotal += it.qty; value += it.qty * it.price; }
     tx.event('ticket_created', { ticketId: id, num, channel, items: items.length, qty: qtyTotal, rush, src, value: round(value, 2), orderId: order.id, round: order.rounds });
     for (const it of items) {
-      if (it.fireAt <= now) {
+      if (it.fireAt <= now && !ticket.awaitStart) {
         it.status = 'displayed'; it.firedAt = it.fireAt;
         tx.event('item_fired', { ticketId: id, itemId: it.id, zone: it.zone, menuId: it.menuId, at: it.firedAt });
       }
@@ -5755,6 +5908,69 @@ a.of-nav:active { background: var(--press); }
     return 'ok';
   };
 
+  // The cook's first tap on a ticket. The pacing clock starts now: every item is re-timed so the slowest one
+  // fires at this moment and the rest follow their usual offsets, so the whole ticket still finishes together.
+  // Refuses a ticket that is not waiting for its start (alreadyStarted).
+  A.startTicket = function (tx, p) {
+    const tickets = tx.get('tickets');
+    const ti = findTicketIdx(tickets, p.ticketId);
+    if (ti < 0) return 'unknownTicket';
+    const t = tickets[ti];
+    if (t.status !== 'active') return 'ticketNotActive';
+    if (!t.awaitStart) return 'alreadyStarted';
+    const start = stampAfter(t.createdAt, tx.now);
+    const before = t.items.map((it) => Object.assign({}, it));
+    const w = tx.ticket(ti);
+    delete w.awaitStart; w.startedAt = start;
+    let fired = 0;
+    for (let ii = 0; ii < t.items.length; ii++) {
+      const it = t.items[ii];
+      if (it.status !== 'queued') continue; // already worked by hand (fire now): its times stay as they are
+      const wi = tx.item(ti, ii);
+      wi.rebased = true; wi.fireAt = start + it.offsetSec * 1000;
+      if (wi.fireAt <= start) {
+        wi.status = 'displayed'; wi.firedAt = wi.fireAt; fired++;
+        tx.event('item_fired', { ticketId: t.id, itemId: it.id, zone: it.zone, menuId: it.menuId, at: wi.firedAt });
+      }
+    }
+    tx.event('ticket_started', { ticketId: t.id, lagMs: start - t.createdAt, fired });
+    pushUndo(tx, 'start', 'Ticket #' + t.num + ' started', { ticketId: t.id, startedAt: start, items: before });
+    tx.info = { ticketId: t.id, num: t.num, fired, lagMs: start - t.createdAt };
+    return 'ok';
+  };
+
+  // The cook's last tap: the plate is ready and leaves the pass. Every item not yet done is finished and the
+  // ticket is bumped in one step. Items finished this way do not teach the app prep times (their stamp is the
+  // release tap, not a real finish). Refuses a ticket still waiting for its start (notStarted).
+  A.releaseTicket = function (tx, p) {
+    const tickets = tx.get('tickets');
+    const ti = findTicketIdx(tickets, p.ticketId);
+    if (ti < 0) return 'unknownTicket';
+    const t = tickets[ti];
+    if (t.status !== 'active') return 'ticketNotActive';
+    if (t.awaitStart) return 'notStarted';
+    const lb = new Map();
+    const recs = [];
+    for (let ii = 0; ii < t.items.length; ii++) {
+      if (t.items[ii].status === 'done') continue;
+      recs.push(completeInto(tx, ti, ii, lb, { noLearn: true }));
+      tx.item(ti, ii).released = true;
+    }
+    const cur = tx.get('tickets')[ti];
+    let exp = stampAfter(cur.createdAt, tx.now);
+    for (const it of cur.items) {
+      for (const k of ['doneAt', 'startedAt', 'firedAt']) if (isNum(it[k]) && it[k] > exp) exp = it[k];
+    }
+    const w = tx.ticket(ti);
+    w.status = 'expedited'; w.expeditedAt = exp; w.released = true; delete w.forced;
+    const readyAt = isNum(t.startedAt) ? t.startedAt + (t.dmaxSec || 0) * 1000 : null;
+    tx.event('ticket_expedited', { ticketId: t.id, totalMs: exp - t.createdAt, forced: false, released: true });
+    tx.event('ticket_released', { ticketId: t.id, totalMs: exp - t.createdAt, startLagMs: isNum(t.startedAt) ? t.startedAt - t.createdAt : null, cookMs: isNum(t.startedAt) ? exp - t.startedAt : null, afterReadyMs: readyAt === null ? null : exp - readyAt });
+    pushUndo(tx, 'release', 'Ticket #' + t.num + ' released', { ticketId: t.id, expeditedAt: exp, items: recs, hadReleased: t.released === true });
+    tx.info = { ticketId: t.id, num: t.num, finished: recs.length };
+    return 'ok';
+  };
+
   // Sends the ticket out. All items must be done unless force is true, which marks the ticket forced.
   // expeditedAt is never earlier than any item time (I4).
   A.bumpTicket = function (tx, p) {
@@ -5837,6 +6053,7 @@ a.of-nav:active { background: var(--press); }
         if (it.status !== 'queued') continue;
         const wi = tx.item(ti, ii);
         wi.offsetSec = 0; wi.fireAt = t.createdAt; wi.rushed = true; /*@I5b*/
+        if (it.rebased && isNum(t.startedAt)) wi.fireAt = t.startedAt; // a started ticket counts its plan from the Start tap
         wi.status = 'displayed'; wi.firedAt = stampAfter(t.createdAt, tx.now);
         fired++;
         tx.event('item_fired', { ticketId: t.id, itemId: it.id, zone: it.zone, menuId: it.menuId, rush: true, at: wi.firedAt });
@@ -6642,6 +6859,33 @@ a.of-nav:active { background: var(--press); }
     if (partial) tx.info.partial = true;
     return 'ok';
   };
+  // Undo of a Start tap: puts the ticket back to waiting, with its items as they were, if nothing has been done on it since.
+  UNDO.start = function (tx, d) {
+    const tickets = tx.get('tickets');
+    const ti = findTicketIdx(tickets, d.ticketId);
+    if (ti < 0) return 'undoConflict';
+    const t = tickets[ti];
+    if (t.status !== 'active' || t.startedAt !== d.startedAt) return 'undoConflict';
+    // Only items the Start tap re-timed must still be untouched; items worked by hand before the Start keep their state.
+    for (let ii = 0; ii < t.items.length; ii++) {
+      const was = d.items[ii], cur = t.items[ii];
+      if (!was || !cur) return 'undoConflict';
+      if (was.status === 'queued' ? (cur.status !== 'queued' && cur.status !== 'displayed') : !sameTimes(cur, was)) return 'undoConflict';
+    }
+    const w = tx.ticket(ti);
+    delete w.startedAt; w.awaitStart = true;
+    const items = tx.mutIn(w, 'items');
+    for (let ii = 0; ii < items.length; ii++) { items[ii] = Object.assign({}, d.items[ii]); tx.own.add(items[ii]); }
+    return 'ok';
+  };
+  // Undo of a release: brings the ticket back and puts every item it finished back as it was (stock returns too).
+  UNDO.release = function (tx, d) {
+    const r = UNDO.bump(tx, d);
+    if (r !== 'ok') return r;
+    const w = tx.ticket(findTicketIdx(tx.get('tickets'), d.ticketId));
+    if (!d.hadReleased) delete w.released;
+    return UNDO.items(tx, { ticketId: d.ticketId, items: d.items, learned: [] });
+  };
   // Undo of a bump: only if the ticket is still bumped at that same time.
   UNDO.bump = function (tx, d) {
     const tickets = tx.get('tickets');
@@ -6786,6 +7030,7 @@ a.of-nav:active { background: var(--press); }
     let fs = Infinity, bd = Infinity;
     const tickets = state.tickets;
     for (const ti of activeIdx(tickets)) {
+      if (tickets[ti].awaitStart) continue;
       const items = tickets[ti].items;
       for (let i = 0; i < items.length; i++) if (items[i].status === 'queued' && items[i].fireAt < fs) fs = items[i].fireAt;
     }
@@ -6806,6 +7051,7 @@ a.of-nav:active { background: var(--press); }
     const tickets = s.tickets;
     for (const ti of activeIdx(tickets)) {
       const t = tickets[ti];
+      if (t.awaitStart) continue; // waiting for the Start tap: nothing fires yet
       for (let ii = 0; ii < t.items.length; ii++) {
         const it = t.items[ii];
         if (it.status === 'queued' && it.fireAt <= now) {
@@ -6856,7 +7102,7 @@ a.of-nav:active { background: var(--press); }
     const idx = tx.pruned ? activeIdx(tickets) : Array.from(tx.touched);
     for (const ti of idx) {
       const t = tickets[ti];
-      if (!t || t.status !== 'active') continue;
+      if (!t || t.status !== 'active' || t.awaitStart) continue;
       for (let ii = 0; ii < t.items.length; ii++) {
         const it = t.items[ii];
         if (it.status !== 'queued' || !(it.fireAt <= tx.now)) continue;
@@ -7172,8 +7418,10 @@ a.of-nav:active { background: var(--press); }
       const want = it.rushed || !(t.dmaxSec > 0) ? 0 : t.dmaxSec - it.prepSec;
       if (it.offsetSec !== want) add('I5 ' + it.id + ' offsetSec ' + it.offsetSec + ' != ' + want);
       if (!(it.offsetSec >= 0 && it.offsetSec <= (t.dmaxSec || 0))) add('I5 ' + it.id + ' offset outside [0, dmax]');
-      if (it.fireAt !== t.createdAt + it.offsetSec * 1000) add('I5 ' + it.id + ' fireAt != createdAt + offset');
-      if (isNum(now) && t.status === 'active' && it.status === 'queued' && it.fireAt <= now) add('I5 ' + it.id + ' due but still queued');
+      // Items re-timed by the Start tap count their plan from the start moment, not from creation.
+      const base = it.rebased && isNum(t.startedAt) ? t.startedAt : t.createdAt;
+      if (it.fireAt !== base + it.offsetSec * 1000) add('I5 ' + it.id + ' fireAt != plan start + offset');
+      if (isNum(now) && t.status === 'active' && !t.awaitStart && it.status === 'queued' && it.fireAt <= now) add('I5 ' + it.id + ' due but still queued');
       // I6
       if (C.workZones.indexOf(it.zone) < 0) add('I6 ' + it.id + ' routed to ' + it.zone);
     }
@@ -8191,6 +8439,111 @@ a.of-nav:active { background: var(--press); }
 })(typeof globalThis !== 'undefined' ? globalThis : window);
 
 }catch(e){console.error('[smokebox] module 25-deadlines.js failed to load:',e);window.__sbLoadErrors=(window.__sbLoadErrors||[]);window.__sbLoadErrors.push({file:'25-deadlines.js',message:String(e&&e.message||e)});}
+
+/* ===== 26-coach.js ===== */
+;try{
+/*
+ * WHAT THIS FILE IS: The coach (SB.coach). It reads the open tickets and the clock and turns them into plain
+ *    orders for the cook: start this ticket, put this on now, plate this and release it. It changes nothing.
+ * PARTS: wording (verbs, times), one item's step, one ticket's card, the sorted list for the Call screen.
+ * USES: 00-util.js, 10-config.js, 20-engine.js. USED BY: the Call screen (75-floor-caller.js) and its tests.
+ */
+(function (g) {
+  'use strict';
+  const SB = (g.SB = g.SB || {});
+  const U = SB.util, C = SB.config;
+  // The engine, looked up each time so tests can swap it.
+  const E = () => SB.engine;
+  // How long an item shows "do it now" (30 seconds) before it counts as cooking.
+  const NOW_WINDOW_MS = 30e3;
+  // Lower rank is more urgent: a plate waiting for release, an item to put on, a ticket to start, then the rest.
+  const RANK = { plate: 0, fire: 1, start: 2, run: 3 };
+
+  // What the cook does with a dish, as a sentence with the dish name filled in. By dish where it matters, by
+  // station otherwise. Starter wording.
+  // audit:data-start
+  const SAY = {
+    fry: 'Drop {n} in the fryer', heat: 'Heat up {n}', scoop: 'Scoop {n}', pour: 'Pour {n}', warm: 'Warm up {n}',
+    slice: 'Slice {n}', rack: 'Slice the {n}', grill: 'Grill {n}', make: 'Make {n}',
+  };
+  const SAY_BY_MENU = {
+    hushpuppies: 'fry', fried_pickles: 'fry', cornbread: 'warm', tea: 'pour', mac: 'heat', mac_lg: 'heat', beans: 'heat',
+    slaw: 'scoop', potato: 'scoop', pudding: 'scoop', ribs_half: 'rack', ribs_full: 'rack', sausage: 'grill',
+  };
+  const SAY_BY_ZONE = { pit: 'slice', sides: 'heat', fry: 'fry', cold: 'scoop' };
+  // audit:data-end
+
+  // Minutes and seconds as 2:05, never negative.
+  const mmss = (ms) => { const s = Math.max(0, Math.ceil(ms / 1000)); return Math.floor(s / 60) + ':' + U.pad2(s % 60); };
+
+  // The imperative sentence for one item, like "Drop 2 x Hush puppies in the fryer".
+  function sayItem(it) {
+    const how = SAY[SAY_BY_MENU[it.menuId] || SAY_BY_ZONE[it.zone] || 'make'];
+    return how.replace('{n}', (it.qty > 1 ? it.qty + ' x ' : '') + (it.short || it.name));
+  }
+
+  // Works out where one item is in the plan. step: wait (not yet), fire (do it now), cook (in progress),
+  // pull (ready, waiting to be plated), done. Times are milliseconds.
+  function stepOf(it, now) {
+    const row = { id: it.id, menuId: it.menuId, zone: it.zone, qty: it.qty, name: it.short || it.name, text: sayItem(it), step: 'wait', inMs: 0, leftMs: 0, overMs: 0 };
+    if (it.status === 'done') { row.step = 'done'; return row; }
+    const endAt = it.fireAt + it.prepSec * 1000;
+    if (now < it.fireAt) { row.step = 'wait'; row.inMs = it.fireAt - now; } else if (now < it.fireAt + NOW_WINDOW_MS) {
+      row.step = 'fire'; row.leftMs = Math.max(0, endAt - now);
+    } else if (now < endAt) { row.step = 'cook'; row.leftMs = endAt - now; } else { row.step = 'pull'; row.overMs = now - endAt; }
+    return row;
+  }
+
+  // Builds the card for one open ticket: its items' steps, the one sentence to show big, and the one button.
+  function cardFor(t, state, now) {
+    const th = E().channelThresholds(state.settings, t.channel);
+    const ageMs = now - t.createdAt;
+    const tone = ageMs >= th.breachSec * 1000 ? 'late' : ageMs >= th.warnSec * 1000 ? 'warn' : 'ok';
+    const base = { id: t.id, num: t.num, customer: t.customer, channel: t.channel, rush: !!t.rush, note: t.note || '', ageMs, tone, items: [] };
+    // A ticket still waiting for the Start tap shows its items as a plain list, with no times.
+    if (t.awaitStart) {
+      base.items = t.items.map((it) => ({ id: it.id, menuId: it.menuId, zone: it.zone, qty: it.qty, name: it.short || it.name, text: sayItem(it), step: 'wait', inMs: 0, leftMs: 0, overMs: 0 }));
+      return Object.assign(base, { phase: 'start', headline: 'Start ticket ' + t.num, hint: 'Tap START and the app calls every step.', action: { type: 'start', label: 'Start' }, voice: 'New ticket ' + t.num + '. Tap start.' });
+    }
+    base.items = t.items.map((it) => stepOf(it, now));
+    const startAt = U.isNum(t.startedAt) ? t.startedAt : t.createdAt;
+    const readyAt = startAt + (t.dmaxSec || 0) * 1000;
+    const open = base.items.filter((r) => r.step !== 'done');
+    const firing = open.filter((r) => r.step === 'fire');
+    const allReady = open.every((r) => r.step === 'pull');
+    const release = { type: 'release', label: 'Release' };
+    // Everything is ready (or the plan time passed): plate it and tap Release.
+    if (!open.length || allReady || now >= readyAt + 1000) {
+      return Object.assign(base, { phase: 'plate', readyAt, overMs: Math.max(0, now - readyAt), headline: 'Plate ticket ' + t.num, hint: 'Check every item is on the plate, then tap RELEASE.', action: release, voice: 'Ticket ' + t.num + ' is ready. Plate it and release.' });
+    }
+    if (firing.length) {
+      const first = firing[0];
+      return Object.assign(base, { phase: 'fire', readyAt, headline: first.text, hint: firing.length > 1 ? 'Also now: ' + firing.slice(1).map((r) => r.name).join(', ') : 'Ticket ' + t.num + ' is on its way. Nothing to tap.', action: null, voice: 'Ticket ' + t.num + '. ' + first.text });
+    }
+    // Cooking: the next thing to do, or just the countdown to ready.
+    const waiting = open.filter((r) => r.step === 'wait').sort((a, b) => a.inMs - b.inMs);
+    const nextRow = waiting[0];
+    const headline = nextRow ? 'In ' + mmss(nextRow.inMs) + ': ' + nextRow.text : 'Ready in ' + mmss(readyAt - now);
+    return Object.assign(base, { phase: 'run', readyAt, headline, hint: 'Ready in ' + mmss(readyAt - now) + '. Nothing to tap yet.', action: null, nextInMs: nextRow ? nextRow.inMs : null });
+  }
+
+  // The whole Call screen's data: every open ticket as a card, most urgent first, with counts.
+  // WATCH OUT: late tickets jump the queue whatever their phase, so a forgotten ticket cannot hide at the bottom.
+  function read(state, now) {
+    const cards = [];
+    for (const t of state.tickets) if (t.status === 'active') cards.push(cardFor(t, state, now));
+    // Sort key: late tickets first, then by kind of job (see RANK).
+    const key = (c) => (c.tone === 'late' ? 0 : 10) + RANK[c.phase];
+    cards.sort((a, b) => key(a) - key(b) || (b.rush ? 1 : 0) - (a.rush ? 1 : 0) || a.num - b.num);
+    const counts = { start: 0, fire: 0, plate: 0, run: 0, late: 0 };
+    for (const c of cards) { counts[c.phase]++; if (c.tone === 'late') counts.late++; }
+    return { cards, counts, now };
+  }
+
+  SB.coach = { read, cardFor, stepOf, sayItem, mmss, NOW_WINDOW_MS };
+})(typeof globalThis !== 'undefined' ? globalThis : window);
+
+}catch(e){console.error('[smokebox] module 26-coach.js failed to load:',e);window.__sbLoadErrors=(window.__sbLoadErrors||[]);window.__sbLoadErrors.push({file:'26-coach.js',message:String(e&&e.message||e)});}
 
 /* ===== 30-store.js ===== */
 ;try{
@@ -10716,6 +11069,262 @@ a.of-nav:active { background: var(--press); }
 
 }catch(e){console.error('[smokebox] module 40-metrics.js failed to load:',e);window.__sbLoadErrors=(window.__sbLoadErrors||[]);window.__sbLoadErrors.push({file:'40-metrics.js',message:String(e&&e.message||e)});}
 
+/* ===== 41-quality.js ===== */
+;try{
+/*
+ * WHAT THIS FILE IS: The defect analysis (SB.quality) behind the back office Quality page. It counts what went
+ *    wrong on tickets and in the hold cabinet, then works out defects per million, sigma level, a Pareto,
+ *    control-chart limits, process capability and the likely cause of each late ticket. Pure functions of the
+ *    data handed in: no page, no clock.
+ * PARTS: defect definitions, sigma maths, ticket defects, hold-cabinet defects, daily control charts, capability,
+ *    the final report.
+ * USES: 00-util.js, 10-config.js. USED BY: 86-office-quality.js and the tests.
+ */
+(function (g) {
+  'use strict';
+  const SB = (g.SB = g.SB || {});
+  const U = SB.util, C = SB.config;
+  // True only for a real, finite number.
+  const isNum = (n) => typeof n === 'number' && isFinite(n);
+  const SEC = 1000;
+  // Targets the defects are judged against (starter estimates, owner to confirm): a cook should tap Start within
+  // 60 s of a ticket arriving, and a finished plate should leave within 90 s of its planned ready time.
+  const TARGETS = { startLagSec: 60, plateWaitSec: 90, earlyReleaseSec: 60 };
+  // The wording and meaning of each defect. process: which flow it belongs to. measuredBy: what data it needs.
+  // audit:data-start
+  const DEFECTS = [
+    { id: 'late', process: 'ticket', label: 'Ticket was late', how: 'Order to release took longer than the overdue time for its channel.' },
+    { id: 'lateStart', process: 'ticket', label: 'Started late', how: 'The cook tapped Start more than ' + TARGETS.startLagSec + ' seconds after the ticket arrived.' },
+    { id: 'plateWait', process: 'ticket', label: 'Plate waited for release', how: 'The plate sat more than ' + TARGETS.plateWaitSec + ' seconds after the app said it was ready.' },
+    { id: 'early', process: 'ticket', label: 'Released too early', how: 'Released more than ' + TARGETS.earlyReleaseSec + ' seconds before the app said it was ready.' },
+    { id: 'forced', process: 'ticket', label: 'Sent out incomplete', how: 'Bumped with items not marked done.' },
+    { id: 'recalled', process: 'ticket', label: 'Recalled', how: 'The ticket came back to the board after it went out.' },
+    { id: 'voided', process: 'ticket', label: 'Voided', how: 'The ticket was cancelled.' },
+    { id: 'short', process: 'ticket', label: 'Ran out of an item', how: 'An item was made with less stock than it needed.' },
+    { id: 'discard', process: 'cabinet', label: 'Batch thrown away', how: 'A batch was discarded with food still in it.' },
+    { id: 'lateTemp', process: 'cabinet', label: 'Temperature check late', how: 'A hold-cabinet reading was logged after it was due.' },
+  ];
+  // audit:data-end
+  const DEFECT_BY_ID = {};
+  for (const d of DEFECTS) DEFECT_BY_ID[d.id] = d;
+
+  // Sigma level from defects per million opportunities, with the usual 1.5 sigma shift. No defects gives 6 (a
+  // floor, not a proof); a rate at or above 933 193 gives 0.
+  function sigmaOf(dpmo) {
+    if (!isNum(dpmo)) return null;
+    if (dpmo <= 0) return 6;
+    if (dpmo >= 933193) return 0;
+    return Math.max(0, Math.min(6, 0.8406 + Math.sqrt(29.37 - 2.221 * Math.log(dpmo))));
+  }
+
+  // Mean and sample standard deviation of a list of numbers; sd is null for fewer than two values.
+  function meanSd(xs) {
+    const n = xs.length;
+    if (!n) return { n: 0, mean: null, sd: null };
+    let s = 0;
+    for (const x of xs) s += x;
+    const mean = s / n;
+    if (n < 2) return { n, mean, sd: null };
+    let v = 0;
+    for (const x of xs) v += (x - mean) * (x - mean);
+    return { n, mean, sd: Math.sqrt(v / (n - 1)) };
+  }
+
+  // The overdue time in seconds for a channel, from the settings when the owner changed it, else the starter list.
+  function breachSec(settings, channel) {
+    const own = settings && Array.isArray(settings.channels) ? settings.channels.find((c) => c && c.id === channel) : null;
+    if (own && isNum(own.breachSec)) return own.breachSec;
+    const base = (C.channels || []).find((c) => c.id === channel);
+    return base ? base.breachSec : 780;
+  }
+
+  // The planned ready time of a two-tap ticket: its Start moment plus the longest planned item.
+  const readyAtOf = (t) => (isNum(t.startedAt) ? t.startedAt + (t.dmaxSec || 0) * SEC : null);
+
+  // Reads one finished or voided ticket and says which defects it has and which it could have had.
+  // Returns { defects: [ids], measured: [ids], cause, totalMs }. A defect type that cannot be judged for this
+  // ticket (no Start tap, no stock event) is left out of measured, so it is not counted as a clean pass.
+  function judgeTicket(t, ctx) {
+    const out = { defects: [], measured: [], cause: null, totalMs: null };
+    // Records that a defect type was judged for this ticket, and whether the ticket failed it.
+    const add = (id, bad) => { out.measured.push(id); if (bad) out.defects.push(id); };
+    if (t.status === 'voided') { out.measured.push('voided'); out.defects.push('voided'); return out; }
+    if (t.status !== 'expedited' || !isNum(t.expeditedAt)) return null;
+    const totalMs = t.expeditedAt - t.createdAt;
+    out.totalMs = totalMs;
+    const limit = breachSec(ctx.settings, t.channel) * SEC;
+    add('late', totalMs > limit);
+    add('voided', false);
+    add('recalled', (t.recalls || 0) > 0);
+    add('forced', t.forced === true);
+    add('short', ctx.shortTickets.has(t.id));
+    if (isNum(t.startedAt)) {
+      add('lateStart', t.startedAt - t.createdAt > TARGETS.startLagSec * SEC);
+      const readyAt = readyAtOf(t);
+      if (readyAt !== null && t.released === true) {
+        add('plateWait', t.expeditedAt - readyAt > TARGETS.plateWaitSec * SEC);
+        add('early', readyAt - t.expeditedAt > TARGETS.earlyReleaseSec * SEC);
+      }
+    }
+    if (out.defects.indexOf('late') >= 0) out.cause = causeOf(t, out.defects, limit);
+    return out;
+  }
+
+  // The most likely reason a ticket ran late, from what was recorded. Order matters: the first rule that fits wins.
+  // Returns { id, label }.
+  function causeOf(t, defects, limitMs) {
+    const has = (id) => defects.indexOf(id) >= 0;
+    if (has('short')) return { id: 'stock', label: 'Ran out of an item' };
+    if (has('lateStart')) return { id: 'start', label: 'Nobody started it in time' };
+    if (has('plateWait')) return { id: 'plate', label: 'Plate waited to be released' };
+    if (t.dmaxSec > 0 && t.dmaxSec * SEC > limitMs * 0.9) return { id: 'plan', label: 'The plan itself is near the limit' };
+    // Classic tickets: blame the station whose item finished last.
+    let last = null;
+    for (const it of t.items || []) if (isNum(it.doneAt) && (!last || it.doneAt > last.doneAt)) last = it;
+    if (last && C.zoneById && C.zoneById[last.zone]) return { id: 'zone:' + last.zone, label: 'Slowest station: ' + C.zoneById[last.zone].name };
+    return { id: 'unknown', label: 'No cause recorded' };
+  }
+
+  // Rolls a list of judged units up into per-type counts and the totals: defects, opportunities, DPMO, sigma.
+  function rollUp(units, types) {
+    const rows = types.map((d) => ({ id: d.id, label: d.label, how: d.how, process: d.process, defects: 0, opps: 0 }));
+    const byId = {};
+    for (const r of rows) byId[r.id] = r;
+    let defective = 0, defects = 0, opps = 0;
+    for (const u of units) {
+      if (u.defects.length) defective++;
+      for (const m of u.measured) if (byId[m]) { byId[m].opps++; opps++; }
+      for (const d of u.defects) if (byId[d]) { byId[d].defects++; defects++; }
+    }
+    for (const r of rows) { r.dpmo = r.opps ? (r.defects / r.opps) * 1e6 : null; r.rate = r.opps ? r.defects / r.opps : null; }
+    const dpmo = opps ? (defects / opps) * 1e6 : null;
+    return { units: units.length, defective, defects, opps, dpu: units.length ? defects / units.length : null, dpmo, sigma: sigmaOf(dpmo), firstPass: units.length ? 1 - defective / units.length : null, types: rows };
+  }
+
+  // p-chart limits for one day: the average share bad plus or minus three standard errors, never below 0 or above 1.
+  function pLimits(pbar, n) {
+    const se = n > 0 ? Math.sqrt((pbar * (1 - pbar)) / n) : 0;
+    return { ucl: Math.min(1, pbar + 3 * se), lcl: Math.max(0, pbar - 3 * se) };
+  }
+
+  // Builds the daily control charts: share of tickets with a defect (p-chart) and average ticket minutes
+  // (individuals chart with moving-range limits, centre +/- 2.66 x the average moving range).
+  function dailyCharts(rows) {
+    const days = rows.slice().sort((a, b) => (a.date < b.date ? -1 : 1));
+    let bad = 0, n = 0;
+    for (const d of days) { bad += d.defective; n += d.n; }
+    const pbar = n ? bad / n : 0;
+    for (const d of days) {
+      d.p = d.n ? d.defective / d.n : null;
+      const lim = pLimits(pbar, d.n);
+      d.ucl = lim.ucl; d.lcl = lim.lcl;
+      d.out = d.p !== null && (d.p > d.ucl || d.p < d.lcl) ? (d.p > d.ucl ? 'high' : 'low') : null;
+    }
+    const means = days.filter((d) => isNum(d.meanMin));
+    let mr = 0;
+    for (let i = 1; i < means.length; i++) mr += Math.abs(means[i].meanMin - means[i - 1].meanMin);
+    const mrbar = means.length > 1 ? mr / (means.length - 1) : null;
+    const centre = means.length ? means.reduce((s, d) => s + d.meanMin, 0) / means.length : null;
+    const imr = { centre, mrbar, ucl: mrbar === null ? null : centre + 2.66 * mrbar, lcl: mrbar === null ? null : Math.max(0, centre - 2.66 * mrbar) };
+    for (const d of days) d.meanOut = imr.ucl !== null && isNum(d.meanMin) ? (d.meanMin > imr.ucl ? 'high' : d.meanMin < imr.lcl ? 'low' : null) : null;
+    // A run of 8 days in a row on one side of the centre line is also a signal (the process moved).
+    let run = 0, side = 0;
+    for (const d of days) {
+      const s = d.p === null ? 0 : d.p > pbar ? 1 : d.p < pbar ? -1 : 0;
+      if (s !== 0 && s === side) run++; else { run = s === 0 ? 0 : 1; side = s; }
+      d.run = run >= 8 ? side : 0;
+    }
+    return { days, pbar, imr, signals: days.filter((d) => d.out || d.meanOut || d.run).length };
+  }
+
+  // Process capability of ticket time against the overdue limit: one-sided Cpk = (limit - mean) / (3 x sd).
+  // Needs at least 30 tickets; below that the answer is null so the page says "not enough data" instead of guessing.
+  function capability(times, limitMin) {
+    const s = meanSd(times);
+    const cpk = s.n >= 30 && s.sd > 0 ? (limitMin - s.mean) / (3 * s.sd) : null;
+    return { n: s.n, mean: s.mean, sd: s.sd, limit: limitMin, cpk, enough: s.n >= 30 };
+  }
+
+  // Hold-cabinet units: one per batch (was it thrown away?) and one per temperature check (was it late?).
+  function cabinetUnits(ds, from, to, dsh) {
+    const units = [];
+    const seen = new Set();
+    for (const b of ds.batches || []) {
+      if (!b || !isNum(b.enteredAt) || b.enteredAt < from || b.enteredAt >= to) continue;
+      const wasted = isNum(b.wasteG) && b.wasteG > 0;
+      units.push({ kind: 'batch', date: U.serviceDate(b.enteredAt, dsh), defects: wasted ? ['discard'] : [], measured: ['discard'], g: wasted ? b.wasteG : 0, cost: wasted && isNum(b.costPerCookedKg) ? (b.wasteG / 1000) * b.costPerCookedKg : 0, ing: b.ing, reason: b.discardReason || null, id: b.id });
+      seen.add(b.id);
+    }
+    for (const e of ds.events || []) {
+      if (!e || e.reverted || e.type !== 'temp_logged' || typeof e.onTime !== 'boolean' || !isNum(e.t) || e.t < from || e.t >= to) continue;
+      units.push({ kind: 'check', date: U.serviceDate(e.t, dsh), defects: e.onTime ? [] : ['lateTemp'], measured: ['lateTemp'], g: 0, cost: 0 });
+    }
+    return units;
+  }
+
+  // The report for the Quality page. ds is the office dataset; opts: { from, to, channel }.
+  // Returns { tickets, cabinet, pareto, causes, days, chart, capability, worst, histogram, cost }.
+  function analyze(ds, opts) {
+    const o = opts || {};
+    const from = isNum(o.from) ? o.from : -Infinity, to = isNum(o.to) ? o.to : Infinity;
+    const settings = ds.settings || {};
+    const dsh = settings.service && isNum(settings.service.dayStartHour) ? settings.service.dayStartHour : 4;
+    const shortTickets = new Set();
+    for (const e of ds.events || []) if (e && !e.reverted && e.type === 'item_done' && isNum(e.shortG) && e.shortG > 0 && e.ticketId) shortTickets.add(e.ticketId);
+    const ctx = { settings, shortTickets };
+    const judged = [];
+    for (const t of ds.tickets || []) {
+      if (!t || !isNum(t.createdAt) || t.createdAt < from || t.createdAt >= to) continue;
+      if (o.channel && o.channel !== 'all' && t.channel !== o.channel) continue;
+      const j = judgeTicket(t, ctx);
+      if (!j) continue;
+      j.t = t; j.date = U.serviceDate(t.createdAt, dsh);
+      judged.push(j);
+    }
+    const tTypes = DEFECTS.filter((d) => d.process === 'ticket');
+    const cTypes = DEFECTS.filter((d) => d.process === 'cabinet');
+    const tickets = rollUp(judged, tTypes);
+    const cabUnits = cabinetUnits(ds, from, to, dsh);
+    const cabinet = rollUp(cabUnits, cTypes);
+    // Pareto: every defect type with at least one defect, biggest first, with the running share.
+    const all = tickets.types.concat(cabinet.types).filter((r) => r.defects > 0).sort((a, b) => b.defects - a.defects || (a.id < b.id ? -1 : 1));
+    const total = all.reduce((s, r) => s + r.defects, 0);
+    let cum = 0;
+    const pareto = all.map((r) => { cum += r.defects; return { id: r.id, label: r.label, process: r.process, count: r.defects, share: total ? r.defects / total : 0, cum: total ? cum / total : 0 }; });
+    // Causes of late tickets.
+    const cm = new Map();
+    for (const j of judged) if (j.cause) { const c = cm.get(j.cause.id) || { id: j.cause.id, label: j.cause.label, count: 0, nums: [] }; c.count++; if (c.nums.length < 6) c.nums.push(j.t.num); cm.set(j.cause.id, c); }
+    const lateN = Array.from(cm.values()).reduce((s, c) => s + c.count, 0);
+    const causes = Array.from(cm.values()).sort((a, b) => b.count - a.count).map((c) => Object.assign(c, { share: lateN ? c.count / lateN : 0 }));
+    // Daily rows for the control charts.
+    const dayMap = new Map();
+    for (const j of judged) {
+      const d = dayMap.get(j.date) || { date: j.date, n: 0, defective: 0, mins: [] };
+      d.n++; if (j.defects.length) d.defective++;
+      if (isNum(j.totalMs)) d.mins.push(j.totalMs / 60000);
+      dayMap.set(j.date, d);
+    }
+    const rows = Array.from(dayMap.values()).map((d) => ({ date: d.date, n: d.n, defective: d.defective, meanMin: d.mins.length ? d.mins.reduce((s, x) => s + x, 0) / d.mins.length : null }));
+    const chart = dailyCharts(rows);
+    // Ticket-time capability against the dine-in overdue limit, the most common channel; histogram in 1-minute bins.
+    const mins = judged.filter((j) => isNum(j.totalMs)).map((j) => j.totalMs / 60000);
+    const limitMin = breachSec(settings, o.channel && o.channel !== 'all' ? o.channel : 'dine_in') / 60;
+    const bins = [];
+    for (const m of mins) { const b = Math.min(30, Math.floor(m)); bins[b] = (bins[b] || 0) + 1; }
+    const histogram = [];
+    for (let i = 0; i < bins.length; i++) histogram.push({ minute: i, n: bins[i] || 0 });
+    // The worst tickets: most defects first, then slowest.
+    const worst = judged.filter((j) => j.defects.length).sort((a, b) => b.defects.length - a.defects.length || (b.totalMs || 0) - (a.totalMs || 0)).slice(0, 8)
+      .map((j) => ({ id: j.t.id, num: j.t.num, date: j.date, customer: j.t.customer, channel: j.t.channel, minutes: isNum(j.totalMs) ? j.totalMs / 60000 : null, defects: j.defects.map((d) => DEFECT_BY_ID[d].label), cause: j.cause ? j.cause.label : null }));
+    const cost = cabUnits.reduce((s, u) => s + (u.cost || 0), 0);
+    return { tickets, cabinet, pareto, causes, days: chart.days, chart, capability: capability(mins, limitMin), worst, histogram, cost, targets: TARGETS };
+  }
+
+  SB.quality = { DEFECTS, TARGETS, sigmaOf, meanSd, pLimits, capability, judgeTicket, analyze };
+})(typeof globalThis !== 'undefined' ? globalThis : window);
+
+}catch(e){console.error('[smokebox] module 41-quality.js failed to load:',e);window.__sbLoadErrors=(window.__sbLoadErrors||[]);window.__sbLoadErrors.push({file:'41-quality.js',message:String(e&&e.message||e)});}
+
 /* ===== 45-sim.js ===== */
 ;try{
 /*
@@ -11634,6 +12243,8 @@ a.of-nav:active { background: var(--press); }
   // Most tickets one clock tick may add and most crew actions one tick may run, so a long pause (hidden
   // tab, huge demo speed) cannot flood the board.
   const LIVE_MAX_ARRIVALS = 12, LIVE_MAX_ACTIONS = 240;
+  // True when the Call screen is on, so demo tickets wait for the Start tap.
+  const callOn = () => !!(SB.floor && SB.floor.callMode && SB.floor.callMode());
   const live = (function () {
     const S = { running: false, rate: 'normal', crew: true, sent: 0, completed: 0 };
     const listeners = new Set();
@@ -11642,6 +12253,7 @@ a.of-nav:active { background: var(--press); }
     // The four sets below are cleared together on stop and when the crew is turned off, so no stale job
     // runs later.
     let planned = new Set();      // item ids the crew already has a plan for
+    let startPlanned = new Set(); // ticket ids the crew will tap Start on
     let bumpPlanned = new Set();  // ticket ids with a bump on the way
     let tempAt = new Map();       // batch id -> {last, at}: when the crew will next log its temperature
     let sanitizeAt = null;        // {due, at}
@@ -11680,6 +12292,7 @@ a.of-nav:active { background: var(--press); }
     function send(order) {
       const st = store();
       for (let attempt = 0; attempt < 5 && order.items.length; attempt++) {
+        if (callOn()) order = Object.assign({}, order, { awaitStart: true });
         const r = st.dispatchEx('createTicket', order, { source: 'sim' });
         if (r.report === 'ok') { S.sent++; return true; }
         if (r.report !== 'itemUnavailable' || !r.info || !r.info.menuId) return false;
@@ -11699,6 +12312,20 @@ a.of-nav:active { background: var(--press); }
       const pacing = st.getState().settings.pacing;
       for (const t of tickets) {
         if (t.src !== 'demo') continue;
+        // Two-tap tickets: the crew taps Start after a short reaction time, then Release a little after the plan says ready.
+        if (t.awaitStart || (t.startedAt != null && !t.released)) {
+          const tid = t.id;
+          if (t.awaitStart && !startPlanned.has(tid)) {
+            startPlanned.add(tid);
+            queue.push(n + responseSec(crewRng, tickets.length, t.rush) * SEC, () => act('startTicket', { ticketId: tid }));
+          }
+          if (t.startedAt != null && !bumpPlanned.has(tid)) {
+            bumpPlanned.add(tid);
+            const readyAt = t.startedAt + (t.dmaxSec || 0) * 1000;
+            queue.push(Math.max(n, readyAt) + expoDelaySec(crewRng) * SEC, () => { const r = act('releaseTicket', { ticketId: tid }); if (r === 'ok') { S.completed++; changed(); payLive(tid); } });
+          }
+          continue;
+        }
         for (const it of t.items) {
           if (planned.has(it.id) || (it.status !== 'displayed' && it.status !== 'cooking')) continue;
           planned.add(it.id);
@@ -11791,7 +12418,7 @@ a.of-nav:active { background: var(--press); }
       if (S.running) { changed(); return status(); }
       seed = isNum(opts.seed) ? opts.seed >>> 0 : (Date.now() ^ 0x5bd1e995) >>> 0;
       rng = U.rng(seed); crewRng = U.rng((seed + 7919) >>> 0);
-      queue = new Heap(); planned = new Set(); bumpPlanned = new Set(); tempAt = new Map(); sanitizeAt = null;
+      queue = new Heap(); planned = new Set(); bumpPlanned = new Set(); startPlanned = new Set(); tempAt = new Map(); sanitizeAt = null;
       S.sent = 0; S.completed = 0; S.running = true;
       nextAt = st.now() + gapMs();
       off = st.subscribeTick(onTick);
@@ -11802,7 +12429,7 @@ a.of-nav:active { background: var(--press); }
     function stop() {
       if (off) { try { off(); } catch (e) { /* ignore */ } off = null; }
       S.running = false;
-      queue = new Heap(); planned = new Set(); bumpPlanned = new Set(); tempAt = new Map(); sanitizeAt = null;
+      queue = new Heap(); planned = new Set(); bumpPlanned = new Set(); startPlanned = new Set(); tempAt = new Map(); sanitizeAt = null;
       changed();
       return status();
     }
@@ -11826,7 +12453,7 @@ a.of-nav:active { background: var(--press); }
     // the status.
     function crew(on) {
       S.crew = on !== false && !!on;
-      if (!S.crew) { queue = new Heap(); planned = new Set(); bumpPlanned = new Set(); tempAt = new Map(); sanitizeAt = null; }
+      if (!S.crew) { queue = new Heap(); planned = new Set(); bumpPlanned = new Set(); startPlanned = new Set(); tempAt = new Map(); sanitizeAt = null; }
       changed();
       return status();
     }
@@ -11871,7 +12498,7 @@ a.of-nav:active { background: var(--press); }
           return line;
         }).filter((l) => onMenuNow(st, l.menuId));
         if (!items.length) continue;
-        const r = st.dispatchEx('createTicket', { customer: spec.customer, channel: spec.channel, items, note: spec.note || '', src: 'demo', createdAt: n - spec.age * SEC, allowPast: true }, { source: 'sim' });
+        const r = st.dispatchEx('createTicket', { customer: spec.customer, channel: spec.channel, items, note: spec.note || '', src: 'demo', createdAt: n - spec.age * SEC, allowPast: true, awaitStart: callOn() }, { source: 'sim' });
         if (r.report === 'ok') made++;
       }
       // Items already due show up on the next tick.
@@ -14627,7 +15254,7 @@ a.of-nav:active { background: var(--press); }
    * ================================================================================================================== */
   // Five stations and seven office pages; any other name in an address falls back to the floor or Pace.
   const ZONES = ['pit', 'sides', 'fry', 'cold', 'expo'];
-  const SECTIONS = ['pace', 'tickets', 'stations', 'money', 'safety', 'stock', 'data'];
+  const SECTIONS = ['quality', 'pace', 'tickets', 'stations', 'money', 'safety', 'stock', 'data'];
 
   // Turns the part of the web address after the # (the hash, like #/office/money) into a view:
   // {kind:'floor', zone} or {kind:'office', section}. Never fails: garbage lands on the whole floor.
@@ -16282,6 +16909,8 @@ a.of-nav:active { background: var(--press); }
   // Loudness of this tablet's warnings: 0.2 to 1. It never reaches 0 (the sound toggle is the way to silence); the last warning and the expiry tone never go below half.
   const VOL_MIN = 0.2;
   const KEY_DOCK = 'smokebox.v1.dock';
+  // Whether the Call screen (two-tap tickets: Start, then Release) is the working view; on by default.
+  const KEY_CALL = 'smokebox.v1.call';
   // Set to "done" once the welcome card has been dismissed.
   const KEY_WELCOME = 'smokebox.v1.welcome';
   // All, then every station, in the order of the number keys 1 to 6.
@@ -16298,6 +16927,7 @@ a.of-nav:active { background: var(--press); }
   // Sound is on by default: a kitchen that misses a warning loses food. A browser still needs one tap to allow audio.
   let sound = U.storage.get(KEY_SOUND, true) !== false;
   let speech = U.storage.get(KEY_SPEECH, true) !== false;
+  let callMode = U.storage.get(KEY_CALL, true) !== false;
   let audio = null, audioHooked = false, lastChime = 0, lastCheck = 0;
   let volume = (() => { const v = U.storage.get(KEY_VOLUME, 1); return U.isNum(v) ? Math.min(1, Math.max(VOL_MIN, v)) : 1; })();
 
@@ -16409,6 +17039,19 @@ a.of-nav:active { background: var(--press); }
     if (!a) return;
     try { const t0 = a.currentTime + 0.01; for (let i = 0; i < 3; i++) tone(a, 1320, t0 + i * 0.22, 0.14, 0.16); } catch (e) { /* audio is optional */ }
   }
+  // Whether new tickets wait for the cook's Start tap and the Call screen is the working view.
+  F.callMode = () => callMode;
+  // Switches the Call screen on or off. Turning it off starts every ticket still waiting, so none is stranded
+  // on the classic board, which has no Start button.
+  F.setCallMode = function (on) {
+    callMode = !!on;
+    U.storage.set(KEY_CALL, callMode);
+    if (!callMode) {
+      for (const t of store().getState().tickets) if (t.status === 'active' && t.awaitStart) store().dispatchEx('startTicket', { ticketId: t.id }, { source: 'ui' });
+      if (m && m.callOn) showCall(false);
+    } else if (m && !m.cabOn) showCall(true);
+    return callMode;
+  };
   // Whether the chime is switched on.
   F.sound = () => sound;
   // Switches the chime on or off and remembers it; switching on plays one chime as a test.
@@ -16620,6 +17263,8 @@ a.of-nav:active { background: var(--press); }
     render();
     updateHeader(store().now());
     measureDock();
+    // The Call screen is the home view unless the address asked for a station.
+    if (callMode && zone0 === 'all') showCall(true);
   };
 
   // Stops every listener, timer and observer and empties the element. Safe to call twice.
@@ -16630,6 +17275,7 @@ a.of-nav:active { background: var(--press); }
     i.offs.forEach((fn) => { try { fn(); } catch (e) { /* ignore */ } });
     clearTimeout(i.sayT);
     if (i.cab) { try { i.cab.destroy(); } catch (e) { /* ignore */ } }
+    if (i.call) { try { i.call.destroy(); } catch (e) { /* ignore */ } }
     if (i.io) i.io.disconnect();
     if (i.ro) i.ro.disconnect();
     cancelAnimationFrame(i.raf);
@@ -16643,6 +17289,7 @@ a.of-nav:active { background: var(--press); }
     if (!m) { pendingZone = z; return z; }
     if (m.cabOn) showCabinet(false);
     if (z === m.zone) return z;
+    if (m.callOn) showCall(false);
     m.zone = z;
     clearBoard();
     syncZoneUi();
@@ -16672,6 +17319,8 @@ a.of-nav:active { background: var(--press); }
     });
     // The Cabinet tab is not a station: it swaps the tickets for the hold cabinet, on the same screen.
     tabOptions.push({ id: 'cabinet', label: 'Cabinet', icon: 'thermometer', iconSize: 20, count: 0, alert: false, alertLabel: 'needs attention' });
+    // The Call tab is first: the instruction-first screen with Start and Release.
+    tabOptions.unshift({ id: 'call', label: 'Call', icon: 'bell', iconSize: 20, count: 0, alert: false, alertLabel: 'has jobs to do' });
     const seg = SB.ui.segmented({ kind: 'tabs', label: 'Station', options: tabOptions, value: m.zone, onChange: goZone, class: 'fl-seg' });
     // Screen readers get the full station name and what the count means; the eye sees an icon and a code.
     TABS.forEach((id) => {
@@ -16725,7 +17374,8 @@ a.of-nav:active { background: var(--press); }
     const empty = h('div', { class: 'fl-empty', hidden: true });
     const welcome = buildWelcome();
     const cabEl = h('section', { class: 'fl-cabinet', hidden: true, 'aria-label': 'Hold cabinet' });
-    const main = h('main', { class: 'fl-main', id: 'fl-board', tabindex: -1, 'aria-label': 'Tickets' }, h('h1', { class: 'visually-hidden' }, 'Smokebox kitchen board'), welcome, grid, empty, cabEl);
+    const callEl = h('section', { class: 'fl-call', hidden: true, 'aria-label': 'Call screen: what to do now' });
+    const main = h('main', { class: 'fl-main', id: 'fl-board', tabindex: -1, 'aria-label': 'Tickets' }, h('h1', { class: 'visually-hidden' }, 'Smokebox kitchen board'), welcome, grid, empty, cabEl, callEl);
 
     // ----- dock
     const dockToggle = h('button', { type: 'button', class: 'fl-dock-toggle', 'aria-expanded': 'true', 'aria-controls': 'fl-dock-list', onClick: toggleDock },
@@ -16749,7 +17399,7 @@ a.of-nav:active { background: var(--press); }
     m.tabParts = {};
     TABS.forEach((id) => { const b = seg.querySelector('[data-id="' + id + '"]'); if (b) m.tabParts[id] = { count: b.querySelector('.seg-count'), n: -1 }; });
     m.sanText = sanChip.querySelector('.fl-chip-t');
-    Object.assign(m, { head, seg, tabs, sanChip, demoChip, status, tools, tool: { recall: tRecall, hold: tHold, board86: t86, demo: tDemo, orders: tOrders }, newBtn, officeBtn, menuBtn, strip, main, cabEl, grid, empty, dock, dockToggle, dockClear, dockList, dockEmpty, hlStyle });
+    Object.assign(m, { head, seg, tabs, sanChip, demoChip, status, tools, tool: { recall: tRecall, hold: tHold, board86: t86, demo: tDemo, orders: tOrders }, newBtn, officeBtn, menuBtn, strip, main, cabEl, callEl, grid, empty, dock, dockToggle, dockClear, dockList, dockEmpty, hlStyle });
 
     grid.addEventListener('click', onGridClick);
     dockList.addEventListener('click', (e) => {
@@ -16877,14 +17527,44 @@ a.of-nav:active { background: var(--press); }
     setHidden(m.cabEl, !on);
     m.seg.setValue(on ? 'cabinet' : m.zone);
     m.main.setAttribute('aria-label', on ? 'Hold cabinet' : m.zone === 'all' ? 'Tickets for all stations' : 'Tickets for ' + zoneById(m.zone).name);
-    if (!on) { m.dock.hidden = false; measureDock(); }
+    if (!on) { m.dock.hidden = false; measureDock(); if (callMode && !m.callOn) { showCall(true); return; } }
     if (on) { const lift = doc.documentElement.style; lift.setProperty('--fl-lift', '0px'); }
+  }
+  // Shows the Call screen in place of the classic ticket slips (on), or goes back to the slips (off). The strip
+  // and header stay. WATCH OUT: it leaves the slips hidden while the cabinet is open.
+  function showCall(on) {
+    if (!m || !SB.caller) return;
+    if (on && m.cabOn) showCabinet(false);
+    if (on && !m.call) {
+      // The Call screen borrows the board's sound, voice and tap helpers through these hooks.
+      const hooks = {};
+      // Plays the soft two-note chime for a new ticket.
+      hooks.chime = () => chime();
+      // Plays the three short beeps for an item to put on.
+      hooks.ding = () => checkChime();
+      // Says one short phrase with the tablet's voice.
+      hooks.speak = (txt) => speak(txt);
+      // Sends one action to the store, with the board's toast and undo handling.
+      hooks.run = (type, payload) => run(type, payload);
+      // Opens the three-dot menu for one ticket.
+      hooks.more = (id, anchor) => moreMenu({ id }, anchor);
+      m.call = SB.caller.mount(m.callEl, hooks);
+    } else if (!on && m.call) { m.call.destroy(); m.call = null; }
+    m.callOn = !!on;
+    m.root.dataset.call = on ? 'on' : 'off';
+    for (const el of [m.grid, m.empty, m.welcome, m.dock]) if (el) el.style.display = on || m.cabOn ? 'none' : '';
+    setHidden(m.callEl, !on);
+    m.seg.setValue(on ? 'call' : m.cabOn ? 'cabinet' : m.zone);
+    m.main.setAttribute('aria-label', on ? 'Call screen' : m.zone === 'all' ? 'Tickets for all stations' : 'Tickets for ' + zoneById(m.zone).name);
+    if (on) doc.documentElement.style.setProperty('--fl-lift', '0px'); else measureDock();
   }
   // Switches between the tickets and the cabinet (the Hold button and the H key).
   function toggleCabinet() { showCabinet(!(m && m.cabOn)); }
   // Called when a tab is chosen: asks the router to change the address (so Back works), then switches.
   function goZone(id) {
-    if (id === 'cabinet') { showCabinet(true); return; }
+    if (id === 'call') { showCall(true); return; }
+    if (id === 'cabinet') { if (m && m.callOn) showCall(false); showCabinet(true); return; }
+    if (m && m.callOn) showCall(false);
     if (m && m.cabOn) showCabinet(false);
     if (SB.router && SB.router.go) { try { SB.router.go({ kind: 'floor', zone: id }); } catch (e) { /* fall through */ } }
     if (m && m.zone !== id) F.setZone(id);
@@ -17573,6 +18253,8 @@ a.of-nav:active { background: var(--press); }
     toolCount(m.tool.recall, recentN, '', recentN ? recentN + ' recently bumped' : '');
     toolCount(m.tool.hold, c.hold, 'warn', holdReason(c));
     m.seg.setCount('cabinet', c.hold, { alert: c.hold > 0 });
+    // The Call tab counts jobs that need a tap now (tickets to start and plates to release).
+    try { const cc = SB.coach.read(S.getState(), now).counts; m.seg.setCount('call', cc.start + cc.plate, { alert: cc.late > 0 || cc.fire > 0 }); } catch (e) { /* the coach is optional */ }
     toolCount(m.tool.board86, c.out86, 'bad', c.out86 ? c.out86 + ' ' + U.plural(c.out86, 'item') + ' off the menu' : '');
     // Orders still open, counted again only when the orders list itself changed.
     const ords = S.getState().orders || [];
@@ -17865,11 +18547,13 @@ a.of-nav:active { background: var(--press); }
     SB.ui.menu(anchor, [
       // Rush fires every item now; Recall opens the recall sheet.
       { label: t.rush ? 'Take off rush' : 'Make it a rush', icon: 'zap', onClick: () => run('setRush', { ticketId: rec.id, on: !t.rush }, { okText: t.rush ? 'Ticket #' + t.num + ' is no longer a rush.' : 'Ticket #' + t.num + ' is a rush. Every item is fired now.' }) },
+      // Release now finishes the ticket without waiting for its plan (a started ticket only).
+      t.awaitStart ? null : { label: 'Release now', icon: 'check', onClick: () => run('releaseTicket', { ticketId: rec.id }) },
       { label: 'Recall a bumped ticket', icon: 'history', onClick: () => openSheet('recall') },
       { separator: true },
       // Void asks for a reason first, see openVoid.
       { label: 'Void ticket', icon: 'trash', danger: true, onClick: () => openVoid(rec.id, anchor) },
-    ], { label: 'Ticket #' + t.num });
+    ].filter(Boolean), { label: 'Ticket #' + t.num });
   }
 
   // Opens the void sheet: pick a reason chip (or Other, up to 40 typed characters), then confirm.
@@ -18769,6 +19453,8 @@ a.of-nav:active { background: var(--press); }
       if (note.length > L.maxNoteLen) { paintNote(); showError('The note is too long. It holds ' + L.maxNoteLen + ' characters. Keep the allergy and cut the rest.'); setPane('order'); noteInput.focus(); return; }
       const items = D.lines.map((l) => { const it = { menuId: l.menuId, qty: l.qty }; if (l.mods.length) it.mods = l.mods.slice(); return it; });
       const payload = { customer: name, channel: D.channel, items, note, rush: D.rush };
+      // In Call mode the ticket waits for the cook's Start tap.
+      if (SB.floor && SB.floor.callMode && SB.floor.callMode()) payload.awaitStart = true;
       if (D.orderId) payload.orderId = D.orderId;
       if (D.pay) {
         const tip = dollars(D.tip);
@@ -21668,6 +22354,211 @@ a.of-nav:active { background: var(--press); }
 
 }catch(e){console.error('[smokebox] module 74-floor-tour.js failed to load:',e);window.__sbLoadErrors=(window.__sbLoadErrors||[]);window.__sbLoadErrors.push({file:'74-floor-tour.js',message:String(e&&e.message||e)});}
 
+/* ===== 75-floor-caller.js ===== */
+;try{
+/*
+ * WHAT THIS FILE IS: The Call screen, the kitchen's main view. It shows one big order at a time ("Drop in the
+ *    fryer: Hush puppies"), the other open tickets as smaller cards, and one large button per ticket: Start,
+ *    then Release. It also speaks and chimes when something needs doing.
+ * PARTS: building a card, updating it each second, ordering the cards, announcing, mount and unmount.
+ * USES / USED BY: reads SB.coach (26-coach.js), SB.store and SB.engine. Mounted by the floor board
+ *    (70-floor-board.js), which passes in its sound and tap helpers as hooks.
+ * RULE: like the board, cards are changed in place; a button is only replaced when its ticket changes phase.
+ */
+(function (g) {
+  'use strict';
+  const SB = (g.SB = g.SB || {});
+  const U = SB.util, C = SB.config;
+  const doc = g.document || null;
+  // With no page (plain Node) there is nothing to draw; loading must still not throw.
+  if (!doc) { SB.caller = { mount: () => null }; return; }
+  const h = U.h;
+
+  // Words for each step of an item, so state is never shown by colour alone.
+  const STEP_WORD = { wait: 'Later', fire: 'NOW', cook: 'Cooking', pull: 'Ready', done: 'Done' };
+  // Words and icons for the three ticket tones.
+  const TONE_WORD = { ok: '', warn: 'Hurry', late: 'LATE' };
+  // Icon name for the ticket-level phase badge.
+  const PHASE_ICON = { start: 'play', fire: 'flame', run: 'timer', plate: 'check-circle' };
+
+  // Returns an icon element, or an empty span when the icon set is missing.
+  function ico(name, size) {
+    try { return SB.icons.svg(name, { size: size || 24 }); } catch (e) { return doc.createElement('span'); }
+  }
+  // Minutes and seconds, for example 125000 gives 2:05.
+  const mss = (ms) => SB.coach.mmss(ms);
+  // Station tag element: its code (PIT, HOT...) in the station colour, with its icon.
+  function zoneTag(zoneId) {
+    const z = C.zoneById[zoneId];
+    return h('span', { class: 'cl-zone', dataset: { zone: zoneId } }, ico(z ? z.icon : 'grid', 18), h('span', null, z ? z.code : zoneId));
+  }
+
+  // Mounts the Call screen into el. hooks: chime() for a new ticket, ding() for an item to do, speak(text),
+  // run(type, payload) to send an action, more(ticketId, anchor) for the three-dot menu.
+  // Returns { destroy, update, announceOff } so the board can remove it again.
+  function mount(el, hooks) {
+    const S = () => SB.store;
+    const cards = new Map();      // ticket id -> { el, sig, refs, phase }
+    const seen = new Set();       // announcement keys already spoken
+    let first = true, lastOrder = '', gone = false;
+    const root = h('div', { class: 'cl', dataset: { empty: 'true' } });
+    const heroSlot = h('div', { class: 'cl-hero', 'aria-live': 'off' });
+    const grid = h('div', { class: 'cl-grid' });
+    const calm = h('div', { class: 'cl-calm', role: 'status' }, ico('check-circle', 64), h('p', { class: 'cl-calm-big' }, 'All quiet'), h('p', { class: 'cl-calm-small' }, 'No tickets right now. New ones show here with a Start button.'));
+    const sumEl = h('div', { class: 'cl-sum', 'aria-live': 'polite' });
+    root.append(sumEl, calm, heroSlot, grid);
+    el.appendChild(root);
+
+    // Builds the inside of a card for its current shape. A card is rebuilt only when its shape changes.
+    function fill(rec, c) {
+      const card = rec.el;
+      U.clear(card);
+      card.dataset.phase = c.phase;
+      const badge = h('span', { class: 'cl-badge' }, ico(PHASE_ICON[c.phase] || 'timer', 22), h('span', null, c.phase === 'start' ? 'New' : c.phase === 'plate' ? 'Ready' : c.phase === 'fire' ? 'Do now' : 'Cooking'));
+      const rush = c.rush ? h('span', { class: 'cl-rush' }, ico('zap', 18), h('span', null, 'RUSH')) : null;
+      const age = h('span', { class: 'cl-age num' }, '0:00');
+      const tone = h('span', { class: 'cl-tone' });
+      // Opens the three-dot menu (rush, release now, void) for this ticket.
+      const onMore = (e) => { if (hooks.more) hooks.more(c.id, e.currentTarget); };
+      const moreBtn = h('button', { type: 'button', class: 'btn cl-more', 'aria-label': 'More for ticket ' + c.num, onClick: onMore }, ico('more', 22));
+      const top = h('div', { class: 'cl-top' },
+        h('span', { class: 'cl-num num' }, '#' + c.num), h('span', { class: 'cl-who' }, c.customer), badge, rush, h('span', { class: 'cl-grow' }), tone, age, moreBtn);
+      const say = h('p', { class: 'cl-say' });
+      const hint = h('p', { class: 'cl-hint' });
+      const list = h('ul', { class: 'cl-items' });
+      const rows = new Map();
+      for (const it of c.items) {
+        const word = h('span', { class: 'cl-step-word' });
+        const time = h('span', { class: 'cl-step-time num' });
+        const row = h('li', { class: 'cl-item', dataset: { step: it.step, id: it.id } }, zoneTag(it.zone), h('span', { class: 'cl-item-name' }, (it.qty > 1 ? it.qty + ' x ' : '') + it.name), word, time);
+        rows.set(it.id, { row, word, time });
+        list.appendChild(row);
+      }
+      let btn = null;
+      if (c.action) {
+        const label = c.action.type === 'start' ? 'START' : 'RELEASE';
+        // The big button sends Start or Release for this ticket.
+        const onGo = () => tap(c.id, c.action.type);
+        btn = h('button', { type: 'button', class: 'btn cl-go', dataset: { act: c.action.type }, onClick: onGo }, ico(c.action.type === 'start' ? 'play' : 'check', 36), h('span', null, label));
+      }
+      const note = c.note ? h('p', { class: 'cl-note' }, ico('alert-circle', 20), h('span', null, c.note)) : null;
+      card.append(top, say, hint, list);
+      if (note) card.appendChild(note);
+      if (btn) card.appendChild(btn);
+      card.dataset.go = btn ? 'true' : 'false';
+      rec.refs = { age, tone, say, hint, rows, btn };
+    }
+
+    // One tap on Start or Release: sends the action; the screen then redraws from the store.
+    function tap(ticketId, type) {
+      if (!hooks.run) return;
+      hooks.run(type === 'start' ? 'startTicket' : 'releaseTicket', { ticketId });
+    }
+
+    // Patches the times and words of a card without touching its structure.
+    function paint(rec, c) {
+      const r = rec.refs;
+      if (rec.el.dataset.tone !== c.tone) rec.el.dataset.tone = c.tone;
+      put(r.age, mss(c.ageMs));
+      put(r.tone, TONE_WORD[c.tone]);
+      put(r.say, c.headline);
+      put(r.hint, c.phase === 'plate' && c.overMs > 45e3 ? 'Waiting ' + mss(c.overMs) + ' already. Plate it and tap RELEASE.' : c.hint);
+      for (const it of c.items) {
+        const x = r.rows.get(it.id);
+        if (!x) continue;
+        if (x.row.dataset.step !== it.step) x.row.dataset.step = it.step;
+        put(x.word, c.phase === 'start' ? '' : STEP_WORD[it.step]);
+        put(x.time, it.step === 'wait' && c.phase !== 'start' ? 'in ' + mss(it.inMs) : it.step === 'cook' || it.step === 'fire' ? mss(it.leftMs) + ' left' : '');
+      }
+    }
+    // Writes text only when it changed, so screen readers and layout stay calm.
+    function put(node, txt) { if (node.textContent !== txt) node.textContent = txt; }
+
+    // A card's shape: its phase, tone-independent. When it changes the card is rebuilt.
+    const sigOf = (c) => c.phase + '|' + c.rush + '|' + c.note + '|' + c.items.map((i) => i.id + ':' + (i.step === 'done' ? 'd' : 'o')).join(',') + '|' + (c.action ? c.action.type : '-');
+
+    // Redraws from the store: adds new cards, rebuilds changed ones, drops finished ones and orders the rest.
+    function update(now) {
+      if (gone) return;
+      const state = S().getState();
+      if (!state) return;
+      const view = SB.coach.read(state, now);
+      const alive = new Set();
+      const order = [];
+      for (const c of view.cards) {
+        alive.add(c.id);
+        let rec = cards.get(c.id);
+        const sig = sigOf(c);
+        if (!rec) { rec = { el: h('article', { class: 'cl-card', dataset: { id: c.id } }), sig: '', refs: null }; cards.set(c.id, rec); }
+        if (rec.sig !== sig) { rec.sig = sig; fill(rec, c); }
+        paint(rec, c);
+        order.push(rec);
+      }
+      for (const [id, rec] of Array.from(cards)) if (!alive.has(id)) { rec.el.remove(); cards.delete(id); }
+      // Put the cards in urgency order only when the order actually changed; the first one is the big one.
+      const key = order.map((r) => r.el.dataset.id).join(',');
+      if (key !== lastOrder) {
+        lastOrder = key;
+        order.forEach((rec, i) => {
+          rec.el.classList.toggle('is-hero', i === 0);
+          (i === 0 ? heroSlot : grid).appendChild(rec.el);
+        });
+      }
+      root.dataset.empty = order.length ? 'false' : 'true';
+      put(sumEl, summary(view.counts));
+      announce(view);
+    }
+
+    // One short line for screen readers and the top of the screen: how many of each kind of job.
+    function summary(n) {
+      const bits = [];
+      if (n.plate) bits.push(n.plate + ' to release');
+      if (n.start) bits.push(n.start + ' to start');
+      if (n.fire) bits.push(n.fire + ' to put on now');
+      if (n.run) bits.push(n.run + ' cooking');
+      return bits.join('  |  ');
+    }
+
+    // Plays a chime and speaks once for each new job: a new ticket, an item to put on, a plate to release.
+    function announce(view) {
+      const lines = [];
+      let ding = false, chime = false;
+      for (const c of view.cards) {
+        const keys = [];
+        if (c.phase === 'start') keys.push(['new:' + c.id, c.voice, 'chime']);
+        if (c.phase === 'plate') keys.push(['plate:' + c.id, c.voice, 'ding']);
+        for (const it of c.items) if (it.step === 'fire') keys.push(['fire:' + it.id, 'Ticket ' + c.num + '. ' + it.text, 'ding']);
+        for (const [k, text, kind] of keys) {
+          if (seen.has(k)) continue;
+          seen.add(k);
+          if (first) continue; // jobs already open when the screen appears are not announced again
+          lines.push(text);
+          if (kind === 'chime') chime = true; else ding = true;
+        }
+      }
+      first = false;
+      if (!lines.length) return;
+      if (chime && hooks.chime) hooks.chime();
+      if (ding && hooks.ding) hooks.ding();
+      if (hooks.speak) hooks.speak(lines.slice(0, 2).join(' '));
+    }
+
+    const offs = [S().subscribe(() => update(S().now())), S().subscribeTick((now) => update(now))];
+    update(S().now());
+    return {
+      // Redraws now, for the board when something outside the store changed.
+      update: () => update(S().now()),
+      // Stops listening to the store and removes the screen.
+      destroy() { gone = true; offs.forEach((fn) => { try { fn(); } catch (e) { /* ignore */ } }); root.remove(); },
+      root,
+    };
+  }
+
+  SB.caller = { mount };
+})(typeof globalThis !== 'undefined' ? globalThis : window);
+
+}catch(e){console.error('[smokebox] module 75-floor-caller.js failed to load:',e);window.__sbLoadErrors=(window.__sbLoadErrors||[]);window.__sbLoadErrors.push({file:'75-floor-caller.js',message:String(e&&e.message||e)});}
+
 /* ===== 76-floor-discards.js ===== */
 ;try{
 /*
@@ -21943,6 +22834,7 @@ a.of-nav:active { background: var(--press); }
 
   /** The seven pages, in order. A page file may override title / icon / order when it registers. */
   const PAGES = [
+    { id: 'quality', title: 'Quality', short: 'Quality', icon: 'target' },
     { id: 'pace', title: 'Pace', short: 'Pace', icon: 'gauge' },
     { id: 'tickets', title: 'Tickets', short: 'Tickets', icon: 'receipt' },
     { id: 'stations', title: 'Stations', short: 'Stations', icon: 'layers' },
@@ -21952,7 +22844,7 @@ a.of-nav:active { background: var(--press); }
     { id: 'data', title: 'Menu and settings', short: 'Settings', icon: 'sliders' },
   ];
   const PAGE_IDS = PAGES.map((p) => p.id);
-  // Turns any page name into one of the seven page ids. A name we do not know gives the Pace page.
+  // Turns any page name into one of the eight page ids. A name we do not know gives the Pace page.
   const pageIdOf = (s) => (PAGE_IDS.indexOf(s) >= 0 ? s : 'pace');
 
   /** Start of a service day (local dayStartHour on a YYYY-MM-DD key). */
@@ -27142,6 +28034,234 @@ a.of-nav:active { background: var(--press); }
 })(typeof globalThis !== 'undefined' ? globalThis : window);
 
 }catch(e){console.error('[smokebox] module 85-office-stock.js failed to load:',e);window.__sbLoadErrors=(window.__sbLoadErrors||[]);window.__sbLoadErrors.push({file:'85-office-stock.js',message:String(e&&e.message||e)});}
+
+/* ===== 86-office-quality.js ===== */
+;try{
+/*
+ * WHAT THIS FILE IS: The "Quality" back-office page: a defect view of the kitchen in the Six Sigma style. A sigma
+ *    score, a Pareto of what goes wrong, the likely causes of late tickets, two control charts, process
+ *    capability and the worst tickets.
+ * PARTS: SVG helpers, the report cache, the score panel, Pareto, causes, control charts, capability, tables.
+ * USES: 41-quality.js (the maths), 80-office-core.js (the kit).   USED BY: the office frame.
+ * RULE: with too few tickets the page says "not enough data yet" and draws no limits, never a line through noise.
+ */
+(function (g) {
+  'use strict';
+  const SB = (g.SB = g.SB || {});
+  if (!g.document) return;
+  const U = SB.util;
+  const O = SB.office;
+  if (!O || typeof O.registerPage !== 'function') return;
+  const h = U.h;
+  // True only for a real, finite number.
+  const isNum = (n) => typeof n === 'number' && isFinite(n);
+  const NS = 'http://www.w3.org/2000/svg';
+
+  // Fewest days a control chart needs before its limits mean anything, and fewest tickets for a sigma score.
+  const MIN_DAYS = 5, MIN_TICKETS = 20;
+
+  // Makes one SVG element with attributes and children.
+  function svg(tag, attrs, kids) {
+    const el = g.document.createElementNS(NS, tag);
+    for (const k of Object.keys(attrs || {})) el.setAttribute(k, String(attrs[k]));
+    for (const c of kids || []) if (c) el.appendChild(c);
+    return el;
+  }
+  // A text element at a position.
+  const text = (x, y, s, attrs) => { const t = svg('text', Object.assign({ x, y }, attrs || {})); t.textContent = s; return t; };
+  // Percent text from a fraction, with one decimal under 10 percent.
+  const pct = (x) => (isNum(x) ? (x * 100 < 10 && x > 0 ? (x * 100).toFixed(1) : Math.round(x * 100)) + '%' : '-');
+  // A plain count with thousands separators.
+  const num = (n) => (isNum(n) ? Math.round(n).toLocaleString('en-US') : '-');
+  // Sigma level to one decimal, "6+" when no defects were seen.
+  const sig = (s, defects) => (!isNum(s) ? '-' : defects === 0 ? '6+' : s.toFixed(1));
+
+  // Pareto chart: bars for each defect type, a line for the running share, both with words on the axis.
+  function paretoSvg(rows) {
+    const W = 760, H = 300, L = 46, R = 46, T = 20, B = 86;
+    const pw = W - L - R, ph = H - T - B;
+    const max = Math.max(1, rows[0].count);
+    const bw = pw / rows.length;
+    const kids = [];
+    for (let i = 0; i <= 4; i++) { const y = T + ph - (ph * i) / 4; kids.push(svg('line', { x1: L, x2: W - R, y1: y, y2: y, class: 'qc-grid' })); kids.push(text(L - 8, y + 4, String(Math.round((max * i) / 4)), { class: 'qc-axis', 'text-anchor': 'end' })); kids.push(text(W - R + 8, y + 4, String(i * 25) + '%', { class: 'qc-axis' })); }
+    const pts = [];
+    rows.forEach((r, i) => {
+      const x = L + i * bw, bh = (ph * r.count) / max;
+      kids.push(svg('rect', { x: x + bw * 0.14, y: T + ph - bh, width: bw * 0.72, height: bh, class: 'qc-bar', 'data-process': r.process }));
+      kids.push(text(x + bw / 2, T + ph - bh - 6, String(r.count), { class: 'qc-val', 'text-anchor': 'middle' }));
+      const lab = text(x + bw / 2, T + ph + 16, r.label, { class: 'qc-axis', 'text-anchor': 'end', transform: 'rotate(-32 ' + (x + bw / 2) + ' ' + (T + ph + 16) + ')' });
+      kids.push(lab);
+      pts.push([x + bw / 2, T + ph - ph * r.cum]);
+    });
+    kids.push(svg('polyline', { points: pts.map((p) => p.join(',')).join(' '), class: 'qc-cum' }));
+    pts.forEach((p) => kids.push(svg('circle', { cx: p[0], cy: p[1], r: 4, class: 'qc-cum-dot' })));
+    return svg('svg', { viewBox: '0 0 ' + W + ' ' + H, class: 'qc-svg', role: 'img', 'aria-label': 'Pareto chart of defects. ' + rows.map((r) => r.label + ' ' + r.count).join(', ') + '.' }, kids);
+  }
+
+  // Control chart: one dot per day, a centre line, upper and lower limits, and a ring plus a word on any day outside them.
+  // pts: [{label, v, out}], lim: {centre, ucl, lcl}, fmtY formats axis numbers.
+  function controlSvg(pts, lim, fmtY, aria) {
+    const W = 760, H = 250, L = 56, R = 20, T = 16, B = 36;
+    const pw = W - L - R, ph = H - T - B;
+    const vals = pts.map((p) => p.v).concat([lim.ucl, lim.lcl, lim.centre]).filter(isNum);
+    let lo = Math.min.apply(null, vals), hi = Math.max.apply(null, vals);
+    if (hi === lo) { hi += 1; lo -= 1; }
+    const pad = (hi - lo) * 0.08; lo = Math.max(0, lo - pad); hi += pad; // shares and minutes are never below zero
+    // Chart x position of the i-th day, spread evenly across the plot.
+    const X = (i) => L + (pts.length === 1 ? pw / 2 : (pw * i) / (pts.length - 1));
+    // Chart y position of a value, higher values nearer the top.
+    const Y = (v) => T + ph - (ph * (v - lo)) / (hi - lo);
+    const kids = [];
+    for (let i = 0; i <= 3; i++) { const v = lo + ((hi - lo) * i) / 3, y = Y(v); kids.push(svg('line', { x1: L, x2: W - R, y1: y, y2: y, class: 'qc-grid' })); kids.push(text(L - 8, y + 4, fmtY(v), { class: 'qc-axis', 'text-anchor': 'end' })); }
+    // Draws one horizontal limit or average line with its label.
+    const line = (v, cls, label) => { if (!isNum(v)) return; const y = Y(v); kids.push(svg('line', { x1: L, x2: W - R, y1: y, y2: y, class: cls })); kids.push(text(W - R - 4, y - 5, label + ' ' + fmtY(v), { class: 'qc-lim', 'text-anchor': 'end' })); };
+    line(lim.ucl, 'qc-ucl', 'Upper limit'); line(lim.lcl, 'qc-lcl', 'Lower limit'); line(lim.centre, 'qc-centre', 'Average');
+    kids.push(svg('polyline', { points: pts.map((p, i) => X(i) + ',' + Y(p.v)).join(' '), class: 'qc-path' }));
+    pts.forEach((p, i) => {
+      kids.push(svg('circle', { cx: X(i), cy: Y(p.v), r: p.out ? 6 : 4, class: p.out ? 'qc-dot qc-dot--out' : 'qc-dot' }));
+      if (p.out) kids.push(text(X(i), Y(p.v) - 12, p.out === 'high' ? 'HIGH' : 'LOW', { class: 'qc-flag', 'text-anchor': 'middle' }));
+      if (pts.length <= 16 || i % Math.ceil(pts.length / 12) === 0) kids.push(text(X(i), H - 12, p.label, { class: 'qc-axis', 'text-anchor': i === pts.length - 1 ? 'end' : 'middle' }));
+    });
+    return svg('svg', { viewBox: '0 0 ' + W + ' ' + H, class: 'qc-svg', role: 'img', 'aria-label': aria }, kids);
+  }
+
+  // Histogram of ticket minutes with the overdue limit drawn as a vertical line.
+  function histSvg(bins, limitMin) {
+    const W = 760, H = 220, L = 40, R = 20, T = 16, B = 34;
+    const pw = W - L - R, ph = H - T - B;
+    const n = Math.max(bins.length, Math.ceil(limitMin) + 2);
+    const max = Math.max(1, ...bins.map((b) => b.n));
+    const bw = pw / n;
+    const kids = [svg('line', { x1: L, x2: W - R, y1: T + ph, y2: T + ph, class: 'qc-grid' })];
+    bins.forEach((b) => { const bh = (ph * b.n) / max; kids.push(svg('rect', { x: L + b.minute * bw + 1, y: T + ph - bh, width: bw - 2, height: bh, class: b.minute >= limitMin ? 'qc-bar qc-bar--late' : 'qc-bar', 'data-process': 'ticket' })); });
+    for (let i = 0; i <= n; i += Math.max(1, Math.ceil(n / 10))) kids.push(text(L + i * bw, H - 12, i + 'm', { class: 'qc-axis', 'text-anchor': 'middle' }));
+    const lx = L + limitMin * bw;
+    kids.push(svg('line', { x1: lx, x2: lx, y1: T, y2: T + ph, class: 'qc-ucl' }), text(lx + 6, T + 12, 'Overdue at ' + Math.round(limitMin) + ' min', { class: 'qc-lim' }));
+    return svg('svg', { viewBox: '0 0 ' + W + ' ' + H, class: 'qc-svg', role: 'img', 'aria-label': 'Histogram of ticket times in minutes, with the overdue limit at ' + Math.round(limitMin) + ' minutes.' }, kids);
+  }
+
+  // Builds the Quality page into the container and returns what the frame needs to refresh and clean up.
+  function render(container, ctx) {
+    const kit = ctx.kit || O.kit;
+    if (!kit || typeof kit.page !== 'function') throw new Error('The back-office kit is not available (80-office-core.js).');
+    const page = kit.page(container, ctx, { id: 'quality' });
+    // The report is worked out once per data set, range and channel, then shared by every panel.
+    let memo = { ds: null, key: '', rep: null };
+    const report = () => {
+      const ds = ctx.dataset(), F = ctx.filters;
+      const key = F.range.from + ':' + F.range.to + ':' + F.channel;
+      if (memo.ds !== ds || memo.key !== key) memo = { ds, key, rep: SB.quality.analyze(ds, { from: F.range.from, to: F.range.to, channel: F.channel }) };
+      return memo.rep;
+    };
+    // Makes a panel whose body is rebuilt from the report on every refresh. draw(body, rep) fills it.
+    const panel = (o, draw) => page.panel(Object.assign({}, o, { render(body) {
+      // The frame calls render once (draw now), then update on every refresh (draw again from the fresh report).
+      const paint = () => { U.clear(body); try { draw(body, report()); } catch (e) { body.appendChild(h('p', { class: 'qc-note' }, 'This panel could not be drawn: ' + (e && e.message))); } };
+      paint();
+      return { update: paint };
+    } }));
+
+    page.section('How good is the line right now?', 'Counted from every ticket and every batch in the range above. A defect is anything on the list in the table at the bottom.');
+    panel({ title: 'Sigma score', sub: 'Defects per million chances', span: 12 }, (body, r) => {
+      const t = r.tickets, c = r.cabinet;
+      if (t.units < MIN_TICKETS) { body.appendChild(h('p', { class: 'qc-note' }, 'Not enough data yet: ' + t.units + ' finished tickets in this range. A score needs at least ' + MIN_TICKETS + '. Pick a longer range or keep cooking.')); }
+      // One score tile: a label, a big value and a small line under it.
+      const tile = (label, value, sub, tone) => h('div', { class: 'qc-tile', dataset: { tone: tone || 'info' } }, h('span', { class: 'qc-tile-l' }, label), h('span', { class: 'qc-tile-v num' }, value), h('span', { class: 'qc-tile-s' }, sub));
+      const level = t.units >= MIN_TICKETS ? sig(t.sigma, t.defects) : '-';
+      const tone = !isNum(t.sigma) || t.units < MIN_TICKETS ? 'info' : t.sigma >= 4 ? 'good' : t.sigma >= 3 ? 'warn' : 'bad';
+      body.appendChild(h('div', { class: 'qc-tiles' },
+        tile('Ticket sigma level', level, tone === 'good' ? 'Strong' : tone === 'warn' ? 'Room to improve' : tone === 'bad' ? 'Many tickets go wrong' : 'Needs more tickets', tone),
+        tile('Defects per million', t.dpmo === null ? '-' : num(t.dpmo), num(t.defects) + ' defects in ' + num(t.opps) + ' chances'),
+        tile('Tickets with no defect', pct(t.firstPass), num(t.units - t.defective) + ' of ' + num(t.units) + ' tickets'),
+        tile('Cabinet sigma level', c.units >= 5 ? sig(c.sigma, c.defects) : '-', num(c.defects) + ' defects in ' + num(c.opps) + ' chances'),
+        tile('Food thrown away', U.fmtMoney(r.cost, 2), 'cost of discarded batches in range')));
+      body.appendChild(h('p', { class: 'qc-note' }, 'Sigma level uses the standard 1.5 sigma shift. A level of 6+ only means no defects were seen, not that none can happen.'));
+    });
+
+    page.section('What goes wrong most?', 'Fix the tallest bar first. A Pareto chart is sorted so the few causes that make most of the trouble stand out.');
+    panel({ title: 'Defects by type (Pareto)', sub: 'Bars are counts; the line is the running share', span: 7, caption: 'The first one or two bars usually hold most of the defects. Start there.' }, (body, r) => {
+      if (!r.pareto.length) { body.appendChild(h('p', { class: 'qc-note' }, 'No defects recorded in this range. That is the goal.')); return; }
+      body.appendChild(paretoSvg(r.pareto));
+      body.appendChild(h('p', { class: 'qc-note' }, 'Orange bars are ticket defects, blue bars are hold-cabinet defects.'));
+    });
+    panel({ title: 'Why tickets ran late', sub: 'Best guess from what the app recorded', span: 5, caption: 'This is a guess from timestamps, so check it before you change anything.' }, (body, r) => {
+      if (!r.causes.length) { body.appendChild(h('p', { class: 'qc-note' }, 'No late tickets in this range.')); return; }
+      const list = h('ul', { class: 'qc-causes' });
+      for (const c of r.causes) list.appendChild(h('li', null, h('span', { class: 'qc-cause-l' }, c.label), h('span', { class: 'qc-cause-bar' }, h('span', { style: 'width:' + Math.round(c.share * 100) + '%' })), h('span', { class: 'qc-cause-n num' }, c.count + ' (' + pct(c.share) + ')')));
+      body.appendChild(list);
+    });
+
+    page.section('Is it getting better or worse?', 'A control chart separates a bad day from a changed process. Dots inside the limits are normal ups and downs; a dot outside, or eight in a row on one side, means something real changed.');
+    panel({ title: 'Share of tickets with a defect, by day', sub: 'p-chart', span: 12, caption: 'A flagged day is worth asking about. A day inside the limits is normal noise, so do not scold anyone for it.' }, (body, r) => {
+      const d = r.chart.days.filter((x) => x.n > 0);
+      if (d.length < MIN_DAYS) { body.appendChild(h('p', { class: 'qc-note' }, 'Not enough data yet: ' + d.length + ' service ' + (d.length === 1 ? 'day' : 'days') + '. Control limits need at least ' + MIN_DAYS + ' days, so none are drawn.')); return; }
+      // Each day has its own limits (they widen on slow days), so the chart draws the average and the widest limits.
+      const widest = d.reduce((a, x) => (x.ucl - x.lcl > a.ucl - a.lcl ? x : a), d[0]);
+      body.appendChild(controlSvg(d.map((x) => ({ label: U.fmtDateShort(x.date), v: x.p, out: x.out })), { centre: r.chart.pbar, ucl: widest.ucl, lcl: widest.lcl }, (v) => Math.round(v * 100) + '%', 'Share of tickets with at least one defect for each day. Average ' + pct(r.chart.pbar) + '.'));
+      const bad = d.filter((x) => x.out || x.run);
+      body.appendChild(h('p', { class: 'qc-note' }, bad.length ? bad.length + ' ' + (bad.length === 1 ? 'day signals' : 'days signal') + ' a real change: ' + bad.map((x) => U.fmtDateShort(x.date) + (x.out === 'high' ? ' (worse)' : x.out === 'low' ? ' (better)' : ' (long run)')).join(', ') + '.' : 'No day is outside its limits. The process looks steady.'));
+    });
+    panel({ title: 'Average ticket time, by day', sub: 'Individuals chart', span: 12 }, (body, r) => {
+      const d = r.chart.days.filter((x) => isNum(x.meanMin));
+      if (d.length < MIN_DAYS || r.chart.imr.ucl === null) { body.appendChild(h('p', { class: 'qc-note' }, 'Not enough data yet: ' + d.length + ' service ' + (d.length === 1 ? 'day' : 'days') + '. Needs at least ' + MIN_DAYS + '.')); return; }
+      const im = r.chart.imr;
+      body.appendChild(controlSvg(d.map((x) => ({ label: U.fmtDateShort(x.date), v: x.meanMin, out: x.meanOut })), im, (v) => v.toFixed(1) + 'm', 'Average ticket minutes for each day. Average ' + im.centre.toFixed(1) + ' minutes.'));
+    });
+
+    page.section('Can the line hit its time?', 'Capability compares the spread of ticket times with the overdue limit. Cpk of 1.33 or more is comfortable; under 1 means many tickets will run late.');
+    panel({ title: 'Ticket time against the overdue limit', sub: 'Capability', span: 12 }, (body, r) => {
+      const cp = r.capability;
+      body.appendChild(h('div', { class: 'qc-tiles' },
+        h('div', { class: 'qc-tile', dataset: { tone: !cp.enough ? 'info' : cp.cpk >= 1.33 ? 'good' : cp.cpk >= 1 ? 'warn' : 'bad' } }, h('span', { class: 'qc-tile-l' }, 'Cpk'), h('span', { class: 'qc-tile-v num' }, cp.enough && isNum(cp.cpk) ? cp.cpk.toFixed(2) : '-'), h('span', { class: 'qc-tile-s' }, cp.enough ? (cp.cpk >= 1.33 ? 'Comfortable' : cp.cpk >= 1 ? 'Tight' : 'Not capable') : 'Needs 30 tickets, have ' + cp.n)),
+        h('div', { class: 'qc-tile' }, h('span', { class: 'qc-tile-l' }, 'Average'), h('span', { class: 'qc-tile-v num' }, isNum(cp.mean) ? cp.mean.toFixed(1) + ' min' : '-'), h('span', { class: 'qc-tile-s' }, 'standard deviation ' + (isNum(cp.sd) ? cp.sd.toFixed(1) + ' min' : '-'))),
+        h('div', { class: 'qc-tile' }, h('span', { class: 'qc-tile-l' }, 'Overdue limit'), h('span', { class: 'qc-tile-v num' }, cp.limit.toFixed(0) + ' min'), h('span', { class: 'qc-tile-s' }, 'from the channel settings'))));
+      if (r.histogram.length) body.appendChild(histSvg(r.histogram, cp.limit));
+    });
+
+    // Table cell formatters and row builders for the two tables below.
+    // Shows a per-million rate, or says it was not measured.
+    const fmtPerMillion = (v) => (isNum(v) ? num(v) : 'not measured');
+    // Shows a ticket number with a hash sign.
+    const fmtTicket = (v) => '#' + v;
+    // Shows a service day as a short date.
+    const fmtDay = (v) => U.fmtDateShort(v);
+    // Shows a number of minutes with one decimal place.
+    const fmtMinutes = (v) => (isNum(v) ? v.toFixed(1) : '-');
+    // Rows for the defect table: tickets then cabinet, with plain words for the process.
+    const defectRows = () => { const r = report(); return r.tickets.types.concat(r.cabinet.types).map((x) => Object.assign({}, x, { process: x.process === 'ticket' ? 'Tickets' : 'Hold cabinet' })); };
+    // Rows for the worst-tickets table.
+    const worstRows = () => report().worst.map((x) => Object.assign({}, x, { defectText: x.defects.join(', '), cause: x.cause || '-' }));
+    page.section('Where to look', 'The tickets and the checks behind the numbers.');
+    page.table({
+      title: 'Every defect type, and how it is counted', span: 12,
+      columns: [
+        { key: 'label', label: 'Defect', sort: true }, { key: 'process', label: 'Where', sort: true }, { key: 'defects', label: 'Defects', align: 'right', sort: true }, { key: 'opps', label: 'Chances', align: 'right', sort: true },
+        { key: 'dpmo', label: 'Per million', align: 'right', sort: true, format: fmtPerMillion }, { key: 'how', label: 'How it is counted' },
+      ],
+      rows: defectRows,
+      empty: { body: 'No tickets in this range yet.' },
+    });
+    page.table({
+      title: 'The worst tickets', sub: 'Most defects first, then slowest', span: 12,
+      columns: [
+        { key: 'num', label: 'Ticket', align: 'right', sort: true, format: fmtTicket }, { key: 'date', label: 'Day', sort: true, format: fmtDay }, { key: 'customer', label: 'For' },
+        { key: 'minutes', label: 'Minutes', align: 'right', sort: true, format: fmtMinutes }, { key: 'defectText', label: 'What went wrong' }, { key: 'cause', label: 'Likely cause' },
+      ],
+      rows: worstRows,
+      empty: { body: 'No defective tickets in this range.' },
+    });
+    return {
+      // The kit refreshes the page's panels itself, so there is nothing to do here.
+      update() {},
+      // Removes the page and everything it built.
+      destroy() { page.destroy(); },
+    };
+  }
+
+  O.registerPage('quality', { title: 'Quality', icon: 'target', order: 0, render });
+})(typeof globalThis !== 'undefined' ? globalThis : window);
+
+}catch(e){console.error('[smokebox] module 86-office-quality.js failed to load:',e);window.__sbLoadErrors=(window.__sbLoadErrors||[]);window.__sbLoadErrors.push({file:'86-office-quality.js',message:String(e&&e.message||e)});}
 
 /* ===== 99-boot.js ===== */
 ;try{

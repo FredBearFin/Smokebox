@@ -914,6 +914,8 @@
   // Most tickets one clock tick may add and most crew actions one tick may run, so a long pause (hidden
   // tab, huge demo speed) cannot flood the board.
   const LIVE_MAX_ARRIVALS = 12, LIVE_MAX_ACTIONS = 240;
+  // True when the Call screen is on, so demo tickets wait for the Start tap.
+  const callOn = () => !!(SB.floor && SB.floor.callMode && SB.floor.callMode());
   const live = (function () {
     const S = { running: false, rate: 'normal', crew: true, sent: 0, completed: 0 };
     const listeners = new Set();
@@ -922,6 +924,7 @@
     // The four sets below are cleared together on stop and when the crew is turned off, so no stale job
     // runs later.
     let planned = new Set();      // item ids the crew already has a plan for
+    let startPlanned = new Set(); // ticket ids the crew will tap Start on
     let bumpPlanned = new Set();  // ticket ids with a bump on the way
     let tempAt = new Map();       // batch id -> {last, at}: when the crew will next log its temperature
     let sanitizeAt = null;        // {due, at}
@@ -960,6 +963,7 @@
     function send(order) {
       const st = store();
       for (let attempt = 0; attempt < 5 && order.items.length; attempt++) {
+        if (callOn()) order = Object.assign({}, order, { awaitStart: true });
         const r = st.dispatchEx('createTicket', order, { source: 'sim' });
         if (r.report === 'ok') { S.sent++; return true; }
         if (r.report !== 'itemUnavailable' || !r.info || !r.info.menuId) return false;
@@ -979,6 +983,20 @@
       const pacing = st.getState().settings.pacing;
       for (const t of tickets) {
         if (t.src !== 'demo') continue;
+        // Two-tap tickets: the crew taps Start after a short reaction time, then Release a little after the plan says ready.
+        if (t.awaitStart || (t.startedAt != null && !t.released)) {
+          const tid = t.id;
+          if (t.awaitStart && !startPlanned.has(tid)) {
+            startPlanned.add(tid);
+            queue.push(n + responseSec(crewRng, tickets.length, t.rush) * SEC, () => act('startTicket', { ticketId: tid }));
+          }
+          if (t.startedAt != null && !bumpPlanned.has(tid)) {
+            bumpPlanned.add(tid);
+            const readyAt = t.startedAt + (t.dmaxSec || 0) * 1000;
+            queue.push(Math.max(n, readyAt) + expoDelaySec(crewRng) * SEC, () => { const r = act('releaseTicket', { ticketId: tid }); if (r === 'ok') { S.completed++; changed(); payLive(tid); } });
+          }
+          continue;
+        }
         for (const it of t.items) {
           if (planned.has(it.id) || (it.status !== 'displayed' && it.status !== 'cooking')) continue;
           planned.add(it.id);
@@ -1071,7 +1089,7 @@
       if (S.running) { changed(); return status(); }
       seed = isNum(opts.seed) ? opts.seed >>> 0 : (Date.now() ^ 0x5bd1e995) >>> 0;
       rng = U.rng(seed); crewRng = U.rng((seed + 7919) >>> 0);
-      queue = new Heap(); planned = new Set(); bumpPlanned = new Set(); tempAt = new Map(); sanitizeAt = null;
+      queue = new Heap(); planned = new Set(); bumpPlanned = new Set(); startPlanned = new Set(); tempAt = new Map(); sanitizeAt = null;
       S.sent = 0; S.completed = 0; S.running = true;
       nextAt = st.now() + gapMs();
       off = st.subscribeTick(onTick);
@@ -1082,7 +1100,7 @@
     function stop() {
       if (off) { try { off(); } catch (e) { /* ignore */ } off = null; }
       S.running = false;
-      queue = new Heap(); planned = new Set(); bumpPlanned = new Set(); tempAt = new Map(); sanitizeAt = null;
+      queue = new Heap(); planned = new Set(); bumpPlanned = new Set(); startPlanned = new Set(); tempAt = new Map(); sanitizeAt = null;
       changed();
       return status();
     }
@@ -1106,7 +1124,7 @@
     // the status.
     function crew(on) {
       S.crew = on !== false && !!on;
-      if (!S.crew) { queue = new Heap(); planned = new Set(); bumpPlanned = new Set(); tempAt = new Map(); sanitizeAt = null; }
+      if (!S.crew) { queue = new Heap(); planned = new Set(); bumpPlanned = new Set(); startPlanned = new Set(); tempAt = new Map(); sanitizeAt = null; }
       changed();
       return status();
     }
@@ -1151,7 +1169,7 @@
           return line;
         }).filter((l) => onMenuNow(st, l.menuId));
         if (!items.length) continue;
-        const r = st.dispatchEx('createTicket', { customer: spec.customer, channel: spec.channel, items, note: spec.note || '', src: 'demo', createdAt: n - spec.age * SEC, allowPast: true }, { source: 'sim' });
+        const r = st.dispatchEx('createTicket', { customer: spec.customer, channel: spec.channel, items, note: spec.note || '', src: 'demo', createdAt: n - spec.age * SEC, allowPast: true, awaitStart: callOn() }, { source: 'sim' });
         if (r.report === 'ok') made++;
       }
       // Items already due show up on the next tick.
