@@ -119,7 +119,7 @@
   // Current choices: floor look, office look (ember dark / paper light), text size. themeSubs = listeners.
   const cur = { theme: 'day', otheme: 'ember', text: 'normal', density: 'auto', hints: true };
   const themeSubs = [];
-  // Reads the saved look and text size from the notebook; only known values are accepted.
+  // Reads saved looks and board sizes from the notebook; only known values are accepted.
   function loadTheme() {
     if (!U || !U.storage) return;
     const t = U.storage.get(KEY.theme, null), o = U.storage.get(KEY.otheme, null), x = U.storage.get(KEY.text, null);
@@ -127,7 +127,7 @@
     if (o === 'ember' || o === 'paper') cur.otheme = o;
     if (x === 'normal' || x === 'large') cur.text = x;
     const d = U.storage.get(KEY.density, null);
-    if (d === 'auto' || d === 'large' || d === 'compact') cur.density = d;
+    if (d === 'auto' || d === 'large' || d === 'compact' || d === 'far') cur.density = d;
     const hs = U.storage.get(KEY.hints, null);
     if (hs === true || hs === false) cur.hints = hs;
   }
@@ -177,11 +177,11 @@
     if (x !== 'normal' && x !== 'large') return cur.text;
     cur.text = x; if (U) U.storage.set(KEY.text, x); applyTheme(); emitTheme('text'); return x;
   };
-  // How big tickets are drawn: 'auto' (compact once they would not fit in one row), 'large' or 'compact'.
+  // How big tickets are drawn: automatic, full, compact or far-display size.
   T.density = () => cur.density;
-  // Sets the ticket size ('auto', 'large' or 'compact'), saves it and tells listeners. Anything else is ignored.
+  // Sets and saves the board size; anything outside the four supported choices is ignored.
   T.setDensity = function (d) {
-    if (d !== 'auto' && d !== 'large' && d !== 'compact') return cur.density;
+    if (d !== 'auto' && d !== 'large' && d !== 'compact' && d !== 'far') return cur.density;
     cur.density = d; if (U) U.storage.set(KEY.density, d); emitTheme('density'); return d;
   };
   // Whether each ticket shows its "do this next" line. On unless someone turns it off.

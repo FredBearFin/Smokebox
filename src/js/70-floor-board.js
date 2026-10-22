@@ -815,10 +815,11 @@
     if (!m || !m.main) return;
     if (n != null) m.n = n;
     const pref = SB.theme && SB.theme.density ? SB.theme.density() : 'auto';
-    let d = pref === 'compact' ? 'compact' : 'roomy';
+    let d = pref === 'far' ? 'far' : pref === 'compact' ? 'compact' : 'roomy';
     if (pref === 'auto') { const cols = fullCols(); d = m.n > cols || (m.dens === 'compact' && m.n > cols - 1) ? 'compact' : 'roomy'; }
     m.dens = d;
     if (m.main.dataset.density !== d) m.main.dataset.density = d;
+    if (m.root.dataset.density !== d) m.root.dataset.density = d;
   }
 
   // Removes every slip at once, for tab switches where a slide-out would be noise.

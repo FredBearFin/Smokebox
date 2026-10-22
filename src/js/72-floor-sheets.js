@@ -1996,7 +1996,7 @@
     const textSeg = SB.ui.segmented({ label: 'Text size', class: 'mn-text', value: SB.theme.textSize(), options: [{ id: 'normal', label: 'Normal' }, { id: 'large', label: 'Large' }], onChange: (id) => SB.theme.setTextSize(id) });
 
     // Ticket size: Auto draws full-size tickets while they fit in one row, then compact ones.
-    const sizeSeg = SB.ui.segmented({ label: 'Ticket size', class: 'mn-size', value: SB.theme.density(), options: [{ id: 'auto', label: 'Auto' }, { id: 'large', label: 'Full size' }, { id: 'compact', label: 'Compact' }], onChange: (id) => SB.theme.setDensity(id) });
+    const sizeSeg = SB.ui.segmented({ label: 'Ticket size', class: 'mn-size', value: SB.theme.density(), options: [{ id: 'auto', label: 'Auto' }, { id: 'large', label: 'Full size' }, { id: 'compact', label: 'Compact' }, { id: 'far', label: 'Far display' }], onChange: (id) => SB.theme.setDensity(id) });
 
     // The "do this next" line under each ticket.
     const hintsTog = SB.ui.toggle({ label: 'Show the next step on each ticket', checked: SB.theme.hints(), onChange: (on) => SB.theme.setHints(on) });
