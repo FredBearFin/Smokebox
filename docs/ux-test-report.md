@@ -200,14 +200,18 @@ Taps (counted by driving the buttons on a 1280x800 touch screen, 2026-10-18): pu
 | 1 | No warning ladder, cry-wolf badge | Built: strip, ladder, grouped sounds, badge says why. Replayed in simulation (above). |
 | 2 | Sound off, nothing spoken, no wake lock | Built: on by default with a tap-to-allow bar, spoken calls, wake lock request (refused in headless Chromium; untested on a real tablet). |
 | 3 | Hold, 86, Recall hidden below 1180 px | Fixed at 1024 px (words drop before buttons; the Hold button became the Cabinet tab). Not checked on a real 1024-wide Android tablet. |
-| 4 | Text too small | Strip measured above: not enough for a TV across a room. Open. |
+| 4 | Text too small | Far-display preset built; the reading-distance and 10-foot acceptance tests are still open. |
 | 5 | Too many taps | Pull and keep are 2 and 3 taps. Clean-hands bump, inferred items: open (phase C). |
-| 6 | All-pink board, "On time" chips | Open. |
-| 7 | Uneven ticket heights, fold, counts strip | Open. |
+| 6 | All-pink board, "On time" chips | Healthy badges are hidden and overdue headers use a strong edge; real-service hierarchy test remains open. |
+| 7 | Uneven ticket heights, fold, counts strip | Far-display cards stretch to a shared row height; busy-board and all-day-strip checks remain open. |
 | 8 | Toasts cover buttons | Moved bottom-left on tablets and up. Not re-checked against every sheet. |
 | 9 | Channel sync block on the 86 board | Folded below the menu and stock. |
 | 10 | Mixed units | Open: the cook endpoint now also shows F; no units setting. |
 | 11 | New batch form | Starts from the last batch of each product. Fewer inputs: open. |
+
+## Follow-up: far-display preset (2026-10-22)
+
+The board now has an optional **Far display** ticket-size preset in Settings. It enlarges the attention strip and ticket content, narrows the grid to fewer columns, hides the healthy "On time" badge, and gives overdue ticket heads a stronger edge instead of tinting every overdue head pink. This is a visual treatment, not a measured claim: the 10-foot acceptance test has **not** been repeated with cooks or at a real TV distance. Uneven card heights, mixed temperature/weight units, and real-device warning behavior remain open. Do not treat this change as evidence that Phase B has passed.
 
 ## Cabinet view (built after the replay)
 

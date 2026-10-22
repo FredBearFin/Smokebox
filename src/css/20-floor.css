@@ -501,11 +501,14 @@ button.slip-item.fl-item { cursor: pointer; }
   padding: calc(24px * var(--fl-k)) calc(28px * var(--fl-k)) calc(32px * var(--fl-k));
 }
 .fl-main[data-density="far"] .fl-grid {
+  align-items: stretch;
   grid-template-columns: repeat(auto-fill, minmax(min(100%, calc(760px * var(--fl-k))), 1fr));
   gap: calc(28px * var(--fl-k)) calc(24px * var(--fl-k));
 }
-.fl-main[data-density="far"] .fl-slip { padding-top: calc(14px * var(--fl-k)); contain-intrinsic-block-size: auto calc(600px * var(--fl-k)); }
+.fl-main[data-density="far"] .fl-slip { display: flex; flex-direction: column; padding-top: calc(14px * var(--fl-k)); contain-intrinsic-block-size: auto calc(600px * var(--fl-k)); }
 .fl-main[data-density="far"] .fl-slip .slip-clip { width: calc(64px * var(--fl-k)); height: calc(26px * var(--fl-k)); margin-left: calc(-32px * var(--fl-k)); }
+.fl-main[data-density="far"] .slip-body { display: flex; flex: 1 1 auto; flex-direction: column; }
+.fl-main[data-density="far"] .fl-slip .slip-foot { margin-top: auto; }
 .fl-main[data-density="far"] .fl-slip .slip-num { font-size: clamp(calc(42px * var(--fl-k)), calc(12cqw * var(--fl-tl)), calc(84px * var(--fl-k) * var(--fl-tl))); }
 .fl-main[data-density="far"] .fl-slip .slip-timer { font-size: clamp(calc(38px * var(--fl-k)), calc(10cqw * var(--fl-tl)), calc(72px * var(--fl-k) * var(--fl-tl))); }
 .fl-main[data-density="far"] .fl-slip .slip-who,
