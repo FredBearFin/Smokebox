@@ -42,6 +42,14 @@ These are not in Kokoro:
   - a voice-cloning engine trained from a short recording of a real speaker, with their permission;
   - a paid voice service that offers that accent.
 
+## Decided scope (owner, 2026-10-24)
+
+- Three languages: **English, Spanish and French.** No others for now.
+- Spanish reaches the many Spanish-speaking kitchen workers in the US.
+- French reaches African and Haitian workers.
+  - Note: many Haitian workers use Haitian Creole day to day. French reaches some of them, not all.
+  - Kokoro has no Creole voice. If kitchens ask for it, it is a later decision.
+
 ## Work, in order
 
 1. **First (planned now):** English Kokoro call-outs in the hosted version, with the owner choosing the voice under Settings.
@@ -49,4 +57,4 @@ These are not in Kokoro:
    - The phrases live in `25-deadlines.js` `phrase()`; the screen text is spread across the UI files.
 3. A language setting per device, plus a voice per language.
 4. Spanish first: a native speaker checks the kitchen wording ("marchar" and the like).
-5. French, then other languages as kitchens ask for them.
+5. French, with the same native-speaker check.
