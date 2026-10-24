@@ -2278,6 +2278,15 @@
     due.sort((a, b) => at(a) - at(b));
     if (due.length) {
       const { t, it } = due[0];
+      // The same dish due on other tickets now or within 45 seconds is started as one batch: one tap, one basket.
+      if (it.track === 'two') {
+        const same = due.filter((x) => x.it.menuId === it.menuId && x.it.track === 'two').concat(waiting.filter((x) => x.it.menuId === it.menuId && x.it.track === 'two' && at(x) - now <= 45000));
+        if (same.length > 1) {
+          const qty = same.reduce((n, x) => n + (x.it.qty || 1), 0), nums = Array.from(new Set(same.map((x) => x.t.num))).sort((a, b) => a - b);
+          return { tone: 'fire', text: 'Start ' + qty + ' ' + (it.short || it.name) + ' together: tickets ' + nums.join(', ') + '. Tap here.', ticketId: t.id, itemId: it.id, target: 'batch',
+            batch: same.map((x) => ({ ticketId: x.t.id, itemId: x.it.id, queued: x.it.status === 'queued' })) };
+        }
+      }
       const text = it.track === 'two' ? 'Start ' + nm(it) + ' on ticket ' + t.num + '.' : 'Make ' + nm(it) + ' for ticket ' + t.num + ', then tap Done.';
       return { tone: 'fire', text: text + (due.length > 1 ? ' (' + (due.length - 1) + ' more after)' : ''), ticketId: t.id, itemId: it.id, target: 'item' };
     }
@@ -2310,12 +2319,25 @@
   function spotCoach() {
     const c = m && m.coachNow;
     if (!c || !c.ticketId) return;
+    if (c.batch) { startBatch(c); return; }
     const slip = m.grid.querySelector('.fl-slip[data-ticket="' + cssEsc(c.ticketId) + '"]');
     if (!slip) return;
     const el = c.target === 'bump' ? slip.querySelector('.fl-bump') : slip.querySelector('.fl-row[data-item="' + cssEsc(c.itemId) + '"] .slip-item') || slip;
     try { el.scrollIntoView({ block: 'center', behavior: reduced() ? 'auto' : 'smooth' }); } catch (e) { /* ignore */ }
     el.classList.remove('fl-spot'); void el.offsetWidth; el.classList.add('fl-spot');
     setTimeout(() => el.classList.remove('fl-spot'), 2600);
+  }
+
+  // Starts every dish of a coach batch in one go (dishes still waiting are fired early) and says how many started.
+  function startBatch(c) {
+    const S = store();
+    let n = 0;
+    for (const b of c.batch) {
+      const r = S.dispatchEx(b.queued ? 'fireNow' : 'advanceItem', b.queued ? { ticketId: b.ticketId, itemId: b.itemId, start: true } : { ticketId: b.ticketId, itemId: b.itemId }, { source: 'ui' });
+      if (r.report === 'ok') n++;
+    }
+    if (m) m.rowUndoFor = null;
+    toast(n ? 'Started ' + n + ' ' + U.plural(n, 'dish', 'dishes') + ' together.' : 'Nothing could be started. The tickets changed.', { tone: n ? 'ok' : 'warn' });
   }
 
   // Actions: every tap becomes a store action.
