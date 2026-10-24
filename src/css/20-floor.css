@@ -340,6 +340,11 @@ button.fl-chip[data-tone="bad"] { color: var(--crimson); background: var(--tint-
 .fl-chan { display: inline-flex; align-items: center; gap: 5px; color: var(--ink); }
 .fl-count { color: var(--ink2); }
 .fl-count[data-ready="true"] { color: var(--sage-ink); font-weight: var(--w-heavy); }
+/* A ticket whose dishes are all done is waiting to be bumped, not cooking: green, not red, even when it is past its time. */
+.fl-slip[data-ready="true"] .slip-head { background: var(--tint-ok); }
+.fl-slip[data-ready="true"][data-level] .slip-head, .fl-slip[data-ready="true"][data-level] .slip-body, .fl-slip[data-ready="true"][data-level] .slip-tear { box-shadow: none; animation: none; }
+.fl-slip[data-ready="true"][data-tier] { outline: calc(4px * var(--fl-k)) solid var(--sage); outline-offset: calc(-4px * var(--fl-k)); --fl-esc: 1; }
+.fl-slip[data-ready="true"] .slip-timer { color: var(--ink); }
 .fl-demo-tag { padding: 0 6px; font-size: var(--fs-1); font-weight: var(--w-bold); color: var(--ink2); border: var(--bw-thin) dashed var(--slip-line); border-radius: var(--r-chip); }
 .fl-slip .slip-time { gap: var(--sp-2); }
 .fl-slip .slip-timer { font-size: calc(clamp(calc(24px * var(--fl-k)), calc(12cqw * var(--fl-tl)), calc(var(--fs-timer) * 1.5)) * var(--fl-esc, 1)); letter-spacing: 0.01em; white-space: nowrap; }
@@ -441,7 +446,7 @@ button.slip-item.fl-item { cursor: pointer; }
 .fl-main[data-density="compact"] .slip-next .icon { width: 16px; height: 16px; }
 
 /* slip foot */
-.fl-slip .slip-foot { flex-wrap: nowrap; align-items: stretch; justify-content: flex-end; gap: var(--sp-2); padding: var(--sp-3); }
+.fl-slip .slip-foot { flex-wrap: nowrap; align-items: stretch; justify-content: flex-end; gap: calc(16px * var(--fl-k)); padding: var(--sp-3); }
 .fl-slip .slip-foot > .btn { flex: 1 1 auto; min-height: var(--tap-lg); }
 .fl-slip .slip-foot > .fl-more { flex: none; width: var(--tap-lg); min-width: var(--tap-lg); }
 .fl-zone, .fl-bump { font-size: var(--fs-3); font-weight: var(--w-bold); }
@@ -537,7 +542,7 @@ button.slip-item.fl-item { cursor: pointer; }
 .fl-main[data-density="compact"] .fl-fire { width: 44px; min-width: 44px; min-height: 44px; padding: 0; justify-content: center; }
 .fl-main[data-density="compact"] .fl-fire > span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .fl-main[data-density="compact"] .fl-act { min-height: 44px; min-width: calc(56px * var(--fl-k)); }
-.fl-main[data-density="compact"] .fl-slip .slip-foot { padding: 4px var(--sp-2); }
+.fl-main[data-density="compact"] .fl-slip .slip-foot { padding: 4px var(--sp-2); gap: calc(16px * var(--fl-k)); }
 .fl-main[data-density="compact"] .fl-slip .slip-foot > .btn { min-height: 44px; }
 
 /* The all-day strip pinned under the slips: a fold button, the total, and a scrolling row of dish chips. */

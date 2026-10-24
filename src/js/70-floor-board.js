@@ -793,7 +793,7 @@
     // Clear highlight removes the all-day highlight.
     const dockClear = h('button', { type: 'button', class: 'btn fl-dock-clear', hidden: true, onClick: () => F.highlight(null) }, ico('x', 18), h('span', null, 'Clear highlight'));
     const dockList = h('div', { class: 'fl-dock-list', id: 'fl-dock-list', role: 'group', 'aria-label': 'Items still to make, tap one to highlight it on the board' });
-    const dockEmpty = h('span', { class: 'fl-dock-empty' }, 'Nothing waiting.');
+    const dockEmpty = h('span', { class: 'fl-dock-empty' }, 'Nothing to cook.');
     // "+3 more" says how many dish chips did not fit on the strip's one line; tapping it shows them all (and again folds them).
     const dockMore = h('button', { type: 'button', class: 'btn fl-dock-more', hidden: true, 'aria-controls': 'fl-dock-list', 'aria-expanded': 'false', onClick: () => { m.dockOpen = !m.dockOpen; fitDock(); measureDock(); } }, h('span', null, ''));
     // A quiet stamp of the last time the board updated itself, so a frozen or sleeping screen shows an old time.
@@ -1544,7 +1544,8 @@
     } else {
       row.stateIcon = h('span', { class: 'fl-state-i', 'aria-hidden': 'true' });
       row.stateWord = h('span', { class: 'fl-state-w' });
-      const stateEl = h('span', { class: 'fl-state', dataset: { state: it.status } }, row.stateIcon, row.stateWord);
+      // The hidden words after the name already say the state, so the visible word is not read a second time ("done. Done").
+      const stateEl = h('span', { class: 'fl-state', dataset: { state: it.status }, 'aria-hidden': 'true' }, row.stateIcon, row.stateWord);
       row.stateEl = stateEl;
       row.main = h('div', { class: 'slip-item fl-item', dataset: { state: it.status } }, qty, name, stateEl, sub.childNodes.length ? sub : null);
       li.appendChild(row.main);
@@ -1634,9 +1635,10 @@
     const lvl = el >= th.breachMs ? 'breach' : el >= th.warnMs ? 'warn' : 'ok';
     // How long past its overdue time the slip is; 0 while it is not overdue. The ranking below uses it.
     rec.overMs = lvl === 'breach' ? el - th.breachMs : 0;
-    // An overdue slip says how late it is, in whole minutes, so the worst one is easy to pick out.
-    if (lvl === 'breach') put(rec.refs.bw, WORDS.breach + ' +' + Math.floor(rec.overMs / 60e3) + ' min');
-    const txt = U.fmtClock(el);
+    // One time per ticket: the timer. The badge says only "Overdue" (a second number beside the timer made people do sums),
+    // and past an hour the timer reads "1h 05m" instead of "65:00".
+    if (lvl === 'breach') put(rec.refs.bw, WORDS.breach);
+    const txt = el < 3600e3 ? U.fmtClock(el) : Math.floor(el / 3600e3) + 'h ' + U.pad2(Math.floor(el / 60e3) % 60) + 'm';
     if (txt !== rec.timerText) { rec.timerText = txt; put(rec.refs.timer, txt); }
     if (lvl !== rec.level) {
       const prev = rec.level;
@@ -1747,7 +1749,7 @@
         when, h('span', { class: 'fl-strip-text' }, what, why));
       // Clearing a row counts as seeing it (the loud tone stops) and hides it until its next step on the ladder.
       const rowKey = () => { const r = rows[i]; return r && r.key ? 'row:' + r.key + ':' + (r.el.dataset.step || '') : ''; };
-      const xr = h('button', { type: 'button', class: 'fl-strip-x', 'aria-label': 'Clear this warning until the next one', title: 'Clear until the next warning', onClick: (e) => { e.stopPropagation(); const r = rows[i]; if (!r || !r.key) return; acknowledge(r.key); if (m) { m.dis.add(rowKey()); updateStrip(store().now()); } } }, ico('check', 22), h('span', { class: 'fl-strip-x-t' }, 'Got it'));
+      const xr = h('button', { type: 'button', class: 'fl-strip-x', 'aria-label': 'Got it: clear this warning until the next one', title: 'Clear until the next warning', onClick: (e) => { e.stopPropagation(); const r = rows[i]; if (!r || !r.key) return; acknowledge(r.key); if (m) { m.dis.add(rowKey()); updateStrip(store().now()); } } }, ico('check', 22), h('span', { class: 'fl-strip-x-t' }, 'Got it'));
       const wrap = h('div', { class: 'fl-strip-rowwrap', hidden: true, dataset: { i: String(i) } }, row, xr);
       rows.push({ el: row, wrap, when, what, why, key: '', batchId: null, rowKey });
       el.appendChild(wrap);
@@ -1878,7 +1880,7 @@
     const note = sound ? SB.deadlines.pauseNote(store().getState(), now) || health : 'Warnings are silent: sound is off on this tablet. Tap to turn on.';
     // A closed kitchen is not news while nothing is due: the note only shows when sound is off or a row is up.
     // The sound bar and the pause note say nearly the same thing, so only one of them shows at a time (the sound bar wins).
-    // Only one notice shows at a time (the "tap for sound" bar first, then the note); the bar says how many more wait behind it, and
+    // Only one notice shows at a time (the "tap for sound" bar first, then the note, once sound is on); the bar never hints at a hidden notice, and
     // its X clears them all. Warning rows above are separate and always show.
     // A device clock that jumped ahead comes first: it changes every timer on the board. It never hides the tickets.
     const cs = store().status().clockSuspect;
@@ -1896,7 +1898,7 @@
     const showNote = noteWanted && !soundShown && !clockShown;
     m.noteKey = noteWanted ? 'pause:' + note : '';
     const moreEl = m.strip.soundBar.querySelector('.fl-strip-sound span');
-    if (moreEl) { const t = (noWebAudio() ? 'This browser cannot play warning sounds' : 'Tap to turn on sound') + (soundShown && noteWanted ? ' (1 more notice)' : ''); if (moreEl.textContent !== t) moreEl.textContent = t; }
+    if (moreEl) { const t = noWebAudio() ? 'This browser cannot play warning sounds' : 'Tap to turn on sound'; if (moreEl.textContent !== t) moreEl.textContent = t; }
     setHidden(m.strip.pauseBar, !showNote);
     if (showNote) setTxt(m.strip.pauseBtn.querySelector('.fl-strip-pause-t'), note);
     if (showNote && m.histNote && note === m.histNote.words && !m.histSeen) { m.histSeen = true; try { SB.store.historyNoticeSeen(m.histNote.kind); } catch (e) { /* the store has no such call */ } }
@@ -1956,6 +1958,10 @@
       m.seg.setCount(id, n, { alert });
       const what = m.seg.querySelector('[data-id="' + id + '"] .fl-tab-what');
       if (what) { const t = tabWhat(n, id); if (what.textContent !== t) what.textContent = t; }
+      // Read aloud as one clean phrase ("Expo 3: whole tickets, ready to send out, 3 tickets, some overdue"), not the pieces one after another.
+      const tb = m.seg.querySelector('[data-id="' + id + '"]');
+      // It starts with the words on the tab ("All 4"), so a person using voice control can say what they see.
+      if (tb) { const z = id === 'all' ? null : zoneById(id), al = (z ? z.name : 'All') + ' ' + n + ': ' + (id === 'all' ? 'All stations' : id === 'expo' ? 'whole tickets, ready to send out' : z.long) + ', ' + n + tabWhat(n, id) + (alert ? ', some overdue' : ''); if (tb.getAttribute('aria-label') !== al) tb.setAttribute('aria-label', al); }
       const p = m.tabParts[id];
       if (p && p.n !== n) { p.n = n; p.count.dataset.zero = n === 0 ? 'true' : 'false'; }
     };
@@ -2451,6 +2457,11 @@
     const sum = m.dockToggle.querySelector('.fl-dock-sum');
     setTxt(sum, totalReq ? totalReq + ' to make' : '');
     dockName();
+    // Nothing left to cook is not "nothing waiting" while finished tickets still wait to go out: say both.
+    if (!entries.length) {
+      const ready = (state.tickets || []).filter((t) => t.status === 'active' && t.items.length && t.items.every((it) => it.status === 'done')).length;
+      setTxt(m.dockEmpty, ready ? 'Nothing to cook. ' + ready + ' ' + U.plural(ready, 'ticket') + ' ready to bump.' : 'Nothing to cook.');
+    }
     setHidden(m.dockEmpty, entries.length > 0 || m.dockCollapsed);
     const keep = new Set();
     const nodes = [];

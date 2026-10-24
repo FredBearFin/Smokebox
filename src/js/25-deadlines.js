@@ -403,7 +403,8 @@
   // Rows for tickets and the sanitize timer.
   function otherRows(state, now, out) {
     const C0 = E().views.counts(state, now);
-    if (C0.overdue > 0) out.push({ id: 'late', kind: 'late', label: 'Late tickets', at: now, msLeft: 0, rung: 0, rungs: 0, sev: 'warn',
+    // One late ticket already says so itself (red, "Do this first"); a strip row for it would say the same thing twice.
+    if (C0.overdue > 1) out.push({ id: 'late', kind: 'late', label: 'Late tickets', at: now, msLeft: 0, rung: 0, rungs: 0, sev: 'warn',
       consequence: C0.overdue + ' ' + U.plural(C0.overdue, 'ticket is', 'tickets are') + ' past ' + U.plural(C0.overdue, 'its', 'their') + ' time limit.', action: 'Clear the oldest ticket first.', unknown: false });
     if (U.isNum(C0.sanitizeDueAt) && C0.sanitizeDueAt - now <= 15 * MIN) {
       const late = C0.sanitizeDueAt < now;

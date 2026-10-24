@@ -637,7 +637,8 @@ input[type="checkbox"], input[type="radio"] { width: 24px; height: 24px; accent-
 .slip-item:active:not(:disabled) { background: var(--press); }
 .slip-item:focus-visible { outline-offset: -3px; }
 .slip-item[data-state="done"] { color: var(--ink3); }
-.slip-item[data-state="done"] .slip-name { text-decoration: line-through; text-decoration-thickness: 2px; }
+/* A done dish is muted with a green edge and a Done tick, never crossed out: a line through the letters makes the name hard to read when Expo checks the tray. */
+.slip-item[data-state="done"] { background: var(--tint-ok); box-shadow: inset 4px 0 0 var(--sage); }
 .slip-item[data-state="queued"] { color: var(--ink3); }
 .slip-qty { flex: none; width: var(--qty-w); font: var(--w-heavy) var(--fs-5) / 1 var(--font-display); font-variant-numeric: tabular-nums; text-align: right; }
 .slip-name { flex: 1 1 9ch; min-width: 0; }
