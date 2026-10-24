@@ -935,3 +935,27 @@ html[data-cabinet="on"] .sb-shell[data-view="floor"] .toast-host { bottom: auto;
   .sb-banner { min-height: 34px; padding-block: 0; }
   .sb-banner .btn { min-height: 30px; }
 }
+
+/* The coach bar: one plain instruction for the tab (the next thing to tap), above the tickets. The colour says the kind of job:
+   red to start or make a dish now, green to bump a finished ticket, amber to check a dish whose time is up, grey for what comes next. */
+.fl-coach {
+  flex: none; display: flex; align-items: center; gap: var(--sp-3); width: 100%; min-height: 44px; padding: 4px var(--sp-4);
+  border: 0; border-bottom: 2px solid var(--line); text-align: left; cursor: pointer;
+  font: var(--w-heavy) calc(19px * var(--fl-k) * var(--fl-tl)) / 1.2 var(--font-body); color: var(--ink); background: var(--sub);
+}
+.fl-coach[hidden] { display: none; }
+.fl-coach-i { flex: none; display: inline-flex; }
+.fl-coach-t { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fl-coach[data-tone="fire"] { color: var(--paper); background: var(--crimson); }
+.fl-coach[data-tone="go"] { color: var(--sage-ink); background: var(--tint-ok); border-bottom-color: var(--sage); }
+.fl-coach[data-tone="check"] { color: var(--amber-ink); background: var(--tint-warn); border-bottom-color: var(--amber); }
+.fl-coach[data-tone="wait"] { color: var(--ink2); font-weight: var(--w-bold); }
+.fl-coach:focus-visible { outline: var(--bw-focus) solid var(--focus); outline-offset: -4px; }
+/* The button the coach points at gets a pulsing ring for a moment after the bar is tapped. */
+.fl-spot { outline: 4px solid var(--focus); outline-offset: 2px; animation: fl-spot 0.65s ease-in-out 4; }
+@keyframes fl-spot { 0%, 100% { outline-color: var(--focus); } 50% { outline-color: transparent; } }
+@media (prefers-reduced-motion: reduce) { .fl-spot { animation: none; } }
+/* The Undo on a dish just marked done: it covers the right side of the row for 4 seconds, big enough for a gloved thumb. */
+.fl-row { position: relative; }
+.fl-row > .btn.fl-undo { position: absolute; top: 2px; right: 2px; bottom: 2px; z-index: 3; min-height: 44px; padding: 0 var(--sp-3); gap: 6px; opacity: 1; font-weight: var(--w-heavy);
+  --b-bg: var(--ink); --b-fg: var(--paper); --b-edge: var(--ink); color: var(--paper); background: var(--ink); border-color: var(--ink); }
