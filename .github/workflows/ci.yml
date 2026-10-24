@@ -24,6 +24,9 @@ jobs:
       - run: npm ci
       - name: Build dist/smokebox.html
         run: node tools/build.mjs --quiet
+      # The committed page is what people download and the server serves, so it must be exactly what the sources build.
+      - name: Committed dist matches the sources
+        run: git diff --exit-code --stat -- dist/smokebox.html || { echo "dist/smokebox.html is out of date. Run node tools/build.mjs --quiet and commit it."; exit 1; }
       - name: Unit suite
         run: node tools/test.mjs
       - name: Comment audit

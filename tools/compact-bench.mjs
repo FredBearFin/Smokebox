@@ -9,7 +9,7 @@ const tickets = Number(process.argv[2] || 5000);
 const { SB, state, now } = await buildBig({ tickets, days: 30, uncap: true });
 await loadSB(['30-store']);
 const S = SB.store;
-const mem = () => { const m = new Map(); return { m, persistent: true, get: (k, f) => (m.has(k) ? JSON.parse(m.get(k)) : f), raw: (k) => (m.has(k) ? m.get(k) : null), set: (k, v) => { m.set(k, JSON.stringify(v)); return true; }, remove: (k) => { m.delete(k); }, keys: () => [...m.keys()] }; };
+const mem = () => { const m = new Map(); return { m, persistent: true, get: (k, f) => (m.has(k) ? JSON.parse(m.get(k)) : f), raw: (k) => (m.has(k) ? m.get(k) : null), set: (k, v) => { m.set(k, JSON.stringify(v)); return true; }, setText: (k, t) => { m.set(k, t); return true; }, remove: (k) => { m.delete(k); }, keys: () => [...m.keys()] }; };
 const ms = (f) => { const t = performance.now(); const r = f(); return [performance.now() - t, r]; };
 // The smallest of several runs: on a busy machine the fastest run is the one that was disturbed least.
 const median = (a) => Math.min(...a);

@@ -297,7 +297,7 @@ test('the sample switch is persisted under smokebox.v1.sample and defaults to of
   assert.equal(Sim.sampleEnabled(), true);
 });
 
-test('generation time is within budget', () => {
+test('timing: generation time is within budget', () => {
   // CPU time, not wall time: other jobs on a shared machine slow the clock on the wall but not the work done.
   Sim.clearSample();
   const c0 = process.cpuUsage(), a = performance.now();

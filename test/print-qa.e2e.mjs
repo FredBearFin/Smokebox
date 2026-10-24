@@ -124,7 +124,7 @@ await withPage({ w: 1280, h: 900, hash: '' }, async (page, logs) => {
       const last = pageText(p.file, p.pages), mid = pageText(p.file, Math.min(3, p.pages));
       check('safety record ' + p.name + ': no blank last page', last.trim().length > 20, last.slice(0, 40));
       check('safety record ' + p.name + ': table headings repeat on a later page', /When\s+What\s+Food\s+Detail/.test(mid), mid.slice(0, 200));
-      check('safety record ' + p.name + ': nothing from the app around it', !/Back office|Menu and settings|Print the food safety record/.test(pageText(p.file, 1) + mid));
+      check('safety record ' + p.name + ': nothing from the app around it', !/Back office|Menu, prices and shop|Print the food safety record/.test(pageText(p.file, 1) + mid));
       check('safety record ' + p.name + ': nothing is cut off at the right edge (every column heading is whole)', /Corrections added later/.test(pageText(p.file, 1)) || /Corrections/.test(pageText(p.file, 1)), pageText(p.file, 1).slice(0, 300));
     }
   }
@@ -177,7 +177,7 @@ await withPage({ w: 1280, h: 900, hash: '' }, async (page, logs) => {
   check('pilot report: black, white and grey only', m4 && m4.colored.length === 0, m4 && m4.colored);
   for (const p of await toPdfs(page, 'pilot-report')) {
     check('pilot report ' + p.name + ': a sane number of pages (' + p.pages + ')', p.pages >= 1 && p.pages <= 6, p.pages);
-    if (POPPLER) { const t = pageText(p.file, 1); check('pilot report ' + p.name + ': the report is there and nothing from the app', /Pilot report/.test(t) && !/Back office|Menu and settings/.test(t), t.slice(0, 200)); check('pilot report ' + p.name + ': no blank last page', pageText(p.file, p.pages).trim().length > 20); }
+    if (POPPLER) { const t = pageText(p.file, 1); check('pilot report ' + p.name + ': the report is there and nothing from the app', /Pilot report/.test(t) && !/Back office|Menu, prices and shop/.test(t), t.slice(0, 200)); check('pilot report ' + p.name + ': no blank last page', pageText(p.file, p.pages).trim().length > 20); }
   }
 
 

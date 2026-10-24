@@ -1530,7 +1530,9 @@ a.of-nav:active { background: var(--press); }
   .of { --of-rail: 88px; --of-gut: var(--sp-5); }
   .of-rail { padding: var(--sp-4) var(--sp-2); }
   .of-rail-brand { justify-content: center; padding: 0 0 var(--sp-4); }
-  .of-rail-name, .of-nav-full, .of-soon { display: none; }
+  .of-rail-name, .of-soon { display: none; }
+  /* The full page name stays in the link for screen readers (clipped, not hidden) while the short name is drawn. */
+  .of-nav-full { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
   .of-nav-short { display: block; }
   .of-nav { flex-direction: column; justify-content: center; gap: 4px; min-height: 58px; padding: var(--sp-2) 2px; text-align: center; font-size: 12px; }
   .of-nav-w { justify-items: center; }
@@ -1974,6 +1976,15 @@ a.of-nav:active { background: var(--press); }
   .pr-printroot pre { white-space: pre-wrap; overflow-wrap: anywhere; font: 11px/1.4 ui-monospace, Menlo, Consolas, monospace; color: #000; margin: 0; }
 }
 
+/* Saved history: a plain meter and, from 70 percent full, a calm amber card. Words carry the meaning; the bar is a picture of the same number. */
+.od-hist { display: grid; gap: var(--sp-2); }
+.od-hist-track { height: 10px; border-radius: 6px; background: var(--line-soft, var(--line)); overflow: hidden; }
+.od-hist-bar { display: block; height: 100%; background: var(--ink2); border-radius: 6px; }
+.od-hist[data-tone="warn"] { border-left: 4px solid var(--amber, #b9770e); background: var(--tint-warn, transparent); }
+.od-hist[data-tone="warn"] .od-hist-bar { background: var(--amber, #b9770e); }
+.od-hist-alert { margin: 0; font-weight: var(--w-semi); }
+.od-hist-meter { margin: 0; }
+
 /* ===== 40-charts.css ===== */
 /*
  * WHAT THIS FILE IS: Colours (the --ch-* tokens) and styles for the charts 50-charts.js draws, in a dark
@@ -2205,6 +2216,8 @@ a.of-nav:active { background: var(--press); }
 
 .ch-m { outline: none; }
 .ch-m:focus-visible { outline: 2px solid var(--ch-text); outline-offset: 2px; }
+/* The chart itself when it is a tab stop: the ring uses the chart's own text color, so it shows on the dark chart surface as on the light one. */
+.ch-svg:focus-visible { outline: 3px solid var(--ch-text); outline-offset: 2px; }
 .ch-hot { filter: brightness(1.16); }
 
 /* big numbers use the condensed display face, proportional figures */
@@ -2367,6 +2380,128 @@ a.of-nav:active { background: var(--press); }
       h[0] = (h[0] + a) | 0; h[1] = (h[1] + b) | 0; h[2] = (h[2] + c) | 0; h[3] = (h[3] + d) | 0; h[4] = (h[4] + e) | 0; h[5] = (h[5] + f) | 0; h[6] = (h[6] + g2) | 0; h[7] = (h[7] + hh) | 0;
     }
     return h.map((x) => ('00000000' + (x >>> 0).toString(16)).slice(-8)).join('');
+  };
+  /* ---------- compact saved form (fmt 2): the same data with fewer characters ---------- */
+  // Keys whose string values come from a small set (stations, channels, statuses, event types, dish names...). Their values are replaced by a short
+  // reference into a table kept with the save. Other strings stay as they are.
+  const PACK_ENUM_KEYS = { menuId: 1, zone: 1, cat: 1, channel: 1, src: 1, status: 1, type: 1, method: 1, track: 1, kind: 1, ing: 1, who: 1, name: 1, short: 1, reason: 1, unit: 1, leftovers: 1, place: 1, holdBasis: 1, action: 1, serviceDate: 1, day: 1 };
+  const PACK_MARK = '\u0001', PACK_DICT_MAX = 3000;
+  // A packer turns a saved state into a compact tree and back, losslessly. Every object becomes [schema number + 1, value, value...] where a schema is
+  // the exact list of its keys in order, every non-empty array becomes [0, item, item...], and enum-key strings become references. The tables only
+  // grow while the packer lives, so the packed form of an object that was not changed stays the same from one save to the next: such objects (tickets,
+  // orders, events, archive chunks) are remembered by identity and not worked out again. pack and unpack never change what they are given.
+  U.makePacker = function makePacker() {
+    const dict = [], dictIdx = new Map(), schemas = [], schemaIdx = new Map();
+    const cache = new WeakMap();
+    // The reference text for an enum string (adds it to the table), or the string itself when the table is full or the string is odd.
+    const ref = (str) => {
+      if (str.charCodeAt(0) === 1) return PACK_MARK + str;          // a real string that starts with the marker is escaped by doubling it
+      let i = dictIdx.get(str);
+      if (i === undefined) {
+        if (dict.length >= PACK_DICT_MAX || str.length > 60) return str;
+        i = dict.length; dict.push(str); dictIdx.set(str, i);
+      }
+      return PACK_MARK + i.toString(36);
+    };
+    // Packs any value; key is the key it sits under (decides whether a string becomes a reference).
+    const enc = (v, key) => {
+      if (v === null || typeof v === 'number' || typeof v === 'boolean') return v;
+      if (typeof v === 'string') return key !== undefined && PACK_ENUM_KEYS[key] === 1 ? ref(v) : (v.charCodeAt(0) === 1 ? PACK_MARK + v : v);
+      if (Array.isArray(v)) {
+        if (!v.length) return [];
+        const out = new Array(v.length + 1); out[0] = 0;
+        for (let i = 0; i < v.length; i++) out[i + 1] = enc(v[i], undefined);
+        return out;
+      }
+      if (v && typeof v === 'object') {
+        const hit = cache.get(v);
+        if (hit) return hit;
+        // Keys whose value is undefined are left out, exactly as JSON leaves them out of the plain save.
+        const keys = Object.keys(v).filter((k) => v[k] !== undefined && typeof v[k] !== 'function' && typeof v[k] !== 'symbol'), sk = keys.join('\u0002');
+        let si = schemaIdx.get(sk);
+        if (si === undefined) { si = schemas.length; schemas.push(keys); schemaIdx.set(sk, si); }
+        const out = new Array(keys.length + 1); out[0] = si + 1;
+        for (let i = 0; i < keys.length; i++) out[i + 1] = enc(v[keys[i]], keys[i]);
+        cache.set(v, out);
+        return out;
+      }
+      return null;
+    };
+    // A reader for packed data with the given tables. It never touches this packer's own tables or remembered rows: a copy written by another tab
+    // (or an earlier page) is numbered by that writer's tables, and mixing the two numberings would damage the next save.
+    const reader = (dictR, schemasR) => {
+      // Which schemas hold a key named __proto__ (indexed by schema number + 1).
+      const protoKey = [false].concat(schemasR.map((k) => k.indexOf('__proto__') >= 0));
+      // Reads a packed string back: a reference becomes the table entry, a doubled marker loses one marker.
+      const decStr = (str) => {
+        if (str.charCodeAt(0) !== 1) return str;
+        if (str.charCodeAt(1) === 1) return str.slice(1);
+        const w = dictR[parseInt(str.slice(1), 36)];
+        if (typeof w !== 'string') throw new Error('packed reference is missing');
+        return w;
+      };
+      // Unpacks one packed value into the original value, recursively.
+      const dec = (v) => {
+        if (v === null || typeof v === 'number' || typeof v === 'boolean') return v;
+        if (typeof v === 'string') return decStr(v);
+        if (!Array.isArray(v)) throw new Error('packed value is not packed');
+        if (!v.length) return [];
+        const tag = v[0];
+        if (tag === 0) { const out = new Array(v.length - 1); for (let i = 1; i < v.length; i++) out[i - 1] = dec(v[i]); return out; }
+        const keys = schemasR[tag - 1];
+        if (!keys || keys.length !== v.length - 1) throw new Error('packed object does not match its keys');
+        const o = {};
+        // A key named __proto__ is set as plain data (assigning it would change the prototype); the common case takes the quick path.
+        if (!protoKey[tag]) { for (let i = 0; i < keys.length; i++) o[keys[i]] = dec(v[i + 1]); return o; }
+        for (let i = 0; i < keys.length; i++) {
+          if (keys[i] === '__proto__') Object.defineProperty(o, '__proto__', { value: dec(v[i + 1]), enumerable: true, writable: true, configurable: true });
+          else o[keys[i]] = dec(v[i + 1]);
+        }
+        return o;
+      };
+      return dec;
+    };
+    // JSON text of packed values, remembered like the packed tree: an unchanged object, and a long array that was not changed, cost one lookup.
+    const textCache = new WeakMap();
+    // The JSON text of the packed form of one value; key is the key it sits under. Equal to JSON.stringify(enc(v, key)).
+    const txt = (v, key) => {
+      if (v && typeof v === 'object') {
+        const hit = textCache.get(v);
+        if (hit !== undefined) return hit;
+        let t;
+        if (Array.isArray(v)) {
+          if (!v.length) return '[]';
+          const parts = new Array(v.length);
+          for (let i = 0; i < v.length; i++) parts[i] = txt(v[i], undefined);
+          t = '[0,' + parts.join(',') + ']';
+          if (v.length >= 16) textCache.set(v, t);
+        } else { t = JSON.stringify(enc(v, key)); textCache.set(v, t); }
+        return t;
+      }
+      return JSON.stringify(enc(v, key));
+    };
+    return {
+      // The packed tree as JSON text, built mostly from remembered pieces: the same text as JSON.stringify of pack(state), far cheaper on a big
+      // kitchen where little changed since the last save.
+      packText(state) {
+        const keys = Object.keys(state).filter((k) => state[k] !== undefined && typeof state[k] !== 'function' && typeof state[k] !== 'symbol'), sk = keys.join('\u0002');
+        let si = schemaIdx.get(sk);
+        if (si === undefined) { si = schemas.length; schemas.push(keys); schemaIdx.set(sk, si); }
+        const parts = new Array(keys.length);
+        for (let i = 0; i < keys.length; i++) parts[i] = txt(state[keys[i]], keys[i]);
+        const x = '[' + (si + 1) + (parts.length ? ',' + parts.join(',') : '') + ']';
+        return '{"d":' + JSON.stringify(dict) + ',"s":' + JSON.stringify(schemas) + ',"x":' + x + '}';
+      },
+      // The packed tree and the tables it needs: { d, s, x }.
+      pack(state) { const x = enc(state, undefined); return { d: dict.slice(), s: schemas.map((k) => k.slice()), x }; },
+      // The original state from a packed tree and its tables, without changing this packer. Throws when the packed data is damaged.
+      unpack(p) {
+        if (!p || !Array.isArray(p.d) || !Array.isArray(p.s) || p.x === undefined) throw new Error('packed data is incomplete');
+        for (const d of p.d) if (typeof d !== 'string') throw new Error('packed table is damaged');
+        const sch = p.s.map((k) => { if (!Array.isArray(k) || k.some((x) => typeof x !== 'string')) throw new Error('packed keys are damaged'); return k.slice(); });
+        return reader(p.d, sch)(p.x);
+      },
+    };
   };
   // Cleans typed text for names and notes: strips the invisible characters, squeezes runs of white space to single spaces and trims both ends.
   U.cleanText = (s) => U.stripInvisible(s).replace(/\s+/g, ' ').trim();
@@ -2669,6 +2804,10 @@ a.of-nav:active { background: var(--press); }
       let raw; try { raw = JSON.stringify(val); } catch (e) { return false; }
       try { if (ls) ls.setItem(key, raw); else mem.set(key, raw); return true; } catch (e) { mem.set(key, raw); return false; }
     },
+    // Saves text that is already JSON (the caller built it), skipping the step that turns a value into text. Same answers as set.
+    setText(key, raw) {
+      try { if (ls) ls.setItem(key, raw); else mem.set(key, raw); return true; } catch (e) { mem.set(key, raw); return false; }
+    },
     // Deletes a saved value from the browser and from memory.
     remove(key) { try { if (ls) ls.removeItem(key); } catch (e) { /* ignore */ } mem.delete(key); },
     // Every saved key that starts with the prefix (browser and memory). Never throws.
@@ -2687,7 +2826,7 @@ a.of-nav:active { background: var(--press); }
   const SHARED_KEYS = ['theme', 'otheme', 'textsize', 'density', 'hints', 'zone', 'role', 'sound', 'volume', 'speech', 'voicelevel', 'callouts', 'far', 'wall', 'dock'].map((k) => 'smokebox.v1.' + k);
   // The kitchen-data keys, listed so a test can prove every key in the code is classified. A key that is in neither list
   // is treated as kitchen data (the safe side).
-  const DATA_KEYS = ['state', 'sid', 'writer', 'outbox', 'corrupt', 'names', 'sample', 'welcome', 'lastbackup', 'dlog', 'alertlog', 'lastbatch', 'initials', 'pinlock', 'paymethod',
+  const DATA_KEYS = ['state', 'sid', 'writer', 'histtrim', 'histnotice', 'sleepSnap', 'outbox', 'corrupt', 'names', 'sample', 'welcome', 'lastbackup', 'dlog', 'alertlog', 'lastbatch', 'initials', 'pinlock', 'paymethod',
     'setup.draft', 'setup.examples', 'setup.hiddenStations', 'setup.lastZone', 'setup.hiddenCategories', 'setup.lastCategory', 'setup.cookAheadSkipped', 'setup.serveSkipped', 'setup.serveAnswer', 'readings', 'lastproduct', 'lastgood', 'corruptat', 'dropped', 'droppedat', 'orderdraft', 'office.startCash', 'pinrecovery', 'demoLeftoversKept'].map((k) => 'smokebox.v1.' + k);
   const MODE_KEY = 'smokebox.mode'; // sessionStorage: this tab is in the demo (per tab, gone when the tab closes)
   // Which kitchen this tab shows, decided once at load: a ?demo address or the tab's own saved choice means the demo.
@@ -2726,6 +2865,8 @@ a.of-nav:active { background: var(--press); }
       raw: (key) => (typeof base.raw === 'function' ? base.raw(keyFor(key, m())) : null),
       // Saves a value through the translated key.
       set: (key, val) => base.set(keyFor(key, m()), val),
+      // Saves text that is already JSON through the translated key (false when the storage cannot).
+      setText: (key, raw) => (typeof base.setText === 'function' ? base.setText(keyFor(key, m()), raw) : base.set(keyFor(key, m()), JSON.parse(raw))),
       // Deletes a value through the translated key.
       remove: (key) => base.remove(keyFor(key, m())),
       // Every saved key with this prefix, exactly as named in the browser (not translated).
@@ -4754,7 +4895,8 @@ a.of-nav:active { background: var(--press); }
     for (const it of items) if (zones.indexOf(it.zone) < 0) zones.push(it.zone);
     tx.info = { ticketId: id, num, zones, lines: items.length, dmaxSec: dmax, orderId: order.id, round: order.rounds };
     // Paid at the counter: take payment on the same tap that sends the food.
-    if (pay) { const r = payInto(tx, oi, pay); if (r !== 'ok') return r; tx.info.paid = true; tx.info.total = tx.get('orders')[oi].totals.total; }
+    // Trimming the old orders above moves positions in the list, so the order is found again before it is paid.
+    if (pay) { oi = findOrderIdx(tx.get('orders'), order.id); const r = payInto(tx, oi, pay); if (r !== 'ok') return r; tx.info.paid = true; tx.info.total = tx.get('orders')[oi].totals.total; }
     return 'ok';
   };
 
@@ -6587,6 +6729,19 @@ a.of-nav:active { background: var(--press); }
   /* ---------- close the month: what would leave the live save, and the one step that removes it ---------- */
   // Days of history that Close the month always leaves alone (counted back from today), unless the caller asks for another number.
   const MONTH_KEEP_DAYS = 35;
+  // How many days of history Close the month leaves alone when the caller does not say: at most MONTH_KEEP_DAYS, and no more than 35 percent of the days
+  // the size limits can hold at this kitchen's own pace (tickets and events per day over the days kept, and the saved bytes against the browser
+  // quota when fill = { bytes, quotaBytes } is given), but never fewer than 3. A kitchen with little history gets the full 35.
+  function adaptiveKeepDays(state, now, fill) {
+    if (!isState(state) || !state.tickets.length || !isNum(now)) return MONTH_KEEP_DAYS;
+    const dsh = state.settings.service.dayStartHour, today = U.serviceDate(now, dsh), oldest = state.tickets[0].serviceDate;
+    if (!isDayText(oldest)) return MONTH_KEEP_DAYS;
+    const span = Math.max(1, Math.round((U.dateKeyToMs(today) - U.dateKeyToMs(oldest)) / 864e5) + 1);
+    if (span < 3) return MONTH_KEEP_DAYS;
+    let hold = Math.min(C.limits.maxTickets / (state.tickets.length / span), C.limits.maxEvents / (allEvents(state).length / span));
+    if (fill && isNum(fill.bytes) && isNum(fill.quotaBytes) && fill.bytes > 0 && fill.quotaBytes > 0) hold = Math.min(hold, fill.quotaBytes / (fill.bytes / (isNum(fill.spanDays) && fill.spanDays >= 1 ? fill.spanDays : span)));
+    return Math.max(3, Math.min(MONTH_KEEP_DAYS, Math.round(hold * 0.35)));
+  }
   // True for a real calendar date written YYYY-MM-DD.
   const isDayText = (d) => typeof d === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(d) && U.dateKey(U.dateKeyToMs(d) + 12 * 3600e3) === d;
   // Works out exactly what Close the month would remove at time now, without changing anything. opts: { before: 'YYYY-MM-DD' (service days
@@ -6598,7 +6753,8 @@ a.of-nav:active { background: var(--press); }
     if (!isState(state)) return { ok: false, report: 'invalidBackup' };
     opts = isObj(opts) ? opts : {};
     if (!isDayText(opts.before)) return { ok: false, report: 'badPatch', info: { key: 'before' } };
-    const keepDays = opts.keepDays === undefined ? MONTH_KEEP_DAYS : opts.keepDays;
+    const keepAuto = opts.keepDays === undefined;
+    const keepDays = keepAuto ? adaptiveKeepDays(state, now, opts.fill) : opts.keepDays;
     if (!isInt(keepDays) || keepDays < 1 || keepDays > 3650) return { ok: false, report: 'badPatch', info: { key: 'keepDays' } };
     if (!isNum(now)) return { ok: false, report: 'badPatch', info: { key: 'now' } };
     const dsh = state.settings.service.dayStartHour;
@@ -6608,9 +6764,22 @@ a.of-nav:active { background: var(--press); }
     const flat = allEvents(state);
     const closed = new Set();
     for (const e of flat) if (e.type === 'day_closed' && typeof e.day === 'string') closed.add(e.day);
-    // A day may go: before the boundary and closed.
-    const goes = (day) => typeof day === 'string' && day < bound && closed.has(day);
     const orders = Array.isArray(state.orders) ? state.orders : [];
+    // A day with a sale, an order or a ticket made AFTER its last end-of-day close is not complete in its day_closed record, so it stays whole: the
+    // sale would otherwise exist only in the owner's files and the kitchen's totals would lose it.
+    const lastClose = new Map();
+    for (const e of flat) if (e.type === 'day_closed' && typeof e.day === 'string' && (!lastClose.has(e.day) || e.t > lastClose.get(e.day))) lastClose.set(e.day, e.t);
+    const late = new Set();
+    // Notes the day as late when the time is after that day's last close.
+    const mark = (day, t) => { if (isNum(t) && lastClose.has(day) && t > lastClose.get(day)) late.add(day); };
+    for (const o of orders) {
+      mark(o.serviceDate, o.createdAt);
+      if (isNum(o.paidAt)) { mark(o.serviceDate, o.paidAt); mark(U.serviceDate(o.paidAt, dsh), o.paidAt); }
+      if (isNum(o.voidedAt)) { mark(o.serviceDate, o.voidedAt); mark(U.serviceDate(o.voidedAt, dsh), o.voidedAt); }
+    }
+    for (const t of state.tickets) mark(t.serviceDate, t.createdAt);
+    // A day may go: before the boundary, closed, and nothing after its last close.
+    const goes = (day) => typeof day === 'string' && day < bound && closed.has(day) && !late.has(day);
     const tickCand = new Set(), ordCand = new Set();
     for (const t of state.tickets) if (t.status !== 'active' && goes(t.serviceDate)) tickCand.add(t.id);
     const ticketsOf = new Map();
@@ -6635,17 +6804,19 @@ a.of-nav:active { background: var(--press); }
     for (const e of flat) if (eventIds.has(e.id)) days.add(U.serviceDate(e.t, dsh));
     const dayList = Array.from(days).sort();
     // Days before the boundary that still hold records but have no day_closed: they stay, and the screen can tell the owner to close them first.
-    const uncovered = new Set();
-    for (const t of state.tickets) if (t.status !== 'active' && typeof t.serviceDate === 'string' && t.serviceDate < bound && !closed.has(t.serviceDate)) uncovered.add(t.serviceDate);
-    for (const o of orders) if (o.status !== 'open' && typeof o.serviceDate === 'string' && o.serviceDate < bound && !closed.has(o.serviceDate)) uncovered.add(o.serviceDate);
+    const uncovered = new Set(), lateDays = new Set();
+    // Old days that stay although they hold finished records: never closed, or sold after the last close (lateDays, a subset of uncoveredDays).
+    for (const t of state.tickets) if (t.status !== 'active' && typeof t.serviceDate === 'string' && t.serviceDate < bound && !goes(t.serviceDate)) { uncovered.add(t.serviceDate); if (late.has(t.serviceDate)) lateDays.add(t.serviceDate); }
+    for (const o of orders) if (o.status !== 'open' && typeof o.serviceDate === 'string' && o.serviceDate < bound && !goes(o.serviceDate)) { uncovered.add(o.serviceDate); if (late.has(o.serviceDate)) lateDays.add(o.serviceDate); }
+    for (const d of late) if (d < bound) { uncovered.add(d); lateDays.add(d); }
     let money = 0;
     for (const o of orders) if (ordCand.has(o.id) && o.status === 'paid') money = cents(money + o.totals.total);
     return { ok: true, plan: {
-      requestedBefore: opts.before, before: bound, keepDays, today, from: dayList.length ? dayList[0] : null, days: dayList,
+      requestedBefore: opts.before, before: bound, keepDays, keepDaysAuto: keepAuto, today, from: dayList.length ? dayList[0] : null, days: dayList,
       ticketIds: tickets, orderIds: ordCand, eventIds,
       tickets: tickets.size, orders: ordCand.size, events: eventIds.size, safetyEventsKept: safetyKept, dayRecordsKept,
       openTicketsKept: state.tickets.filter((t) => t.status === 'active').length, openOrdersKept: orders.filter((o) => o.status === 'open').length,
-      uncoveredDays: Array.from(uncovered).sort(), paidTotal: money,
+      uncoveredDays: Array.from(uncovered).sort(), lateSaleDays: Array.from(lateDays).sort(), paidTotal: money,
     } };
   }
   // The day before which history was archived by Close the month (YYYY-MM-DD), or null when it never was. A day earlier than this with no records
@@ -7646,7 +7817,7 @@ a.of-nav:active { background: var(--press); }
   Object.assign(E, {
     SAFETY_KEEP_DAYS, SAFETY_KEEP_MS, apply, tick, newState, availability, computeAvail, servable, allDay, gate, thermalYield, staticYieldComparison,
     pacingPlan, planFor, ticketTiming, ticketProgress, totalsOf, checkInvariants, validateBackup, serialize, deserialize, allEvents, prune,
-    monthPlan, closeMonth, archivedBefore, isArchivedDay, MONTH_KEEP_DAYS, channelThresholds, noQualityStage, coldInfo, lastPull, defaultSettings, blankSettings, moduleOn, cookAheadActive, demoLeftovers, chipsOf, counterOn, CHIP_MAX, CHIP_LEN, describe, safetyLog, views, orderTotals, openOrderTotals,
+    monthPlan, closeMonth, adaptiveKeepDays, archivedBefore, isArchivedDay, MONTH_KEEP_DAYS, channelThresholds, noQualityStage, coldInfo, lastPull, defaultSettings, blankSettings, moduleOn, cookAheadActive, demoLeftovers, chipsOf, counterOn, CHIP_MAX, CHIP_LEN, describe, safetyLog, views, orderTotals, openOrderTotals,
     // Looks up one ticket by id; undefined when it is not found.
     findTicket: (state, id) => (isState(state) ? state.tickets[findTicketIdx(state.tickets, id)] : undefined),
     // Looks up one order by id; undefined when it is not found.
@@ -8531,6 +8702,8 @@ a.of-nav:active { background: var(--press); }
   const CORRUPT_KEEP_MS = 30 * 24 * 3600e3, SNAP_EVERY_MS = 6 * 3600e3;
   // The rolling copy keeps this much history: enough to see today, small enough to be a sliver of the live save.
   const SNAP_KEEP = { maxTickets: 300, maxEvents: 2000 };
+  // The smaller rolling copy used when the browser's space is getting full.
+  const SNAP_KEEP_TIGHT = { maxTickets: 40, maxEvents: 300 };
   // The 'before restore' copy stays in the last-good slot for 7 days, or until a close-day copy replaces it, so a wrong restore can be undone.
   const BEFORE_RESTORE = 'before restore', BEFORE_MONTH_CLOSE = 'before month close', BEFORE_RESTORE_KEEP_MS = 7 * 24 * 3600e3;
   const SID_KEY = 'smokebox.v1.sid';
@@ -8571,6 +8744,30 @@ a.of-nav:active { background: var(--press); }
   // Two tabs saving at the same moment must not drop each other's work (F-L9). baseSid names the save this tab last
   // loaded or wrote; pending lists this tab's actions since then, so they can be replayed on top of a newer save.
   let baseSid = null, pending = [], skipRebase = false, sidN = 0;
+  // Asks the browser to keep this site's data when it is short of room (an iPad may otherwise clear it after a week unused). The answer lands in status.persisted.
+  function askPersist(target) {
+    try {
+      const sg = g.navigator && g.navigator.storage;
+      if (!sg || typeof sg.persisted !== 'function') return;
+      sg.persisted().then((p) => {
+        if (p || typeof sg.persist !== 'function') { target.persisted = !!p; return null; }
+        return sg.persist().then((ok) => { target.persisted = !!ok; });
+      }).then(() => scheduleNotify()).catch(() => {});
+    } catch (e) { /* the browser cannot say */ }
+  }
+  // History fill: the browser keeps about 5 million characters for the whole app. quotaChars is that limit (a test or a bigger store can say another);
+  // hist remembers the oldest saved service day and how many days were dropped to make room (not by Close the month); hn remembers which notices
+  // the owner has already seen. NEAR_FULL_PCT and WARN_PCT are the percent of the tightest limit where the calm card and the one-time notice appear.
+  const HIST_KEY = 'smokebox.v1.histtrim', HIST_NOTICE_KEY = 'smokebox.v1.histnotice', NEAR_FULL_PCT = 70, WARN_PCT = 85;
+  let quotaChars = 5e6, hist = { oldest: null, days: 0, at: 0, droppedBefore: null }, hn = { warnAt: 0, trimAck: 0 };
+  // Reading what another tab wrote can be late (a browser's storage is a per-process copy), so the save id alone cannot prove nothing was missed.
+  // Each saved copy also lists the ids of the actions it contains (journal, last JOURNAL_MAX). recent holds this tab's own actions of the last
+  // five minutes (at most 200). Whenever another tab's copy is adopted, every recent action of this tab that its journal lacks is applied on top
+  // again, so a late read costs a second save and never a lost ticket. Ordering is by arrival, never by any clock.
+  let recent = [], journal = [], era = '', reconcileTimer = null, noTimersOpt = false;
+  // A new era starts whenever the whole kitchen is replaced on purpose (restore, reset, start over, close the month): a copy from another era replaces ours.
+  const newEra = () => tabId + ':' + Date.now().toString(36) + Math.floor(Math.random() * 1e6).toString(36);
+  const JOURNAL_MAX = 1500, RECENT_MS = 300000, RECENT_MAX = 200, RECONCILE_MS = 300;
   let dirty = false; // unsaved changes exist (page-lifecycle flushes only write when dirty)
   let listeners = [];
   // Server-ready bookkeeping. opN numbers this tab's actions. outbox is the saved list of unconfirmed
@@ -8698,6 +8895,83 @@ a.of-nav:active { background: var(--press); }
     st.saveDelayMs = wait;
     saveTimer = setTimeout(timedSave, tr && baseSid ? wait + Math.floor(Math.random() * 300) : wait);
   }
+  // Compact saved form (fmt 2): used for big kitchens, so the same browser space holds about twice the history. The packer keeps its tables for the
+  // life of the page. compactMode is 'auto' (compact once the kitchen has 300 tickets or 2,500 events), 'always' or 'never' (init option compact).
+  const packer = U.makePacker();
+  let compactMode = 'auto';
+  // True when this state should be saved in the compact form.
+  const wantCompact = (s2) => compactMode === 'always' || (compactMode === 'auto' && (s2.tickets.length >= 300 || E().allEvents(s2).length >= 2500));
+  // Turns a stored copy into the readable shape every other part expects: a compact copy (fmt 2) is unpacked, anything else is returned as it is.
+  // A compact copy that cannot be unpacked comes back without a state, so the usual damaged-save handling takes over. A newer format number is
+  // treated the same way (this build cannot read it).
+  function openSaved(payload) {
+    if (!payload || typeof payload !== 'object' || payload.fmt === undefined) return payload;
+    const out = Object.assign({}, payload);
+    delete out.p;
+    if (payload.fmt === 2) { try { out.state = packer.unpack(payload.p); delete out.fmt; } catch (e) { out.state = undefined; } } else out.state = undefined;
+    return out;
+  }
+  // Whole calendar days from one service day text to a later one.
+  const daysBetween = (a, b) => Math.round((U.dateKeyToMs(b) - U.dateKeyToMs(a)) / 864e5);
+  // Forgets the oldest saved day, so the next save starts counting again (after a restore, a reset or Close the month, which remove history on purpose).
+  function histRebase() { hist.oldest = null; }
+  // Called after each good save with the copy that was written: if its oldest ticket day moved forward, history was dropped to make room (the size
+  // limit of the app or of the browser), and the days are added up so the owner can be told once.
+  function histTrack(saved, r) {
+    const oldest = saved.tickets.length ? saved.tickets[0].serviceDate : null;
+    if (typeof oldest !== 'string') return;
+    if (typeof hist.oldest === 'string' && oldest > hist.oldest) {
+      hist.days += Math.max(1, daysBetween(hist.oldest, oldest)); hist.at = r; hist.droppedBefore = oldest;
+      hist.oldest = oldest;
+      try { storage.set(HIST_KEY, hist); } catch (e) { /* the count is kept in memory */ }
+    }
+    hist.oldest = oldest;
+  }
+  // How many characters the saved kitchen takes (the main save plus the last-good copy), read as text without parsing it. 0 when the storage cannot tell.
+  function savedChars() {
+    if (!storage || typeof storage.raw !== 'function') return 0;
+    let n = 0;
+    try { for (const k of [KEY, LASTGOOD_KEY]) { const t = storage.raw(k); if (typeof t === 'string') n += t.length; } } catch (e) { return 0; }
+    return n;
+  }
+  // How full the saved history is, as a percent of the tightest of three limits (tickets, events, browser space), and what the owner can be told.
+  // { tickets, ticketsCap, events, eventsCap, bytes, quotaBytes, pct, nearFull (70 percent), warn (85 percent), persisted (true, false, or null when
+  // unknown), daysLeft (days at the recent pace until a limit is reached, or null), keepDays (what Close the month would keep now), trimmedSince }.
+  // trimmedSince is null, or { days, at, droppedBefore }: days dropped to make room since the owner last saw the notice, when, and the first day still kept.
+  function historyFill() {
+    if (!state) return null;
+    const L = SB.config.limits, events = E().allEvents(state).length, tickets = state.tickets.length, bytes = savedChars();
+    const pct = Math.round(100 * Math.max(tickets / L.maxTickets, events / L.maxEvents, quotaChars > 0 ? bytes / quotaChars : 0));
+    let daysLeft = null;
+    if (tickets) {
+      const today = U.serviceDate(now(), state.settings.service.dayStartHour), oldest = state.tickets[0].serviceDate;
+      const span = Math.max(1, daysBetween(oldest, today) + 1);
+      if (span >= 3) daysLeft = Math.max(0, Math.floor(Math.min((L.maxTickets - tickets) / (tickets / span), (L.maxEvents - events) / (events / span), bytes > 0 && quotaChars > bytes ? (quotaChars - bytes) / (bytes / span) : Infinity)));
+    }
+    const unseen = hist.days - (hn.trimAck || 0);
+    return {
+      tickets, ticketsCap: L.maxTickets, events, eventsCap: L.maxEvents, bytes, quotaBytes: quotaChars, pct, nearFull: pct >= NEAR_FULL_PCT, warn: pct >= WARN_PCT,
+      persisted: st.persisted === undefined ? null : !!st.persisted, daysLeft: daysLeft !== null && isFinite(daysLeft) ? daysLeft : null,
+      keepDays: E().adaptiveKeepDays(state, now(), monthOpts({}).fill),
+      trimmedSince: unseen > 0 ? { days: unseen, at: hist.at, droppedBefore: hist.droppedBefore } : null,
+    };
+  }
+  // The one-time notice for the board, or null: kind 'full' once when the history passes 85 percent, kind 'trimmed' after older history was dropped.
+  // Call historyNoticeSeen(kind) when it was shown. The 'full' notice comes back only after the history has fallen under 60 percent.
+  function historyNotice() {
+    const f = historyFill();
+    if (!f) return null;
+    if (f.pct < 60 && hn.warnAt) { hn.warnAt = 0; try { storage.set(HIST_NOTICE_KEY, hn); } catch (e) { /* ignore */ } }
+    if (f.trimmedSince) return { kind: 'trimmed', days: f.trimmedSince.days, words: 'Older history was dropped to make room: ' + f.trimmedSince.days + (f.trimmedSince.days === 1 ? ' day' : ' days') + '. Close the month regularly to keep it in files.' };
+    if (f.warn && !hn.warnAt) return { kind: 'full', pct: f.pct, words: 'Your saved history is ' + f.pct + '% full. Close the month to keep older days in files before they are dropped.' };
+    return null;
+  }
+  // Marks a notice as shown, so it is not shown again until something new happens.
+  function historyNoticeSeen(kind) {
+    if (kind === 'full') hn.warnAt = realNow(); else if (kind === 'trimmed') hn.trimAck = hist.days; else return false;
+    try { storage.set(HIST_NOTICE_KEY, hn); } catch (e) { /* ignore */ }
+    return true;
+  }
   // The browser's lock manager when it has one, else null.
   const lockManager = () => { try { const n = g.navigator; return n && n.locks && typeof n.locks.request === 'function' ? n.locks : null; } catch (e) { return null; } };
   // True while a save runs inside the lock (then no tag check is needed: no other tab can be saving).
@@ -8741,14 +9015,21 @@ a.of-nav:active { background: var(--press); }
     const prevSaveOk = st.lastSaveOk;
     let snapDropped = false;
     // full copy first; if the quota refuses it, keep halving the history (oldest completed tickets and events go first)
-    let lim = null;
+    let lim = null, kept2 = null;
     // First trimmed attempt keeps at most 1500 tickets and 10 000 events. A failed save never loses the copy
     // in memory (finding F-E5).
     let nt = Math.min(state.tickets.length, 1500), ne = Math.min(E().allEvents(state).length, 10000);
     for (let tries = 0; tries < 12; tries++) {
       const s2 = lim ? E().prune(state, lim) : state;
-      try { ok = storage.set(KEY, { v: 1, savedAt: r, rev: s2.rev, clock: { virtual: v, real: r, speed: clk.speed }, state: s2 }) !== false; } catch (e) { ok = false; }
-      if (ok) { st.trimmed = !!lim; break; }
+      try {
+        const env = { v: 1, savedAt: r, rev: s2.rev, clock: { virtual: v, real: r, speed: clk.speed }, ops: journal, era };
+        if (wantCompact(s2)) {
+          // The compact text is put together from remembered pieces and handed over as text, so a save costs the writing, not a second encoding.
+          if (typeof storage.setText === 'function') ok = storage.setText(KEY, JSON.stringify(env).slice(0, -1) + ',"fmt":2,"p":' + packer.packText(s2) + '}') !== false;
+          else { env.fmt = 2; env.p = packer.pack(s2); ok = storage.set(KEY, env) !== false; }
+        } else { env.state = s2; ok = storage.set(KEY, env) !== false; }
+      } catch (e) { ok = false; }
+      if (ok) { st.trimmed = !!lim; kept2 = s2; break; }
       // Under pressure the rolling copy goes first: it is only a convenience, the live save is the data.
       if (!snapDropped && strict) { snapDropped = true; snapAt = 0; try { storage.remove(LASTGOOD_KEY); } catch (e) { /* ignore */ } tries--; continue; }
       // History is already tiny: trimming further will not help, so give up and report the failed save.
@@ -8767,7 +9048,9 @@ a.of-nav:active { background: var(--press); }
       sid = tabId + ':' + (++sidN);
       try { storage.set(SID_KEY, sid); baseSid = sid; } catch (e) { sid = null; }
       pending = [];
+      if (tr && !noTimersOpt && !reconcileTimer && typeof setTimeout === 'function') reconcileTimer = setTimeout(() => { reconcileTimer = null; reconcile(); }, RECONCILE_MS);
     }
+    if (ok && kept2) histTrack(kept2, r);
     if (ok && !st.trimmed) maybeSnapshot(r);
     if (ok && pendingBroadcast && tr) { try { tr.post({ type: 'saved', rev: state.rev, tab: tabId, sid }); } catch (e) { /* ignore */ } }
     pendingBroadcast = false;
@@ -8781,7 +9064,9 @@ a.of-nav:active { background: var(--press); }
     // A 'before restore' copy is the owner's way back from a wrong restore: the 6-hour refresh leaves it alone for 7 days.
     if (!snapWanted) { const g = beforeRestoreCopy(r); if (g) return false; }
     try {
-      const small = E().prune(state, SNAP_KEEP);
+      // When the saved kitchen already fills half the browser's space, the rolling copy shrinks to a few tickets (menu, settings, PIN and safety records
+      // stay): a fat copy is what pushes the live save over the limit and gets the copy dropped anyway.
+      const small = E().prune(state, savedChars() > quotaChars * 0.5 ? SNAP_KEEP_TIGHT : SNAP_KEEP);
       const env = { v: 1, takenAt: r, reason: snapWanted || 'interval', rev: state.rev, clock: { virtual: now(), real: r, speed: 1 }, state: small };
       const text = JSON.stringify(env);
       if (!E().validateBackup(text).ok) return false; // never keep a copy that would not load
@@ -8804,11 +9089,14 @@ a.of-nav:active { background: var(--press); }
   function snapshotBeforeRestore(why) {
     if (!strict || mode !== 'real' || !storage || !state || isBlank()) return null;
     const r = realNow();
-    for (const keep of [null, SNAP_KEEP]) {
+    // Full history first, then the small rolling size, then only what a kitchen cannot do without (menu, settings, PIN, safety records).
+    for (const keep of [null, SNAP_KEEP, { maxTickets: 0, maxEvents: 0 }]) {
       try {
         const small = keep ? E().prune(state, keep) : state;
         const env = { v: 1, takenAt: r, reason: why || BEFORE_RESTORE, rev: small.rev, clock: { virtual: now(), real: r, speed: 1 }, state: small };
         if (!E().validateBackup(JSON.stringify(env)).ok) continue;
+        // A big kitchen's copy is saved compact too, so it fits where the plain text would not (the full history is what makes it worth keeping).
+        if (wantCompact(small)) { delete env.state; env.fmt = 2; env.p = packer.pack(small); }
         if (storage.set(LASTGOOD_KEY, env) === false) continue;
         snapAt = r; snapWanted = null; st.lastGoodAt = r; st.beforeRestoreAt = r;
         return r;
@@ -8827,12 +9115,33 @@ a.of-nav:active { background: var(--press); }
   function undoRestore() {
     const g = storage ? beforeRestoreCopy(realNow()) : null;
     if (!g) { last = { type: 'undoRestore', report: 'noCopy', info: {}, events: [] }; return 'noCopy'; }
-    return importAll(JSON.stringify(g));
+    return importAll(JSON.stringify(openSaved(g)));
+  }
+  // The copy that was set aside as damaged, if it can still be read: { at (when it was set aside), tickets, orders } or null. A compact save set
+  // aside by an older build is read too, which is how a downgrade followed by an upgrade finds the full history again.
+  function parkedCopy() {
+    if (!storage) return null;
+    try {
+      let v = storage.get(CORRUPT_KEY, null);
+      if (typeof v === 'string') v = JSON.parse(v);
+      if (!v || typeof v !== 'object') return null;
+      const chk = E().validateBackup(openSaved(v));
+      if (!chk.ok) return null;
+      return { at: storage.get(CORRUPT_AT_KEY, null), tickets: chk.state.tickets.length, orders: chk.state.orders.length };
+    } catch (e) { return null; }
+  }
+  // Brings the set-aside copy back as the kitchen (the kitchen it replaces is kept for 7 days like any restore). 'ok', 'noCopy' or the import's answer.
+  function restoreParked() {
+    if (!storage) return 'noCopy';
+    let v = null;
+    try { v = storage.get(CORRUPT_KEY, null); if (typeof v === 'string') v = JSON.parse(v); } catch (e) { v = null; }
+    if (!v || typeof v !== 'object') { last = { type: 'restoreParked', report: 'noCopy', info: {}, events: [] }; return 'noCopy'; }
+    return importAll(JSON.stringify(openSaved(v)));
   }
   // Reads the rolling copy and returns { state, takenAt } if it is whole, else null.
   function readSnapshot() {
     try {
-      const env = storage.get(LASTGOOD_KEY, null);
+      const env = openSaved(storage.get(LASTGOOD_KEY, null));
       if (!env || typeof env !== 'object') return null;
       const v = E().validateBackup(env);
       return v.ok ? { state: v.state, takenAt: isNum(env.takenAt) ? env.takenAt : 0, repaired: v.repaired } : null;
@@ -8842,23 +9151,75 @@ a.of-nav:active { background: var(--press); }
   function flush() { return persistNow(); }
   /** pagehide / hidden: write only unsaved changes, so a pristine page never resurrects storage that was just cleared */
   function flushIfDirty() { return dirty ? persistNow() : true; }
-  // Applies this tab's unsaved actions, in order, on top of another tab's saved state. An action that no longer
-  // fits (for example it touches a ticket the other tab removed) is refused by the engine and simply dropped.
-  function replayOnto(base) {
-    let s = base;
-    for (const p of pending) {
+  // Builds on another tab's copy. Same era and the copy lists nothing this tab does not already have: it is older than what we hold (a late read),
+  // so ours is kept (keep: true) and only our own missing actions are reported. Otherwise this tab's own recent actions that the copy's journal
+  // does not list are applied on top of it, in their original order (an action that no longer fits is refused by the engine and dropped, and is
+  // not retried). A copy from another era replaces ours. With no journal (an older build) only the unsaved actions are replayed.
+  // Returns { state, replayed, keep }; the journal is taken over.
+  function mergeForeign(theirs, ops, theirEra) {
+    if ((theirEra || '') !== era) { era = theirEra || ''; recent = []; journal = ops ? ops.slice(-JOURNAL_MAX) : []; return { state: theirs, replayed: 0, keep: false }; }
+    let redo;
+    if (ops) {
+      const have = new Set(ops);
+      redo = recent.filter((p) => !have.has(p.opId));
+      const mine = new Set(journal);
+      if (ops.every((id) => mine.has(id))) return { state, replayed: redo.length, keep: true };
+    } else redo = pending.slice();
+    let s = theirs;
+    for (const p of redo) {
       const r = E().apply(s, p.type, p.payload, Math.max(p.now, lastStamp(s)));
       if (r.report === 'ok') s = r.state;
     }
-    return s;
+    if (ops) journal = ops.concat(redo.map((p) => p.opId)).slice(-JOURNAL_MAX);
+    return { state: s, replayed: redo.length, keep: false };
   }
   // Loads the newest saved copy from storage and returns it checked, or null.
   function loadStored() {
     let payload = null;
-    try { payload = storage.get(KEY, null); } catch (e) { payload = null; }
+    try { payload = openSaved(storage.get(KEY, null)); } catch (e) { payload = null; }
     if (payload == null) return null;
     const v = E().validateBackup(payload);
     return v.ok ? v.state : null;
+  }
+  // Same, but also gives the journal of action ids the saved copy carries (null for a copy from an older build): { state, ops } or null.
+  function loadStoredFull() {
+    let payload = null;
+    try { payload = openSaved(storage.get(KEY, null)); } catch (e) { payload = null; }
+    if (payload == null) return null;
+    const v = E().validateBackup(payload);
+    if (!v.ok) return null;
+    const ops = payload && Array.isArray(payload.ops) ? payload.ops.filter((x) => typeof x === 'string') : null;
+    return { state: v.state, ops, era: payload && typeof payload.era === 'string' ? payload.era : '' };
+  }
+  // The action ids listed near the start of the saved text, as a Set, or null when the text does not show them there (an older save, or no storage text).
+  function peekOps() {
+    try {
+      const raw = typeof storage.raw === 'function' ? storage.raw(KEY) : null;
+      if (typeof raw !== 'string') return null;
+      const i = raw.indexOf('"ops":[');
+      if (i < 0 || i > 400) return null;
+      const j = raw.indexOf(']', i);
+      if (j < 0) return null;
+      return new Set(JSON.parse(raw.slice(i + 6, j + 1)));
+    } catch (e) { return null; }
+  }
+  // Checks the saved copy for this tab's own recent actions. If another tab overwrote the copy without them (it read an older copy), they are
+  // applied again on top of what is there and saved. True when something was put back.
+  function reconcile() {
+    if (!storage || !state || writeBlocked || !tr) return false;
+    // Cheap first look: the list of action ids sits near the start of the saved text, so it is read without opening the whole save. Only when one
+    // of this tab's recent actions is missing from it is the save read in full.
+    const peek = peekOps();
+    if (peek && !recent.some((p) => !peek.has(p.opId))) return false;
+    const full = loadStoredFull();
+    if (!full || !full.ops) return false;
+    const have = new Set(full.ops);
+    if (!recent.some((p) => !have.has(p.opId))) return false;
+    atLeast(lastStamp(full.state));
+    const m = mergeForeign(full.state, full.ops, full.era);
+    if (!m.keep) { state = E().tick(m.state, now()).state; syncUnits(); }
+    schedulePersist(true); scheduleNotify();
+    return true;
   }
   // Before saving: if the save in storage is not the one this tab last loaded or wrote, another tab saved in
   // between. Build on its copy and replay this tab's own actions on top, so both tabs' work is kept.
@@ -8866,11 +9227,13 @@ a.of-nav:active { background: var(--press); }
     let sid = null;
     try { sid = storage.get(SID_KEY, null); } catch (e) { sid = null; }
     if (sid == null || sid === baseSid) return;
-    const theirs = loadStored();
+    const full = loadStoredFull();
     baseSid = sid;
-    if (!theirs) return;
-    atLeast(lastStamp(theirs));
-    state = E().tick(replayOnto(theirs), now()).state;
+    if (!full) return;
+    atLeast(lastStamp(full.state));
+    const m = mergeForeign(full.state, full.ops, full.era);
+    if (m.keep) return;
+    state = E().tick(m.state, now()).state;
     syncUnits();
     scheduleNotify();
   }
@@ -8892,14 +9255,17 @@ a.of-nav:active { background: var(--press); }
     if (!d || d.tab === tabId || d.type !== 'saved' || !storage) return;
     if (d.sid && d.sid === baseSid) return;
     if (!d.sid && isNum(d.rev) && state && d.rev <= state.rev) return; // an older build of the app: keep the newer-revision rule
-    const theirs = loadStored();
-    if (!theirs) return;
+    const full = loadStoredFull();
+    if (!full) return;
+    const theirs = full.state;
     if (!d.sid && !(theirs.rev > state.rev)) return;
     // Keep our clock from being behind the newer data, then catch up anything that became due.
     atLeast(lastStamp(theirs));
     if (d.sid) baseSid = d.sid;
-    if (pending.length) { state = replayOnto(theirs); schedulePersist(true); } else state = theirs;
-    state = E().tick(state, now()).state; syncUnits();
+    const m = mergeForeign(theirs, full.ops, full.era);
+    if (m.replayed) schedulePersist(true);
+    if (m.keep) return;
+    state = E().tick(m.state, now()).state; syncUnits();
     scheduleNotify();
   }
 
@@ -9047,7 +9413,7 @@ a.of-nav:active { background: var(--press); }
     ns = E().tick(ns, now()).state;
     ns.rev = Math.max(ns.rev, (state.rev || 0) + 1);
     state = ns;
-    pending = []; skipRebase = true; pendingBroadcast = true;
+    pending = []; recent = []; skipRebase = true; pendingBroadcast = true;
     persistNow();
     scheduleNotify();
   }
@@ -9072,6 +9438,7 @@ a.of-nav:active { background: var(--press); }
     if (interval) clearInterval(interval);
     if (saveTimer) clearTimeout(saveTimer);
     interval = null; saveTimer = null;
+    if (reconcileTimer) { clearTimeout(reconcileTimer); reconcileTimer = null; }
     if (tr) { try { tr.close(); } catch (e) { /* ignore */ } tr = null; }
     pushing = false; retryAt = 0; retryMs = 2000;
     for (const [t, ty, fn] of listeners) { try { t.removeEventListener(ty, fn); } catch (e) { /* ignore */ } }
@@ -9097,12 +9464,14 @@ a.of-nav:active { background: var(--press); }
     storage = given ? (strict && mode === 'demo' ? U.storageFor(given, 'demo') : given) : (strict ? U.storageFor(U.rawStorage, mode) : U.storage);
     st = { persistent: storage.persistent !== false, lastSaveOk: null, lastSaveAt: undefined, corrupt: null, firstRun: false, trimmed: false, repaired: [], outboxDropped: 0, saveCostMs: 0, saveDelayMs: SAVE_MS };
     last = null; writeBlocked = false; heldText = null; susp = null;
-    baseSid = null; pending = []; skipRebase = false;
-    outbox = []; seenOps = new Set(); acked.clear(); opN = 0;
+    baseSid = null; pending = []; recent = []; journal = []; skipRebase = false; noTimersOpt = !!opts.noTimers; if (reconcileTimer) { clearTimeout(reconcileTimer); reconcileTimer = null; }
+    outbox = []; seenOps = new Set(); acked.clear();      // opN is never reset: an action id must not repeat in one page, or a hub or another tab that remembers it takes the new action for a repeat
     const r = realNow();
     let payload = null;
-    try { payload = storage.get(KEY, null); } catch (e) { payload = null; }
+    try { payload = openSaved(storage.get(KEY, null)); } catch (e) { payload = null; }
     try { baseSid = storage.get(SID_KEY, null); } catch (e) { baseSid = null; }
+    journal = payload && Array.isArray(payload.ops) ? payload.ops.filter((x) => typeof x === 'string').slice(-JOURNAL_MAX) : [];
+    era = payload && typeof payload.era === 'string' ? payload.era : '';
     // get() reports unreadable text as "nothing saved". Ask for the raw text so a damaged save is kept and reported,
     // not silently replaced.
     let unreadable = null;
@@ -9147,6 +9516,13 @@ a.of-nav:active { background: var(--press); }
     }
     try { const g0 = storage.get(LASTGOOD_KEY, null); snapAt = g0 && isNum(g0.takenAt) ? g0.takenAt : 0; } catch (e) { snapAt = 0; }
     snapWanted = null;
+    // History fill bookkeeping, and a request that the browser keeps this site's data (real kitchens only; where the browser cannot, nothing happens).
+    quotaChars = isNum(opts.quotaBytes) && opts.quotaBytes > 0 ? opts.quotaBytes : 5e6;
+    compactMode = opts.compact === 'always' || opts.compact === 'never' ? opts.compact : 'auto';
+    hist = { oldest: null, days: 0, at: 0, droppedBefore: null }; hn = { warnAt: 0, trimAck: 0 };
+    try { const h0 = storage.get(HIST_KEY, null); if (h0 && typeof h0 === 'object') hist = Object.assign(hist, { oldest: typeof h0.oldest === 'string' ? h0.oldest : null, days: isNum(h0.days) ? h0.days : 0, at: isNum(h0.at) ? h0.at : 0, droppedBefore: typeof h0.droppedBefore === 'string' ? h0.droppedBefore : null }); } catch (e) { /* none */ }
+    try { const n0 = storage.get(HIST_NOTICE_KEY, null); if (n0 && typeof n0 === 'object') hn = { warnAt: isNum(n0.warnAt) ? n0.warnAt : 0, trimAck: isNum(n0.trimAck) ? n0.trimAck : 0 }; } catch (e) { /* none */ }
+    if (strict && mode === 'real') askPersist(st);
     // After a reload the virtual time continues from where it was saved, plus the real time spent away, and
     // never earlier than the real time. Speed goes back to 1.
     let vNow = r;
@@ -9234,6 +9610,10 @@ a.of-nav:active { background: var(--press); }
     if (r.report === 'ok') {
       if (r.state !== state) {
         pending.push({ type, payload, now: n, opId }); if (pending.length > 300) pending.shift();
+        const ra = realNow();
+        recent.push({ type, payload, now: n, opId, at: ra });
+        while (recent.length > RECENT_MAX || (recent.length && ra - recent[0].at > RECENT_MS)) recent.shift();
+        journal.push(opId); if (journal.length > JOURNAL_MAX) journal.shift();
         if (source === 'user') enqueueOp({ opId, type, payload, now: n });
       }
       if (type === 'closeDay') snapWanted = 'closeDay';
@@ -9302,6 +9682,12 @@ a.of-nav:active { background: var(--press); }
     // the demo had its own storage) is a real kitchen's.
     let parsed = null;
     try { parsed = JSON.parse(text); } catch (e) { parsed = null; }
+    // A compact save (fmt 2) pasted here, for example the copy set aside as damaged, is unpacked first.
+    if (parsed && typeof parsed === 'object' && parsed.fmt !== undefined) {
+      const opened = openSaved(parsed);
+      if (!opened.state) { last = { type: 'import', report: 'invalidBackup', info: { error: 'a compact save that cannot be read' }, events: [] }; return 'invalidBackup'; }
+      parsed = opened; text = JSON.stringify(opened);
+    }
     if (strict && parsed && typeof parsed === 'object') {
       const from = parsed.mode === 'demo' ? 'demo' : 'real';
       if (from !== mode) { last = { type: 'import', report: 'wrongBackupMode', info: { backup: from, mode }, events: [] }; return 'wrongBackupMode'; }
@@ -9334,7 +9720,7 @@ a.of-nav:active { background: var(--press); }
     atLeast(lastStamp(ns));
     state = E().tick(ns, now()).state; syncUnits();
     pendingBroadcast = true;
-    skipRebase = true; pending = [];   // an import or reset is meant to win over what another tab saved
+    skipRebase = true; pending = []; recent = []; journal = []; era = newEra(); histRebase();   // an import or reset is meant to win over what another tab saved
     persistNow();
     scheduleNotify();
     last = { type: 'import', report: 'ok', info: { repaired: v.repaired, beforeRestore: beforeAt != null, beforeRestoreAt: beforeAt, beforeRestoreKeepDays: beforeAt != null ? BEFORE_RESTORE_KEEP_MS / 864e5 : 0 }, events: [] };
@@ -9361,9 +9747,17 @@ a.of-nav:active { background: var(--press); }
   // before (the real boundary), safetyEventsKept, dayRecordsKept, openTicketsKept, openOrdersKept, uncoveredDays, paidTotal.
   function closeMonthPreview(opts) {
     if (!state) return monthAnswer('closeMonthPreview', false, 'invalidBackup');
-    const r = E().monthPlan(state, opts, now());
+    const r = E().monthPlan(state, monthOpts(opts), now());
     if (!r.ok) return monthAnswer('closeMonthPreview', false, r.report, r.info);
     return monthAnswer('closeMonthPreview', true, 'ok', {}, { preview: planView(r.plan) });
+  }
+  // The options for the engine's plan: what the caller asked for, plus how full the saved history is, so the default keep window can follow the
+  // kitchen's pace (a busy kitchen keeps fewer days, because the limits would drop them anyway).
+  function monthOpts(opts) {
+    const today = state ? U.serviceDate(now(), state.settings.service.dayStartHour) : null;
+    // The saved copy may hold fewer days than memory (older ones were dropped to fit), so its pace is counted over the days it really holds.
+    const spanDays = today && typeof hist.oldest === 'string' ? Math.max(1, daysBetween(hist.oldest, today) + 1) : null;
+    return Object.assign({}, opts, { fill: { bytes: savedChars(), quotaBytes: quotaChars, spanDays } });
   }
   // File name part for a date like 2026-09-01 without dashes.
   const flatDay = (d) => String(d).replace(/-/g, '');
@@ -9374,7 +9768,7 @@ a.of-nav:active { background: var(--press); }
   function closeMonthExport(opts) {
     if (!state) return monthAnswer('closeMonthExport', false, 'invalidBackup');
     if (mode === 'demo') return monthAnswer('closeMonthExport', false, 'notInDemo');
-    const r = E().monthPlan(state, opts, now());
+    const r = E().monthPlan(state, monthOpts(opts), now());
     if (!r.ok) return monthAnswer('closeMonthExport', false, r.report, r.info);
     const pl = r.plan;
     if (!pl.tickets && !pl.orders && !pl.events) return monthAnswer('closeMonthExport', false, 'nothingToDo', { before: pl.before });
@@ -9401,7 +9795,7 @@ a.of-nav:active { background: var(--press); }
       files: files.map((f) => ({ name: f.name, kind: f.kind, chars: f.chars, sha256: f.sha256 })),
     };
     add('smokebox-month-manifest-' + range + '.json', 'manifest', 'application/json', JSON.stringify(manifest, null, 2) + '\n');
-    monthExport = { before: pl.before, planKey: planKey(pl), backup: { chars: files[0].chars, sha256: files[0].sha256 } };
+    monthExport = { before: pl.before, requestedBefore: pl.requestedBefore, keepDays: pl.keepDays, planKey: planKey(pl), backup: { chars: files[0].chars, sha256: files[0].sha256 } };
     last = { type: 'closeMonthExport', report: 'ok', info: { files: files.length }, events: [] };
     return { ok: true, report: 'ok', info: { files: files.length }, files, manifest };
   }
@@ -9420,7 +9814,9 @@ a.of-nav:active { background: var(--press); }
     if (tr && typeof tr.push === 'function') return fail('hubKitchen');
     const cb = opts.confirmBackupSaved;
     if (!cb || typeof cb !== 'object' || typeof cb.filename !== 'string' || !cb.filename.trim() || !(Number.isFinite(cb.chars) && cb.chars > 0) || typeof cb.sha256 !== 'string' || !/^[0-9a-f]{64}$/.test(cb.sha256)) return fail('backupRequired');
-    const r = E().monthPlan(state, opts, now());
+    // The window the export used stays the window for the prune, even if the history has grown a little since.
+    const o2 = monthOpts(opts.keepDays === undefined && monthExport && monthExport.requestedBefore === opts.before ? Object.assign({}, opts, { keepDays: monthExport.keepDays }) : opts);
+    const r = E().monthPlan(state, o2, now());
     if (!r.ok) return fail(r.report, r.info);
     const pl = r.plan;
     if (!pl.tickets && !pl.orders && !pl.events) return fail('nothingToDo', { before: pl.before });
@@ -9429,14 +9825,14 @@ a.of-nav:active { background: var(--press); }
     // Make sure what is in storage is this very kitchen before anything is removed.
     persistNow();
     const before = state, savedAt = realNow();
-    const out = E().closeMonth(state, { before: opts.before, keepDays: opts.keepDays, backup: cb }, now());
+    const out = E().closeMonth(state, { before: opts.before, keepDays: o2.keepDays, backup: cb }, now());
     if (out.report !== 'ok') return fail(out.report, out.info);
     const copyAt = snapshotBeforeRestore(BEFORE_MONTH_CLOSE);
     const ns = out.state;
     ns.rev = Math.max(ns.rev, (before.rev || 0) + 1);
     atLeast(lastStamp(ns));
     state = ns; syncUnits();
-    pendingBroadcast = true; skipRebase = true; pending = [];
+    pendingBroadcast = true; skipRebase = true; pending = []; recent = []; journal = []; era = newEra(); histRebase();
     const ok = persistNow();
     if (!ok) {
       // The save did not go in: the kitchen in memory goes back to what it was, and what is stored is still the full copy.
@@ -9539,7 +9935,7 @@ a.of-nav:active { background: var(--press); }
     const ns = E().newState({ now: now(), starter: false, seq: old ? old.seq : undefined, blank: !!(old && old.catalog === 'own') });
     ns.rev = (old ? old.rev : 0) + 1;
     commit(ns, true);
-    skipRebase = true; pending = [];
+    skipRebase = true; pending = []; recent = []; journal = []; era = newEra(); histRebase();
     persistNow();
     return 'ok';
   }
@@ -9645,6 +10041,8 @@ a.of-nav:active { background: var(--press); }
     };
     // Days before this date were archived by Close the month: their day totals stay (day_closed events), their tickets and orders are in the owner's files.
     if (typeof state.archivedBefore === 'string') ds.archivedBefore = state.archivedBefore;
+    // Days before this one were dropped to make room (the size limits), as opposed to saved to files by Close the month (archivedBefore).
+    if (hist.days > 0 && typeof hist.droppedBefore === 'string') ds.droppedBefore = hist.droppedBefore;
     m[key] = { smp, ds };
     return ds;
   }
@@ -9873,13 +10271,13 @@ a.of-nav:active { background: var(--press); }
   function isOwn() { return !!(state && state.catalog === 'own'); }
 
   // Public API: init, destroy, status, getState, now, tick, dispatch, dispatchEx, lastResult, subscribe,
-  // subscribeTick, flushNotify, setSpeed, speed, clock, flush, exportAll, importAll, closeMonthPreview, closeMonthExport, closeMonthPrune, beforeRestoreInfo, undoRestore, exportCsv, reset,
+  // subscribeTick, flushNotify, setSpeed, speed, clock, flush, reconcile, decodeSaved: openSaved, parkedCopy, restoreParked, historyFill, historyNotice, historyNoticeSeen, exportAll, importAll, closeMonthPreview, closeMonthExport, closeMonthPrune, beforeRestoreInfo, undoRestore, exportCsv, reset,
   // resetLive, attachSim, dataset, select, KEY, CORRUPT_KEY.
   SB.store = {
     init, destroy, status, getState: () => state, now, tick: tickNow, dispatch, dispatchEx, lastResult: () => last,
     // Clock readers: speed gives the demo speed, clock gives the whole clock card.
     subscribe, subscribeTick, flushNotify, setSpeed, speed: () => clk.speed, clock: () => ({ now: now(), speed: clk.speed, base: clk.base, realBase: clk.realBase }),
-    acceptClockJump, damagedText: () => heldText, releaseHold: () => { writeBlocked = false; heldText = null; st.heldInMemory = false; schedulePersist(false); }, flush, exportAll, importAll, closeMonthPreview, closeMonthExport, closeMonthPrune, beforeRestoreInfo, undoRestore, exportCsv, reset, resetLive, attachSim, dataset, select, isBlank, isOwn, createRecoveryCode, recoverPin, hasRecoveryCode, saveDraft, loadDraft, clearDraft, applyStarterNames, STARTER_NAMES, startOver, START_OVER_WORD, demoLeftovers, keepDemoLeftovers, clearDemoLeftovers, mode: modeNow, isDemo, isolated, enterDemo, leaveDemo, KEY, CORRUPT_KEY,
+    acceptClockJump, damagedText: () => heldText, releaseHold: () => { writeBlocked = false; heldText = null; st.heldInMemory = false; schedulePersist(false); }, flush, reconcile, decodeSaved: openSaved, parkedCopy, restoreParked, historyFill, historyNotice, historyNoticeSeen, exportAll, importAll, closeMonthPreview, closeMonthExport, closeMonthPrune, beforeRestoreInfo, undoRestore, exportCsv, reset, resetLive, attachSim, dataset, select, isBlank, isOwn, createRecoveryCode, recoverPin, hasRecoveryCode, saveDraft, loadDraft, clearDraft, applyStarterNames, STARTER_NAMES, startOver, START_OVER_WORD, demoLeftovers, keepDemoLeftovers, clearDemoLeftovers, mode: modeNow, isDemo, isolated, enterDemo, leaveDemo, KEY, CORRUPT_KEY,
     // Messages between the tabs of this browser (alert leader, played and acknowledged sounds).
     broadcast, onBroadcast, canBroadcast: () => !!tr, tabId,
     // Server-ready pieces: the transport interface is described above (search "TRANSPORT INTERFACE").
@@ -16527,6 +16925,14 @@ a.of-nav:active { background: var(--press); }
     return 'Days before ' + U.fmtDateShort(before) + ' were saved to your month files and cleared from this tablet. Totals for those days are not shown here.';
   }
   O.archivedWords = archivedWords;
+  // The matching note for days dropped to make room when the saved history filled up (`day` is the first day still kept), or '' when the
+  // range starts on or after it.
+  function droppedRangeWords(day, from, dsh) {
+    if (typeof day !== 'string' || !/^\d{4}-\d\d-\d\d$/.test(day)) return '';
+    if (isNum(from) && from >= dayStartMs(day, isNum(dsh) ? dsh : 4)) return '';
+    return 'Older history was dropped to make room: days before ' + U.fmtDateShort(day) + ' are not here, so totals for those days are missing.';
+  }
+  O.droppedRangeWords = droppedRangeWords;
 
   O.pure = { PAGES, customRange, coachText, dayRange, stepDayKey, pickerKey, splitNumbers, tileParts, sortRows, sig, bannerText, makeDelta, dayStartMs };
 
@@ -17321,10 +17727,9 @@ a.of-nav:active { background: var(--press); }
     const current = M && M.pageId === p.id;
     if (!r) {
       return h('li', { class: 'of-rail-li' }, h('span', { class: 'of-nav is-soon', role: 'link', 'aria-disabled': 'true', 'aria-label': title + ', coming soon', title: title + ' is coming soon' },
-        ico(icon, 22), h('span', { class: 'of-nav-w' }, h('span', { class: 'of-nav-full' }, title), h('span', { class: 'of-nav-short' }, p.short), h('span', { class: 'of-soon' }, 'Coming soon'))));
+        ico(icon, 22), h('span', { class: 'of-nav-w' }, h('span', { class: 'of-nav-full' }, title), h('span', { class: 'of-nav-short', 'aria-hidden': 'true' }, p.short), h('span', { class: 'of-soon' }, 'Coming soon'))));
     }
     const a = h('a', { class: 'of-nav', href: '#/office' + (p.id === 'pace' ? '' : '/' + p.id), dataset: { page: p.id }, title });
-    a.setAttribute('aria-label', title);
     if (current) a.setAttribute('aria-current', 'page');
     const off = pageIsOff(p.id);
     if (off) { a.classList.add('is-off'); a.title = title + (COUNTER_PAGES[p.id] && counterOn() ? ' (counter service: not measured)' : ' (not tracking cooked-ahead food)'); }
@@ -17546,7 +17951,7 @@ a.of-nav:active { background: var(--press); }
     }
     const b = bannerText(info);
     // Pages that add up history say when the range reaches days that were cleared from this tablet (the safety record keeps its own).
-    if (M.pageId !== 'safety' && M.pageId !== 'data') { const aw = O.archivedWords(ds && ds.archivedBefore, F.range.from, svcHour()); if (aw) b.text += ' ' + aw; }
+    if (M.pageId !== 'safety' && M.pageId !== 'data') { const aw = O.archivedWords(ds && ds.archivedBefore, F.range.from, svcHour()); if (aw) b.text += ' ' + aw; const dw = O.droppedRangeWords(ds && ds.droppedBefore, F.range.from, svcHour()); if (dw) b.text += ' ' + dw; }
     const t = M.banner.querySelector('.of-banner-t');
     if (t.textContent !== b.text) t.textContent = b.text;
     M.banner.dataset.kind = b.kind;
@@ -17825,6 +18230,42 @@ a.of-nav:active { background: var(--press); }
 
   const SAVE_DELAY = 600;           // ms after the last change before a field is written (longer than the stepper's 500 ms hold-repeat gap)
   const MAX_IMPORT_CHARS = 20e6;    // same ceiling as SB.store.importAll
+
+  // Builds the always-visible "Saved history" card of the Data page: a plain meter of how full the saved history is, a calm amber note with a
+  // button into Close the month from 70 percent, the sentence about history already dropped, and the browser-may-delete line. Reads the store's
+  // historyFill(); a store without it draws nothing.
+  function historyCard() {
+    const BP = SB.office && SB.office.backupPure;
+    const el = U.h('section', { class: 'od-fcard od-hist', 'aria-label': 'Saved history' });
+    const bar = U.h('span', { class: 'od-hist-bar' }), track = U.h('div', { class: 'od-hist-track', 'aria-hidden': 'true' }, bar);
+    const meter = U.h('p', { class: 'od-p od-hist-meter', role: 'status' }), alert = U.h('p', { class: 'od-p od-hist-alert', hidden: true });
+    const dropped = U.h('p', { class: 'od-hint od-hist-dropped', hidden: true }), safari = U.h('p', { class: 'od-hint od-hist-safari', hidden: true });
+    const go = U.h('button', { type: 'button', class: 'btn btn-sm', 'data-action': 'history-close-month', hidden: true }, 'Close the month...');
+    go.addEventListener('click', () => { try { if (SB.setup && typeof SB.setup.openCloseMonth === 'function') SB.setup.openCloseMonth(); } catch (e) { /* the flow shows its own refusals */ } });
+    el.append(U.h('h3', { class: 'od-fh' }, U.h('span', null, 'Saved history')), track, meter, alert, U.h('div', { class: 'od-actions' }, go), dropped, safari);
+    // Redraws the card from the store.
+    function paint() {
+      const st = SB.store.getState(), fill = SB.store.historyFill ? SB.store.historyFill() : null;
+      const v = BP.historyView(fill, st, SB.store.now());
+      el.hidden = !fill;
+      if (!fill) return;
+      el.dataset.tone = v.level === 'ok' ? '' : 'warn'; el.dataset.level = v.level;
+      bar.style.width = (v.pct === null ? 0 : v.pct) + '%';
+      track.setAttribute('data-pct', String(v.pct === null ? '' : v.pct));
+      meter.textContent = v.meter || 'Saved history size is not known on this device.';
+      alert.textContent = v.alert; alert.hidden = !v.alert; go.hidden = !v.alert;
+      const ts = fill.trimmedSince && typeof fill.trimmedSince === 'object' ? fill.trimmedSince.droppedBefore : '';
+      let ds = null; try { ds = SB.store.dataset({ sample: false }); } catch (e) { ds = null; }
+      const dday = (ds && ds.droppedBefore) || ts || '';
+      const dw = BP.droppedWords(dday); dropped.textContent = dw; dropped.hidden = !dw;
+      safari.textContent = v.safari; safari.hidden = !v.safari;
+    }
+    paint();
+    // Keeps the card in step with the store, redrawing only when the tickets, events or day changed.
+    let seen = '';
+    function sync(st) { const k = st.tickets.length + '|' + (st.events || []).length + '|' + (st.archivedBefore || '') + '|' + (st.droppedBefore || '') + '|' + U.serviceDate(SB.store.now(), (st.settings.service || {}).dayStartHour); if (k !== seen) { seen = k; try { paint(); } catch (e) { /* the rest of the page still draws */ } } }
+    return { el, sync };
+  }
 
   // Builds the "Close the month" card for the Data page: one plain paragraph on what it does, the numbers from the store's own preview,
   // and a Start button that opens the guarded confirm flow (SB.setup.openCloseMonth). Nothing here changes any data.
@@ -19268,7 +19709,9 @@ a.of-nav:active { background: var(--press); }
       // Runs the erase once, then closes the box.
       const run = () => { if (go.disabled) return; cancel(); o.run(); };
       go.addEventListener('click', run);
-      input.addEventListener('keydown', (e) => { if (e.key === 'Enter') run(); if (e.key === 'Escape') cancel(); });
+      input.addEventListener('keydown', (e) => { if (e.key === 'Enter') run(); });
+      // Escape anywhere in the box closes only the box (the page-wide Escape would otherwise leave the back office) and gives focus back to the erase button.
+      dangerBox.onkeydown = (e) => { if (e.key === 'Escape' && !dangerBox.hidden) { e.preventDefault(); e.stopPropagation(); cancel(); } };
       const descId = U.uid('oddesc');
       input.setAttribute('aria-describedby', descId);
       dangerBox.replaceChildren(h('p', { class: 'od-danger-t' }, ico('alert', 20), h('strong', null, o.title)), h('div', { id: descId }, ...o.lines.map((t) => h('p', { class: 'od-p' }, t))),
@@ -19355,6 +19798,55 @@ a.of-nav:active { background: var(--press); }
       else SB.ui.toast(rep === 'noCopy' ? 'The copy from before the restore is gone, so nothing was changed.' : SB.engine.describe(rep, (SB.store.lastResult() || {}).info, (stateNow() || {}).settings), { tone: 'warn' });
       paintUndo();
     }
+    // A copy that was set aside as unreadable (or by a newer build) can still be read: say what it holds and offer to bring it back or throw it away.
+    const parkedBox = h('div', { class: 'od-parked', 'data-region': 'parked-copy' });
+    const PARK_WORD = 'RESTORE';
+    // Draws the set-aside copy card again, or nothing when no readable copy is set aside.
+    function paintParked() {
+      const pc = SB.store.parkedCopy ? SB.store.parkedCopy() : null;
+      if (!pc || (SB.store.isHubClient && SB.store.isHubClient()) || (SB.store.isFollower && SB.store.isFollower())) { parkedBox.replaceChildren(); parkedBox.hidden = true; return; }
+      parkedBox.hidden = false;
+      let savedFirst = false;
+      const status = h('p', { class: 'od-p', role: 'status' });
+      const word = h('input', { class: 'input od-danger-in', type: 'text', autocomplete: 'off', spellcheck: 'false', 'aria-label': 'Type ' + PARK_WORD + ' to confirm' });
+      const go = btn('Bring the set-aside copy back', { icon: 'upload', cls: 'btn-danger' }); go.dataset.action = 'parked-restore'; go.disabled = true;
+      // The red button wakes only when the backup of what is here now was saved and the word was typed.
+      const sync = () => { go.disabled = !(savedFirst && word.value.trim().toUpperCase() === PARK_WORD); };
+      word.addEventListener('input', sync);
+      // Saves a backup file of what is on this device now, so bringing the other copy back can never lose it.
+      const saveFirst = btn('Save a backup of what is here now first', { icon: 'download', cls: 'btn-sm', onClick: () => {
+        let text = null; try { text = SB.store.exportAll(); } catch (e) { text = null; }
+        if (!text) { status.textContent = 'The backup could not be made, so nothing can be replaced. Nothing was changed.'; return; }
+        // Pads a number to two digits so the file name sorts by time.
+        const z = (n) => String(n).padStart(2, '0');
+        try { const d = new Date(); const fname = 'smokebox-backup-before-set-aside-restore-' + d.getFullYear() + z(d.getMonth() + 1) + z(d.getDate()) + '-' + z(d.getHours()) + z(d.getMinutes()) + '.json'; const url = URL.createObjectURL(new Blob([text], { type: 'application/json' })); const a = document.createElement('a'); a.href = url; a.download = fname; a.style.display = 'none'; document.body.appendChild(a); a.click(); setTimeout(() => { a.remove(); URL.revokeObjectURL(url); }, 4000); savedFirst = true; status.textContent = 'Asked your browser to save ' + fname + '. Look in your downloads folder to be sure it is there, then type ' + PARK_WORD + '.'; sync(); }
+        catch (e) { status.textContent = 'This browser would not save the file. Nothing was changed.'; }
+      } }); saveFirst.dataset.action = 'parked-backup';
+      // After the PIN, brings the set-aside copy back; the kitchen it replaces is kept for 7 days (Undo this restore below).
+      go.addEventListener('click', async () => {
+        if (go.disabled) return;
+        if (SB.shell.requirePin && !(await SB.shell.requirePin())) { SB.ui.toast('The PIN was not entered. Nothing was changed.', { tone: 'warn' }); return; }
+        const rep = SB.store.restoreParked();
+        if (rep === 'ok') SB.ui.toast('The set-aside copy is back. What was here before is kept for 7 days: Undo this restore.', { tone: 'ok' });
+        else SB.ui.toast(rep === 'noCopy' ? 'The set-aside copy is gone, so nothing was changed.' : SB.engine.describe(rep, (SB.store.lastResult() || {}).info, (stateNow() || {}).settings) + ' Nothing was changed.', { tone: 'warn' });
+        paintParked(); paintUndo();
+      });
+      // Throws the set-aside copy away after asking; the current kitchen is not touched.
+      const drop = btn('Throw the set-aside copy away', { icon: 'trash', cls: 'btn-sm', onClick: async () => {
+        const ok = await SB.ui.confirm({ title: 'Throw the set-aside copy away?', tone: 'danger', confirmLabel: 'Throw it away', cancelLabel: 'Keep it', body: ['This removes the copy that was set aside. Your kitchen as it is now is not touched. It cannot be brought back.'] });
+        if (!ok) return;
+        if (SB.shell.requirePin && !(await SB.shell.requirePin())) { SB.ui.toast('The PIN was not entered. Nothing was changed.', { tone: 'warn' }); return; }
+        try { const k = SB.store.CORRUPT_KEY; SB.util.storage.remove(k); SB.util.storage.remove(k + 'at'); } catch (e) { /* the check below tells the truth */ }
+        SB.ui.toast(SB.store.parkedCopy && SB.store.parkedCopy() ? 'The copy could not be removed.' : 'The set-aside copy was thrown away.', { tone: 'ok' });
+        paintParked();
+      } }); drop.dataset.action = 'parked-drop';
+      const when = pc.at ? U.fmtDateShort(U.dateKey(pc.at)) + ' ' + U.fmtTime(pc.at) : 'earlier';
+      parkedBox.replaceChildren(
+        h('h3', { class: 'od-sub' }, 'A copy of your kitchen was set aside'),
+        h('p', { class: 'od-p' }, 'Smokebox set this copy aside on ' + when + ' because it could not read it then, or it came from a newer version. It can be read now and holds ' + U.fmtNum(pc.tickets) + ' ' + U.plural(pc.tickets, 'ticket') + ' and ' + U.fmtNum(pc.orders) + ' ' + U.plural(pc.orders, 'order') + '.'),
+        h('p', { class: 'od-p' }, 'Bringing it back replaces everything on this device. What is here now is kept for 7 days, and you can undo it. First save a backup file of what is here now, then type ' + PARK_WORD + '.'),
+        h('div', { class: 'od-actions' }, saveFirst), SB.ui.field({ label: 'Type ' + PARK_WORD, control: word }), h('div', { class: 'od-actions' }, go, drop), status);
+    }
     const pasteLabelId = U.uid('odpl');
     const pasteArea = h('textarea', { class: 'textarea od-paste', rows: 5, spellcheck: 'false', autocomplete: 'off', 'aria-labelledby': pasteLabelId, placeholder: 'Paste the whole backup text here' });
     // Checks pasted text the same way as a chosen file.
@@ -19363,7 +19855,8 @@ a.of-nav:active { background: var(--press); }
     const pasteDet = h('details', { class: 'od-paste-det' }, h('summary', { id: pasteLabelId }, ico('chevron-down', 18), h('span', null, 'Paste a backup instead')), pasteArea, h('div', { class: 'od-actions' }, pasteBtn));
     card2.body.append(
       para('Choose a backup file. Smokebox shows what is inside it before anything changes, and refuses a file that is not a Smokebox backup or that belongs to another kind of kitchen (demo or real).', 'od-p'),
-      h('div', { class: 'od-actions' }, chooseBtn, fileIn), pasteDet, impResult, undoBox);
+      h('div', { class: 'od-actions' }, chooseBtn, fileIn), pasteDet, impResult, undoBox, parkedBox);
+    paintParked();
     card3.body.append(
       h('ol', { class: 'od-steps' },
         h('li', null, 'On the old device, if it still works: tap Download backup (JSON) in card 1 and copy the file somewhere else (email it to yourself or use a USB drive).'),
@@ -19606,6 +20099,7 @@ a.of-nav:active { background: var(--press); }
     const hubTablet = (() => { try { return !!(SB.store.hubKitchen && SB.store.hubKitchen()); } catch (e) { return false; } })();
     if (!(SB.store.isDemo && SB.store.isDemo()) && !hubTablet && SB.store.closeMonthPreview) { const cm = closeMonthCard(flowCard); flow.append(cm.el); P.syncs.push(cm.sync); }
     pn.body.prepend(flow);
+    if (SB.store.historyFill && !(SB.store.isDemo && SB.store.isDemo())) { const hc = historyCard(); pn.body.prepend(hc.el); P.syncs.push(hc.sync); }
     const exStatus = statusLine();
     const fbLabelId = U.uid('odfb');
     const fbText = h('textarea', { class: 'textarea od-fbtext', readonly: true, rows: 6, 'aria-labelledby': fbLabelId, spellcheck: 'false' });
@@ -19937,7 +20431,49 @@ a.of-nav:active { background: var(--press); }
     return String(typed == null ? '' : typed).trim().toLowerCase() === String(word || 'reset').toLowerCase();
   }
 
-  O.backupPure = { backupFreshness, describeBackup, resetWordOk, salesCsv };
+  // How full the saved history is and what to tell the owner, from the store's historyFill() numbers and the kitchen's state. The fill is the
+  // largest of tickets, events and bytes against their limits; the pace (tickets and events per day over the last 14 days, at least 3 days of
+  // them) gives the days left. Returns { pct, level: 'ok' | 'near' (70 percent) | 'urgent' (85) | 'full', meter, alert, daysLeft, safari }.
+  function historyView(fill, state, now) {
+    const out = { pct: null, level: 'ok', meter: '', alert: '', daysLeft: null, safari: '' };
+    if (!fill || typeof fill !== 'object') return out;
+    const parts = [];
+    if (isNum(fill.tickets) && isNum(fill.ticketsCap) && fill.ticketsCap > 0) parts.push(fill.tickets / fill.ticketsCap);
+    if (isNum(fill.events) && isNum(fill.eventsCap) && fill.eventsCap > 0) parts.push(fill.events / fill.eventsCap);
+    if (isNum(fill.bytes) && isNum(fill.quotaBytes) && fill.quotaBytes > 0) parts.push(fill.bytes / fill.quotaBytes);
+    if (parts.length) out.pct = Math.min(100, Math.floor(Math.max.apply(null, parts) * 100));
+    if (fill.persisted === false) out.safari = 'This browser may delete saved data if the tablet is unused for a while. Add Smokebox to the home screen to keep it.';
+    if (out.pct === null) return out;
+    out.level = out.pct >= 100 ? 'full' : out.pct >= 85 ? 'urgent' : out.pct >= 70 ? 'near' : 'ok';
+    // The pace over the last 14 days, from the tickets and the event log.
+    const DAY = 864e5, from = (isNum(now) ? now : Date.now()) - 14 * DAY;
+    let nT = 0, firstT = Infinity;
+    for (const t of (state && state.tickets) || []) if (t && isNum(t.createdAt) && t.createdAt > from && t.createdAt <= now) { nT++; if (t.createdAt < firstT) firstT = t.createdAt; }
+    let nE = 0;
+    if (SB.engine && SB.engine.allEvents && state) for (const e of SB.engine.allEvents(state)) if (e && isNum(e.t) && e.t > from && e.t <= now) nE++;
+    const span = nT ? Math.min(14, Math.max(1, Math.ceil((now - firstT) / DAY))) : 0;
+    if (out.level !== 'full' && Object.prototype.hasOwnProperty.call(fill, 'daysLeft')) {
+      // The store knows all three limits (including the browser's space), so its own estimate wins; null means under three days of history.
+      out.daysLeft = isNum(fill.daysLeft) ? Math.floor(fill.daysLeft) : null;
+    } else if (out.level !== 'full' && span >= 3) {
+      const room = [];
+      if (nT && isNum(fill.ticketsCap)) room.push(Math.max(0, fill.ticketsCap - fill.tickets) / (nT / span));
+      if (nE && isNum(fill.eventsCap)) room.push(Math.max(0, fill.eventsCap - fill.events) / (nE / span));
+      if (room.length) out.daysLeft = Math.floor(Math.min.apply(null, room));
+    }
+    const left = out.daysLeft === null ? '' : out.daysLeft > 365 ? ' (more than a year at today\'s pace)' : ' (about ' + out.daysLeft + ' more ' + (out.daysLeft === 1 ? 'day' : 'days') + ' at today\'s pace)';
+    out.meter = out.level === 'full' ? 'Your saved history is full.' : 'Your saved history: ' + out.pct + '% full' + left;
+    if (out.level === 'full') out.alert = 'Your saved history is full, so older days are being dropped to make room. Close the month to save them to files.';
+    else if (out.level !== 'ok') out.alert = 'Your saved history is ' + out.pct + '% full. Close the month to save it to files before older days are dropped.';
+    return out;
+  }
+  // The sentence for history that was already dropped to make room: the first day still kept is `day` (YYYY-MM-DD).
+  function droppedWords(day) {
+    if (typeof day !== 'string' || !/^\d{4}-\d\d-\d\d$/.test(day)) return '';
+    return 'Older history was dropped to make room (days before ' + U.fmtDateShort(day) + '). Close the month regularly to keep it in files.';
+  }
+
+  O.backupPure = { backupFreshness, describeBackup, resetWordOk, salesCsv, historyView, droppedWords };
 })(typeof globalThis !== 'undefined' ? globalThis : window);
 
 }catch(e){console.error('[smokebox] module 88-office-backup.js failed to load:',e);window.__sbLoadErrors=(window.__sbLoadErrors||[]);window.__sbLoadErrors.push({file:'88-office-backup.js',message:String(e&&e.message||e)});}

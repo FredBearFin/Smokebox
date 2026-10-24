@@ -3,14 +3,14 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { loadSB } from './_load.mjs';
 
-const SB = await loadSB(['00-util', '10-config', '86-office-glance']);
+const SB = await loadSB(['00-util', '10-config', '80-office-core', '86-office-glance']);
 const U = SB.util;
 const { runOutLine } = SB.office.glancePure;
 const now = new Date(2026, 9, 16, 18, 0, 0).getTime();
 
-test('the run-out line shows kilograms by default and pounds when the owner chose pounds', () => {
+test('the run-out line shows kilograms by default (no trailing zeros) and pounds when the owner chose pounds', () => {
   U.setUnits({ weightUnit: 'kg' });
-  assert.match(runOutLine({ name: 'Brisket', onHandG: 14000, shortfallAt: null, rateKnown: false }, now).text, /14\.00 kg on hand/);
+  assert.match(runOutLine({ name: 'Brisket', onHandG: 14000, shortfallAt: null, rateKnown: false }, now).text, /14 kg on hand/);
   U.setUnits({ weightUnit: 'lb' });
   assert.match(runOutLine({ name: 'Brisket', onHandG: 14000, shortfallAt: null, rateKnown: false }, now).text, /30\.86 lb on hand/);
   U.setUnits({ weightUnit: 'kg' });

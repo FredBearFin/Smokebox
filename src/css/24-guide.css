@@ -146,10 +146,11 @@ ul.gd-list { list-style: disc; }
   html, body { height: auto !important; overflow: visible !important; background: #fff !important; }
   /* Other print rules (Close the day, the inspector page) hide everything in the body but their own sheet; while the Guide is open it must stay. */
   body:has(.layer-guide:not([hidden])) > #app { display: block !important; }
-  .sb-shell { position: static !important; overflow: visible !important; background: #fff !important; }
-  .sb-shell > :not(.layer-guide), .skip-link { display: none !important; }
+  /* WATCH OUT: only while the Guide is open; otherwise these rules would print a blank page for the back office. */
+  body:has(.layer-guide:not([hidden])) .sb-shell { position: static !important; overflow: visible !important; background: #fff !important; }
+  body:has(.layer-guide:not([hidden])) .sb-shell > :not(.layer-guide), .skip-link { display: none !important; }
   .layer-guide { position: static !important; display: block !important; overflow: visible !important; background: #fff !important; }
-  .gd-top, .gd-nav, .gd-pager, .gd-print { display: none !important; }
+  .gd-top, .gd-nav, .gd-pager, .gd-print, .gd-search, .gd-search-n, .gd-results { display: none !important; }
   .gd-body { display: block; max-width: none; padding: 0; }
   .gd-article { border: 0; box-shadow: none; padding: 0; max-width: none; background: #fff; }
   .gd-page-title { font-size: 28pt; color: #000; }
@@ -157,8 +158,9 @@ ul.gd-list { list-style: disc; }
   .gd-p, .gd-list, .gd-lede { font-size: 14pt; }
   .gd-check li { font-size: 15pt; margin-bottom: 10pt; }
   .gd-check li::before { border-color: #000; background: #fff; }
-  .gd-ui { border-color: #000; background: #fff; }
+  .gd-ui { border-color: #000; background: #fff; color: #000; }
   .gd-fig, .gd-list li { break-inside: avoid; }
+  .gd-h { break-after: avoid; }
   /* Pictures print in black, white and gray, so they stay readable on a black-and-white printer. */
   .ga-bg { fill: #fff; stroke: #000; stroke-width: 2; }
   .ga-badge, .ga-badge-warn, .ga-badge-bad, .ga-step-1, .ga-step-2, .ga-step-3, .ga-step-4 { fill: #000; }
@@ -167,4 +169,8 @@ ul.gd-list { list-style: disc; }
   .ga-ink, .ga-ink2, .ga-warn-t, .ga-bad-t, .ga-slip-ink, .ga-slip-ink3, .ga-slip-amber { fill: #000; }
   .ga-card, .ga-slip, .ga-note { fill: #fff; stroke: #000; }
   .ga-leader, .ga-dot { stroke: #000; fill: none; } .ga-dot { fill: #000; }
+  /* The speaker, its sound waves, the arrows and the spine use screen ink, which is near white in Night: black on paper. */
+  .ga-fill-ink { fill: #000; }
+  .ga-wave, .ga-arrow, .ga-spine { stroke: #000; }
+  .gd-fig figcaption { color: #333; }
 }

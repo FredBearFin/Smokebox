@@ -3,13 +3,16 @@
  * SB.officeB, the small helper set that the Safety and Stock pages share.
  * PARTS: 1 plain helpers (no screen needed), 2 screen helpers (menus, switches, verdict box), 3 the page.
  * USES: 40-metrics.js, 80-office-core.js.   USED BY: 83-office-safety.js, 85-office-stock.js, the office frame.
- * KEPT: g or kg only, money via kit.fmt.money, a missing cost is "not recorded", never 0.  TRAP: SB.metrics
+ * KEPT: weights via kit.fmt.g (kg or lb, as the owner chose), money via kit.fmt.money, a missing cost is "not recorded", never 0.  TRAP: SB.metrics
  * percents are fractions (0 to 1) except thermal() hotPct and chilledPct (0 to 100).
  */
 (function (g) {
   'use strict';
   const SB = (g.SB = g.SB || {});
   const U = SB.util;
+  // A cost per kilogram shown per pound when the owner weighs in pounds (settings, Weights), and the unit word to match.
+  const perW = (v) => (typeof v === 'number' && isFinite(v) && U.units && U.units.weight === 'lb' ? v * 0.45359237 : v);
+  const wWord = () => (U.units && U.units.weight === 'lb' ? 'lb' : 'kg');
   const B = (SB.officeB = SB.officeB || {});
   // True only for a real, finite number (not NaN, not text that looks like a number).
   const isNum = (n) => typeof n === 'number' && isFinite(n);
@@ -161,7 +164,7 @@
   };
 
   /** Reasons a batch was thrown away, in words an owner would say. */
-  B.REASON = { expired: 'Held too long', temp: 'Out of temperature', cooling: 'Cooled too slowly', manual: 'Thrown out by hand', quality: 'Quality', other: 'Other reason' };
+  B.REASON = { expired: 'Held too long', temp: 'Out of temperature', cooling: 'Cooled too slowly', manual: 'Thrown out by hand', quality: 'Quality', fridgeDate: 'Past the fridge date', outTime: 'Out of the fridge too long', datemark: 'Past the date mark', other: 'Other reason' };
   // Owner wording for a discard reason; an unknown reason is tidied up instead of shown raw.
   B.reasonWord = (r) => B.REASON[r] || (r ? String(r).replace(/_/g, ' ').replace(/^./, (c) => c.toUpperCase()) : 'Other reason');
 
@@ -177,7 +180,7 @@
   B.setText = setText;
 
   /** Where the numbers on a card come from, in one line: the range, the channel (when it applies)
-   *  and whether sample data is in. */
+   *  and, only when they are mixed in, the sample days. */
   B.scopeText = (ctx, o) => {
     o = o || {};
     const F = ctx.filters; let ds = null;
@@ -185,7 +188,8 @@
     const sample = ds && ds.counts ? ds.counts.sample : 0;
     const parts = [F.range.label];
     if (!o.noChannel && F.channel !== 'all') { const c = SB.config && SB.config.channelById && SB.config.channelById[F.channel]; parts.push(c ? c.name : F.channel); }
-    parts.push(F.source === 'all' && sample > 0 ? 'sample and live data' : 'live data only');
+    // Sample days are only named when they are mixed in; otherwise every number is the owner's own.
+    if (F.source === 'all' && sample > 0) parts.push('with sample days');
     return parts.join(', ');
   };
 
@@ -384,19 +388,19 @@
             // A tiny gap prints as "less than 0.1" so the sentence never claims an exact 0.0 percent.
             const abs = Math.abs(err) * 100;
             setText(big, 'If you had priced ' + name + ' with the static yield you would have been off by ' + (abs < 0.05 ? 'less than 0.1' : abs.toFixed(1)) + '%.');
-            setText(detail, 'The static ' + fmt.pct(y.staticYield, 0) + ' yield puts ' + name + ' at ' + fmt.money(y.staticCostPerCookedKg, 2) + ' per cooked kg. The true figure is ' + fmt.money(y.trueCostPerCookedKg, 2) + ' per cooked kg, so the static yield ' + (err > 0 ? 'overstates' : err < 0 ? 'understates' : 'matches') + ' the cost.');
+            setText(detail, 'The static ' + fmt.pct(y.staticYield, 0) + ' yield puts ' + name + ' at ' + fmt.money(perW(y.staticCostPerCookedKg), 2) + ' per cooked ' + wWord() + '. The true figure is ' + fmt.money(perW(y.trueCostPerCookedKg), 2) + ' per cooked ' + wWord() + ', so the static yield ' + (err > 0 ? 'overstates' : err < 0 ? 'understates' : 'matches') + ' the cost.');
           } else {
-            setText(big, 'The cost of ' + name + ' per cooked kilogram could not be worked out.');
+            setText(big, 'The cost of ' + name + ' per cooked ' + (wWord() === 'lb' ? 'pound' : 'kilogram') + ' could not be worked out.');
             setText(detail, 'A raw cost per kilogram is needed for this comparison.');
           }
           stats.set([
-            { k: 'static', label: 'Static ' + (isNum(y.staticYield) ? fmt.pct(y.staticYield, 0) : ''), value: isNum(y.staticCostPerCookedKg) ? fmt.money(y.staticCostPerCookedKg, 2) : 'Not known', note: 'per cooked kg' },
-            { k: 'model', label: 'Model ' + (isNum(y.modelYield) ? fmt.pct(y.modelYield, 1) : ''), value: isNum(y.modelCostPerCookedKg) ? fmt.money(y.modelCostPerCookedKg, 2) : 'Not known', note: 'per cooked kg' },
-            { k: 'real', label: 'Your batches ' + (isNum(y.realisedYield) ? fmt.pct(y.realisedYield, 1) : ''), value: isNum(y.realisedCostPerCookedKg) ? fmt.money(y.realisedCostPerCookedKg, 2) : 'No weighed batches', note: isNum(y.realisedCostPerCookedKg) ? 'per cooked kg' : 'weigh raw and cooked to add this' },
+            { k: 'static', label: 'Static ' + (isNum(y.staticYield) ? fmt.pct(y.staticYield, 0) : ''), value: isNum(y.staticCostPerCookedKg) ? fmt.money(perW(y.staticCostPerCookedKg), 2) : 'Not known', note: 'per cooked ' + wWord() },
+            { k: 'model', label: 'Model ' + (isNum(y.modelYield) ? fmt.pct(y.modelYield, 1) : ''), value: isNum(y.modelCostPerCookedKg) ? fmt.money(perW(y.modelCostPerCookedKg), 2) : 'Not known', note: 'per cooked ' + wWord() },
+            { k: 'real', label: 'Your batches ' + (isNum(y.realisedYield) ? fmt.pct(y.realisedYield, 1) : ''), value: isNum(y.realisedCostPerCookedKg) ? fmt.money(perW(y.realisedCostPerCookedKg), 2) : 'No weighed batches', note: isNum(y.realisedCostPerCookedKg) ? 'per cooked ' + wWord() : 'weigh raw and cooked to add this' },
           ]);
           setText(src, y.truthSource === 'realised'
-            ? 'True cost per cooked kg: ' + fmt.money(y.trueCostPerCookedKg, 2) + ', from ' + y.batches + ' weighed ' + B.plural(y.batches, 'batch', 'batches') + ' (' + fmt.g(y.rawG) + ' raw became ' + fmt.g(y.cookedG) + ' cooked). Raw cost ' + fmt.money(y.costPerKgRaw, 2) + ' per kg is a starter figure.'
-            : 'True cost per cooked kg: ' + (isNum(y.trueCostPerCookedKg) ? fmt.money(y.trueCostPerCookedKg, 2) : 'not known') + ', from the Texas A&M model because no batch in this range was weighed. Raw cost is a starter figure.');
+            ? 'True cost per cooked ' + wWord() + ': ' + fmt.money(perW(y.trueCostPerCookedKg), 2) + ', from ' + y.batches + ' weighed ' + B.plural(y.batches, 'batch', 'batches') + ' (' + fmt.g(y.rawG) + ' raw became ' + fmt.g(y.cookedG) + ' cooked). Raw cost ' + fmt.money(perW(y.costPerKgRaw), 2) + ' per ' + wWord() + ' is a starter figure.'
+            : 'True cost per cooked ' + wWord() + ': ' + (isNum(y.trueCostPerCookedKg) ? fmt.money(perW(y.trueCostPerCookedKg), 2) : 'not known') + ', from the Texas A&M model because no batch in this range was weighed. Raw cost is a starter figure.');
         };
         paint(p0);
         return { update: paint };
@@ -429,7 +433,7 @@
         const controls = h('div', { class: 'ob-wi-ctl' }, fld('End temperature, 75 to 90 \u00B0C', sT), fld('Hold time, 0 to 3 hours', sH), fld('Raw weight put in to cook', sW));
         // One result tile: returns its list item and the two text spans to fill in later.
         const out = (k, label) => { const v = h('span', { class: 'ob-stat-v num', 'data-out': k }), n = h('span', { class: 'ob-stat-n' }); return { li: h('li', { class: 'ob-stat' }, h('span', { class: 'ob-stat-l' }, label), v, n), v, n }; };
-        const oHot = out('hot', 'Hot yield'), oChill = out('chilled', 'Chilled yield'), oCooked = out('cooked', 'Cooked weight'), oCost = out('cost', 'True cost per cooked kg');
+        const oHot = out('hot', 'Hot yield'), oChill = out('chilled', 'Chilled yield'), oCooked = out('cooked', 'Cooked weight'), oCost = out('cost', 'True cost per cooked ' + wWord());
         const outs = h('ul', { class: 'ob-stats ob-stats--4', 'aria-live': 'polite', 'aria-label': 'What-if result' }, oHot.li, oChill.li, oCooked.li, oCost.li);
         const vs = h('p', { class: 'ob-text', 'data-out': 'vs' });
         const name = h('p', { class: 'ob-src' });
@@ -451,11 +455,11 @@
           setText(oChill.v, t.chilledPct.toFixed(1) + '%'); setText(oChill.n, 'after chilling overnight');
           const cg = isNum(t.cookedG) ? Math.round(t.cookedG) : null;
           setText(oCooked.v, cg === null ? '-' : fmt.g(cg)); setText(oCooked.n, cg === null ? '' : fmt.g(cg) + ' from ' + fmt.g(rawG) + ' raw');
-          setText(oCost.v, isNum(t.trueCostPerCookedKg) ? fmt.money(t.trueCostPerCookedKg, 2) : 'Not known'); setText(oCost.n, isNum(rc.cost) ? 'raw cost ' + fmt.money(rc.cost, 2) + ' per kg' : 'no raw cost recorded');
+          setText(oCost.v, isNum(t.trueCostPerCookedKg) ? fmt.money(perW(t.trueCostPerCookedKg), 2) : 'Not known'); setText(oCost.n, isNum(rc.cost) ? 'raw cost ' + fmt.money(perW(rc.cost), 2) + ' per ' + wWord() : 'no raw cost recorded');
           if (isNum(rc.staticY) && cg !== null) {
             const sg = Math.round(rawG * rc.staticY);
             const diff = cg - sg;
-            setText(vs, 'The static ' + fmt.pct(rc.staticY, 0) + ' yield would give ' + fmt.g(sg) + ' cooked from the same ' + fmt.g(rawG) + ' raw' + (isNum(rc.cost) ? ' and a cost of ' + fmt.money(rc.cost / rc.staticY, 2) + ' per cooked kg' : '') + '. This cook gives ' + fmt.g(Math.abs(diff)) + (diff >= 0 ? ' more' : ' less') + '.');
+            setText(vs, 'The static ' + fmt.pct(rc.staticY, 0) + ' yield would give ' + fmt.g(sg) + ' cooked from the same ' + fmt.g(rawG) + ' raw' + (isNum(rc.cost) ? ' and a cost of ' + fmt.money(perW(rc.cost / rc.staticY), 2) + ' per cooked ' + wWord() : '') + '. This cook gives ' + fmt.g(Math.abs(diff)) + (diff >= 0 ? ' more' : ' less') + '.');
           } else setText(vs, '');
           setText(name, 'Source: Texas A&M regression, hot-hold yield; starter model, confirm against your own weighed batches. Chilled yield is the hot yield minus ' + YM.chilledDelta + ' points, never below ' + YM.chilledFloor + '%.');
         }
@@ -525,18 +529,23 @@
       render: (body, p0) => {
         const list = h('ul', { class: 'ob-list', 'aria-label': 'Items with no recorded cost' });
         const none = h('p', { class: 'ob-note', hidden: true });
-        // Opens the Menu and settings page, where a missing cost is entered.
-        const go = kit.button({ label: 'Open Menu and settings', icon: 'sliders', onClick: () => ctx.navigate('data') });
+        // Opens the Menu, prices and shop page, where a missing cost is entered.
+        const go = kit.button({ label: 'Open Menu, prices and shop', icon: 'sliders', onClick: () => ctx.navigate('data') });
         const goWrap = h('div', { class: 'ob-actions' }, go);
-        body.append(list, none, goWrap);
+        // How much of what sold the Food cost tile really covers, since it leaves out items with no cost.
+        const cov = h('p', { class: 'ob-note', hidden: true });
+        body.append(cov, list, none, goWrap);
         let last = '';
         // Lists items that sold with no cost, then items whose cost covers only part of their sales.
         const paint = (p) => {
           const rows = itemRows(p).filter((r) => r.sold > 0 && (r.cost === null || r.costCoverage === 0)).sort((a, b) => b.sold - a.sold);
           const partial = itemRows(p).filter((r) => r.sold > 0 && r.cost !== null && isNum(r.costCoverage) && r.costCoverage < 1);
           // A signature of what the list shows: if it is unchanged nothing is rebuilt, so there is no flicker.
-          const sig = JSON.stringify([rows.map((r) => [r.menuId, r.sold]), partial.map((r) => [r.menuId, r.costCoverage]), itemRows(p).length]);
+          const fc = M.foodCostPct(p), share = fc && isNum(fc.coverage) ? fc.coverage : null;
+          const sig = JSON.stringify([rows.map((r) => [r.menuId, r.sold]), partial.map((r) => [r.menuId, r.costCoverage]), itemRows(p).length, share]);
           if (sig === last) return; last = sig;
+          cov.hidden = !(share !== null && share < 0.995 && share > 0);
+          if (!cov.hidden) setText(cov, 'The Food cost figure at the top covers ' + fmt.pct(share, 0) + ' of the priced items sold. The rest have no cost on file, so the real food cost is not known for them.');
           U.clear(list);
           rows.forEach((r) => list.appendChild(h('li', { class: 'ob-li' },
             h('span', { class: 'ob-li-n' }, r.name),
@@ -561,13 +570,15 @@
 
   // Builds the What sells and what it earns section of the Sales and money page (top items, sales by hour, by order type and cost of goods) and returns the four cards the page result keeps.
   function buildSellsSection(env) {
-    const { page, scope, st, itemRows, fmt, M, ctx } = env;
+    const { page, scope, st, itemRows, salesOf, fmt, M, ctx } = env;
     /* ---------------------------------------------------------------- what sells */
-    page.section('What sells and what it earns', 'Every figure here comes from finished tickets with priced items in the range above.');
+    // WATCH OUT: two bases live on this page. Sales by hour and by channel come from paid orders, like the Sales
+    // tile. Top items and food cost can only come from finished food at menu price, so they say "menu value".
+    page.section('What sells and what it earns', 'Sales by hour and by channel come from paid orders, like the Sales figure at the top. Top items and food cost use the menu price of finished food, before discounts and whether paid yet or not, so their totals can differ from Sales.');
 
     const topCard = page.card({
       type: 'bar', span: 6, title: 'Top items', sub: scope(),
-      caption: 'Whether your best sellers are also your best earners. Switch between how many were sold and how much they brought in.',
+      caption: 'Whether your best sellers are also your best earners. Switch between how many were sold and their menu value (menu price times number sold, before discounts).',
       empty: { title: 'No sales in this range yet', body: 'Finished tickets with priced items fill this chart. Take and finish an order on the kitchen board, or pick a longer range.', icon: 'chart-bar' },
       // Top 10 items by the picked measure; items with no sales are left out.
       spec: (p) => {
@@ -575,52 +586,52 @@
         const rows = itemRows(p).filter((r) => isNum(by === 'sold' ? r.sold : r.revenue) && (by === 'sold' ? r.sold : r.revenue) > 0);
         if (!rows.length) return null;
         const top = rows.slice().sort((a, b) => (by === 'sold' ? b.sold - a.sold : b.revenue - a.revenue)).slice(0, 10);
-        const word = by === 'sold' ? 'number sold' : 'sales';
+        const word = by === 'sold' ? 'number sold' : 'menu value';
         return {
           orient: 'h', categories: top.map((r) => r.name), sort: 'none', labels: 'all', format: by === 'sold' ? 'int' : 'money',
-          series: [{ id: by, name: by === 'sold' ? 'Sold' : 'Sales', values: top.map((r) => (by === 'sold' ? r.sold : r.revenue)) }],
+          series: [{ id: by, name: by === 'sold' ? 'Sold' : 'Menu value', values: top.map((r) => (by === 'sold' ? r.sold : r.revenue)) }],
           height: Math.max(170, 32 * top.length + 40),
-          ariaLabel: 'Bar chart of the ' + top.length + ' top items by ' + word + '. ' + top[0].name + ' leads with ' + (by === 'sold' ? fmt.num(top[0].sold, 0) + ' sold' : fmt.money(top[0].revenue, 0) + ' in sales') + '.',
+          ariaLabel: 'Bar chart of the ' + top.length + ' top items by ' + word + '. ' + top[0].name + ' leads with ' + (by === 'sold' ? fmt.num(top[0].sold, 0) + ' sold' : fmt.money(top[0].revenue, 0) + ' in menu value') + '.',
         };
       },
     });
-    // Sold or Sales switch: only this card redraws.
-    B.addAction(topCard, B.seg({ label: 'Rank items by', value: st.itemsBy, options: [{ id: 'sold', label: 'Sold' }, { id: 'revenue', label: 'Sales' }], onChange: (id) => { st.itemsBy = id; topCard.update(ctx.prepared(), ctx); } }));
+    // Sold or Menu value switch: only this card redraws.
+    B.addAction(topCard, B.seg({ label: 'Rank items by', value: st.itemsBy, options: [{ id: 'sold', label: 'Sold' }, { id: 'revenue', label: 'Menu value' }], onChange: (id) => { st.itemsBy = id; topCard.update(ctx.prepared(), ctx); } }));
 
     const hourCard = page.card({
       type: 'bar', span: 6, title: 'Sales by hour of the day', sub: scope(),
       caption: 'The hours that pay the bills. Staff, prep and the second cook wave should line up with the tallest bars.',
-      empty: { title: 'No hourly sales yet', body: 'Finished tickets with priced items fill this chart, one bar per hour of the day.', icon: 'chart-bar' },
-      // One bar per hour of the day; the card stays empty until some hour has sales.
+      empty: { title: 'No hourly sales yet', body: 'Paid orders fill this chart, one bar per hour of the day they were paid.', icon: 'chart-bar' },
+      // One bar per hour of the day from paid orders, so the bars add up to the Sales tile; empty until some hour has sales.
       spec: (p) => {
-        const rows = M.revenueByHour(p);
-        if (!rows.length || !rows.some((r) => r.revenue > 0)) return null;
-        const peak = rows.reduce((a, r) => (r.revenue > a.revenue ? r : a), rows[0]);
+        const rows = salesOf(p).byHour;
+        if (!rows.length || !rows.some((r) => r.net > 0)) return null;
+        const peak = rows.reduce((a, r) => (r.net > a.net ? r : a), rows[0]);
         return {
           orient: 'v', categories: rows.map((r) => r.label), sort: 'none', format: 'money',
-          series: [{ id: 'sales', name: 'Sales', values: rows.map((r) => r.revenue) }],
+          series: [{ id: 'sales', name: 'Sales', values: rows.map((r) => r.net) }],
           height: 270,
-          ariaLabel: 'Bar chart of sales for each hour of the day. The busiest hour is ' + peak.span + ' with ' + fmt.money(peak.revenue, 0) + '.',
+          ariaLabel: 'Bar chart of sales for each hour of the day. The busiest hour is ' + peak.span + ' with ' + fmt.money(peak.net, 0) + '.',
         };
       },
     });
 
     const chanCard = page.card({
-      type: 'bar', span: 6, title: 'Average ticket value by channel', sub: scope(),
-      caption: 'Which way of ordering brings the biggest tickets. A low bar is a channel where guests add little to the order.',
-      empty: { title: 'No ticket values yet', body: 'Finished tickets with priced items fill this chart, one bar per order channel.', icon: 'chart-bar' },
-      // One bar per order channel, with a line at the all-channel average when there is more than one.
+      type: 'bar', span: 6, title: 'Average order by channel', sub: scope(),
+      caption: 'Which way of ordering brings the biggest orders: sales on paid orders divided by the number of them, like the Average order tile. A low bar is a channel where guests add little to the order.',
+      empty: { title: 'No paid orders yet', body: 'Paid orders fill this chart, one bar per order channel.', icon: 'chart-bar' },
+      // One bar per order channel from paid orders, with a line at the all-channel average when there is more than one.
       spec: (p) => {
-        const v = M.avgTicketValue(p);
-        const rows = (v.byChannel || []).filter((r) => isNum(r.avg));
+        const s = salesOf(p);
+        const rows = (s.byChannel || []).filter((r) => isNum(r.avg));
         if (!rows.length) return null;
         const lead = rows.slice().sort((a, b) => b.avg - a.avg)[0];
         return {
           orient: 'h', categories: rows.map((r) => r.name), sort: 'none', labels: 'all', format: 'money',
-          series: [{ id: 'avg', name: 'Average ticket', values: rows.map((r) => r.avg) }],
-          refLines: isNum(v.avg) && rows.length > 1 ? [{ value: v.avg, label: 'All channels ' + fmt.money(v.avg, 2), tone: 'muted' }] : [],
+          series: [{ id: 'avg', name: 'Average order', values: rows.map((r) => r.avg) }],
+          refLines: isNum(s.avgCheck) && rows.length > 1 ? [{ value: s.avgCheck, label: 'All channels ' + fmt.money(s.avgCheck, 2), tone: 'muted' }] : [],
           height: Math.max(150, 46 * rows.length + 40),
-          ariaLabel: 'Bar chart of the average ticket value for each order channel. ' + lead.name + ' is highest at ' + fmt.money(lead.avg, 2) + '.',
+          ariaLabel: 'Bar chart of the average paid order for each order channel. ' + lead.name + ' is highest at ' + fmt.money(lead.avg, 2) + '.',
         };
       },
     });
@@ -660,7 +671,7 @@
       caption: 'Sales is the food sold less discounts, and it is the number at the top of this page. Tax and tips are on top of it, and all three together are what was collected.',
       // Builds the figure rows and the notes under them; update repaints them in place.
       render: (body, p0) => {
-        const empty = kit.empty({ title: 'No paid orders in this range yet', body: 'Pay an order from Orders on the kitchen board and the money shows up here. Take an order first if there is none to pay.', icon: 'dollar' }).el;
+        const empty = kit.empty({ title: 'No paid orders in this range yet', body: 'Tap the Orders button on the board and pay an order, and the money shows up here. Take an order first if there is none to pay.', icon: 'dollar' }).el;
         const stats = B.stats(body, { cls: 'ob-stats--3' });
         const open = h('p', { class: 'ob-note' });
         body.append(empty, open);
@@ -672,7 +683,7 @@
           else stats.set([
             { k: 'checks', label: 'Orders paid', value: fmt.num(s.checks, 0), note: isNum(s.avgCheck) ? fmt.money(s.avgCheck, 2) + ' average order' : '' },
             { k: 'net', label: 'Sales', value: fmt.money(s.net, 2), note: s.discounts > 0 ? fmt.money(s.discounts, 2) + ' given as discounts' : 'before tax and tips' },
-            { k: 'tax', label: 'Tax collected', value: fmt.money(s.tax, 2), note: s.tax > 0 ? '' : 'No tax rate is set' },
+            { k: 'tax', label: 'Tax collected', value: fmt.money(s.tax, 2), note: s.tax > 0 ? '' : (isNum(B.settings(ctx.dataset()).service.taxRatePct) && B.settings(ctx.dataset()).service.taxRatePct > 0 ? 'No tax on these orders' : 'No tax rate is set') },
             { k: 'tips', label: 'Tips', value: fmt.money(s.tips, 2), note: isNum(s.tipPct) ? fmt.pct(s.tipPct, 0) + ' of sales' : '' },
             { k: 'all', label: 'Total collected', value: fmt.money(s.collected, 2), note: 'sales, tax and tips' },
           ]);
@@ -688,8 +699,8 @@
     });
 
     page.card({
-      type: 'bar', span: 7, title: 'Money collected by day', sub: scope(),
-      caption: 'Sales for each day, from the orders paid that day. A short bar is a slow day or a day with orders still open.',
+      type: 'bar', span: 7, title: 'Sales by day', sub: scope(),
+      caption: 'Sales for each day, from the orders paid that day, before tax and tips (so less than the cash and card taken in). A short bar is a slow day or a day with orders still open.',
       empty: { title: 'No paid orders to chart yet', body: 'Each day with a paid order gets one bar.', icon: 'chart-bar' },
       // One bar per day with paid orders.
       spec: (p) => {
@@ -780,7 +791,7 @@
 
     const salesOf = B.memoP((p) => M.sales(p));
     page.headline();
-    page.how('Sales is the food on paid orders, less discounts, before tax and tips. Collected is sales plus tax plus tips. An order counts on the day it was paid, and the day starts at the hour set in Menu and settings (4 am to begin with). Open and voided orders are not counted. Average order is sales divided by paid orders. Every figure is added up in whole cents from the paid orders themselves.');
+    page.how('Sales is the food on paid orders, less discounts, before tax and tips. Collected is sales plus tax plus tips. An order counts on the day it was paid, and the day starts at the hour set in Menu, prices and shop (4 am to begin with). Open and voided orders are not counted. Average order is sales divided by paid orders. Food cost is ingredient cost as a share of menu price, counted only over items with a cost on file. Every figure is added up in whole cents from the paid orders themselves.');
 
     page.tiles([
       // The one main money figure: sales after discounts from paid orders (blank until an order is paid).
@@ -791,8 +802,12 @@
         previous: (p) => { const q = prevHandle(p); const s = q ? salesOf(q) : null; return s && s.checks ? s.net : null; } },
       // Average paid order, before tax and tips, so it agrees with the Sales tile.
       { id: 'avgTicket', kpi: 'avgTicketValue', label: 'Average order', format: (v) => fmt.money(v, 2),
-        // Sales divided by paid orders; blank when nothing is paid.
-        value: (p) => { const s = salesOf(p); return s.checks ? s.avgCheck : null; } },
+        // Sales divided by paid orders; blank when nothing is paid. The daily line is on the same paid basis.
+        value: (p) => { const s = salesOf(p); return s.checks ? { value: s.avgCheck, spark: s.byDay.map((d) => (d.checks ? d.net / d.checks : null)) } : null; },
+        // WATCH OUT: the ready-made avgTicketValue kpi is finished food at menu price, so the change arrow must come
+        // from paid orders here too or it compares two different things.
+        kind: 'money', good: 'higher',
+        previous: (p) => { const q = prevHandle(p); const s = q ? salesOf(q) : null; return s && s.checks ? s.avgCheck : null; } },
       // Food cost as a share of menu price; blank with a plain note when no item has a recorded cost.
       { id: 'foodCost', kpi: 'foodCostPct', label: 'Food cost', format: (v) => fmt.pct(v, 1), noValue: 'Cost not recorded',
         // Cost share of the items that have a recorded cost; null when none do, never a fake zero.
@@ -807,12 +822,12 @@
 
     buildTakingsSection({ page, scope, kit, salesOf, fmt, ctx });
 
-    const { topCard, hourCard, chanCard, costCard } = buildSellsSection({ page, scope, st, itemRows, fmt, M, ctx });
+    const { topCard, hourCard, chanCard, costCard } = buildSellsSection({ page, scope, st, itemRows, salesOf, fmt, M, ctx });
 
     const { marginCard, noCost } = buildMarginSection({ page, scope, st, M, fmt, kit, itemRows, ctx });
 
     /* ---------------------------------------------------------------- dollars thrown away */
-    page.section('Dollars thrown away', 'Food that was discarded, at the cost per cooked kg recorded on each batch. Always the last 7 days against the 7 days before, whatever range is picked above.');
+    page.section('Dollars thrown away', 'Food that was discarded, at the cooked cost recorded on each batch. Always the last 7 days against the 7 days before, whatever range is picked above.');
     const weeksOf = B.memoP((p) => M.discardWeeks(p, { now: ctx.now() }));
     page.panel({
       span: 12, title: 'This week against last week',
@@ -830,7 +845,7 @@
         // One list row: the name, this week's dollars (or "cost not recorded") and last week's for comparison.
         const row = (name, a, b) => h('li', { class: 'ob-li' },
           h('span', { class: 'ob-li-n' }, name),
-          h('span', { class: 'ob-li-v' }, h('span', { class: 'num' }, a.cost > 0 ? fmt.money(a.cost, 2) : 'cost not recorded'), h('span', { class: 'num ob-li-s' }, fmt.g(a.g) + ' this week, ' + (b ? (b.cost > 0 ? fmt.money(b.cost, 2) : fmt.g(b.g)) : 'none') + ' last week')));
+          h('span', { class: 'ob-li-v' }, h('span', { class: 'num' }, a.cost > 0 ? fmt.money(a.cost, 2) : 'cost not recorded'), h('span', { class: 'num ob-li-s' }, fmt.g(a.g) + ' this week' + (a.cost > 0 && a.noCostCount > 0 ? ' (' + a.noCostCount + ' with no cost, not in the dollars)' : '') + ', ' + (b ? (b.cost > 0 ? fmt.money(b.cost, 2) : fmt.g(b.g)) : 'none') + ' last week')));
         // Fills one list from this week's rows, matching each to the same key last week.
         const fill = (ul, rows, lastRows, key, nameOf, none) => {
           U.clear(ul);

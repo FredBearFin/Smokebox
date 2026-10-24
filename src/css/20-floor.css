@@ -52,7 +52,7 @@
 .fl[data-far="on"] { --fl-far: 1.8; --fl-tl: 1.35; }
 .fl[data-far="on"] .fl-slip[data-tier="1"] { --fl-esc: 1.45; }
 .fl[data-far="on"] .fl-strip-rowwrap[data-i="2"] { display: none; }
-.fl[data-far="on"] .fl-slip[data-level="breach"] { outline: calc(6px * var(--fl-k)) solid var(--crimson); outline-offset: -3px; }
+.fl[data-far="on"] .fl-slip[data-level="breach"] { outline: calc(6px * var(--fl-k)) solid var(--crimson); outline-offset: calc(-6px * var(--fl-k)); }
 @media (min-width: 1700px) { .fl { --fl-k: 1.2; } }
 @media (min-width: 2200px) { .fl { --fl-k: 1.5; } }
 /* A 4K screen (3840 px wide, a 55 inch TV or bigger) draws the board at twice the size, so it reads from across the room. */
@@ -61,9 +61,10 @@
 /* Quiet board: a ticket that is on time carries no badge, so only late and warning tickets speak. */
 .fl-badge[data-level="ok"] { display: none; }
 /* Overdue tickets are ranked, worst first (the order comes from the script). The worst one is the biggest and has the
-   heaviest outline, the next two are a little smaller, the rest keep the normal size with the red edge. */
-.fl-slip[data-tier="1"] { --fl-esc: 1.3; outline: calc(7px * var(--fl-k)) solid var(--crimson); outline-offset: -3px; }
-.fl-slip[data-tier="2"] { --fl-esc: 1.15; outline: calc(4px * var(--fl-k)) solid var(--crimson); outline-offset: -2px; }
+   heaviest outline, the next two are a little smaller, the rest keep the normal size with the red edge.
+   WATCH OUT: the outlines sit wholly inside the ticket, on the paper, where the dark red stands out in Night too (on the dark board it would not). */
+.fl-slip[data-tier="1"] { --fl-esc: 1.3; outline: calc(7px * var(--fl-k)) solid var(--crimson); outline-offset: calc(-7px * var(--fl-k)); }
+.fl-slip[data-tier="2"] { --fl-esc: 1.15; outline: calc(4px * var(--fl-k)) solid var(--crimson); outline-offset: calc(-4px * var(--fl-k)); }
 
 /* The attention strip: the most urgent deadlines, big enough to read from across the kitchen. */
 .fl-strip { flex: none; display: flex; flex-direction: column; background: var(--sub); border-bottom: 2px solid var(--line); }
@@ -202,14 +203,16 @@ button.fl-chip[data-tone="bad"] { color: var(--crimson); background: var(--tint-
   .fl-chip-w { display: inline; }
 }
 
-/* below 1000 the tools and chips move into the Menu button's list; the tabs and New ticket stay. 1024-wide tablets keep Hold, 86 and Recall in the header. */
-@media (max-width: 999.98px) {
+/* Phones (480 px or less): the tools and chips move into the Menu button's list; the tabs and New ticket stay. Every tablet, a 601 px
+   portrait one too, keeps the Sanitize chip, Recall and Sold out in the header (the Cabinet tab sits with the stations), so a cook never
+   opens a menu for them. */
+@media (max-width: 480px) {
   .fl-status, .fl-tools { display: none; }
 }
 
 /* When the header is too tight for one row, the script sets data-fit: first the tab icons go, then the status chips, then the tool buttons too (all stay in the Menu list). */
-.fl-head[data-fit] .fl-seg .seg-opt .icon { display: none; }
-.fl-head[data-fit] .fl-seg .seg-opt { padding: 0 calc(12px * var(--fl-k)); }
+.fl-head[data-fit]:not([data-fit="codes"]) .fl-seg .seg-opt .icon { display: none; }
+.fl-head[data-fit]:not([data-fit="codes"]) .fl-seg .seg-opt { padding: 0 calc(12px * var(--fl-k)); }
 .fl-head[data-fit="status"] .fl-status, .fl-head[data-fit="labels"] .fl-status, .fl-head[data-fit="toollabels"] .fl-status, .fl-head[data-fit="tools"] .fl-status, .fl-head[data-fit="tools"] .fl-tools { display: none; }
 /* Next the words on Orders and Back office go, and the Demo button (their icons and counts stay; Demo is still in the Menu). */
 .fl-head[data-fit="labels"] .fl-orders-label, .fl-head[data-fit="labels"] .fl-office-label, .fl-head[data-fit="toollabels"] .fl-orders-label, .fl-head[data-fit="toollabels"] .fl-office-label, .fl-head[data-fit="tools"] .fl-orders-label, .fl-head[data-fit="tools"] .fl-office-label,
@@ -217,14 +220,20 @@ button.fl-chip[data-tone="bad"] { color: var(--crimson); background: var(--tint-
 /* Then the words on Recall, Hold and 86 go too: icon and count only, so all three stay on a 1024 px tablet. */
 .fl-head[data-fit="toollabels"] .fl-tools .fl-tool-label { display: none; }
 
-/* phones and small tablets: actions on top, the six station tabs underneath as one wide row (the DOM order is switched to match, see layoutHead) */
-@media (max-width: 900px) {
+/* phones and portrait tablets (under 1000 px): actions on top, the station tabs underneath as one wide row (the DOM order is switched to
+   match, see layoutHead; the script's breakpoint must stay the same as this one) */
+@media (max-width: 999.98px) {
   .fl-head { padding: var(--sp-2) var(--sp-3); }
   .fl-tabs { flex: 1 0 100%; padding-top: calc(10px * var(--fl-k)); }
   .fl-seg.seg { display: flex; width: 100%; }
   .fl-seg .seg-opt { flex: 1 1 0; min-width: 0; }
   .fl-new { flex: 1 1 auto; }
   .fl-spacer { display: none; }
+  /* The Demo button stays in the Menu list here (the demo is not a kitchen job), so Recall and 86 have the room. */
+  .fl-tools [data-tool="demo"] { display: none; }
+  /* The Sanitize chip puts its two words on two lines beside the icon, so the top row still fits on a 720 px tablet. */
+  .fl-san .fl-chip-w { display: block; }
+  .fl-san .fl-chip-t:empty { display: none; }
 }
 /* On a phone the four buttons (New ticket, Orders, Back office, Menu) need the whole row, so the logo steps aside and New ticket may shrink to fit. */
 @media (max-width: 520px) {
@@ -331,6 +340,11 @@ button.fl-chip[data-tone="bad"] { color: var(--crimson); background: var(--tint-
 .fl-chan { display: inline-flex; align-items: center; gap: 5px; color: var(--ink); }
 .fl-count { color: var(--ink2); }
 .fl-count[data-ready="true"] { color: var(--sage-ink); font-weight: var(--w-heavy); }
+/* A ticket whose dishes are all done is waiting to be bumped, not cooking: green, not red, even when it is past its time. */
+.fl-slip[data-ready="true"] .slip-head { background: var(--tint-ok); }
+.fl-slip[data-ready="true"][data-level] .slip-head, .fl-slip[data-ready="true"][data-level] .slip-body, .fl-slip[data-ready="true"][data-level] .slip-tear { box-shadow: none; animation: none; }
+.fl-slip[data-ready="true"][data-tier] { outline: calc(4px * var(--fl-k)) solid var(--sage); outline-offset: calc(-4px * var(--fl-k)); --fl-esc: 1; }
+.fl-slip[data-ready="true"] .slip-timer { color: var(--ink); }
 .fl-demo-tag { padding: 0 6px; font-size: var(--fs-1); font-weight: var(--w-bold); color: var(--ink2); border: var(--bw-thin) dashed var(--slip-line); border-radius: var(--r-chip); }
 .fl-slip .slip-time { gap: var(--sp-2); }
 .fl-slip .slip-timer { font-size: calc(clamp(calc(24px * var(--fl-k)), calc(12cqw * var(--fl-tl)), calc(var(--fs-timer) * 1.5)) * var(--fl-esc, 1)); letter-spacing: 0.01em; white-space: nowrap; }
@@ -358,7 +372,7 @@ button.fl-chip[data-tone="bad"] { color: var(--crimson); background: var(--tint-
 .fl-row + .fl-row > .slip-item { border-top: var(--bw-thin) solid var(--slip-rule); }
 .fl-row .slip-item { --qty-w: calc(38px * var(--fl-k)); min-height: var(--tap-lg); padding: var(--sp-2) var(--sp-3); gap: var(--sp-1) var(--sp-3); align-items: center; }
 .fl-row .slip-qty { align-self: center; }
-.fl-row .slip-qty::after { content: "\00d7"; margin-left: 1px; font-size: 0.6em; font-weight: var(--w-bold); opacity: 0.8; }
+.fl-row .slip-qty::after { content: "\00d7"; margin-left: 1px; font-size: 0.8em; font-weight: var(--w-heavy); } /* "2×": a count, never a step number */
 /* A dish name never breaks inside a word: when the longest word will not fit beside the button, the button drops to its own line. */
 .fl-row .slip-item { flex-wrap: wrap; }
 .fl-row .slip-name { flex: 1 1 0; min-width: min-content; font-size: calc(var(--fs-item) * 1.1); font-weight: var(--w-bold); line-height: 1.15; overflow-wrap: break-word; }
@@ -406,10 +420,18 @@ button.slip-item.fl-item { cursor: pointer; }
 .fl-cook[hidden] { display: none; }
 .fl-row[data-cook="check"] .fl-cook { color: var(--stamp); }
 .fl-row[data-cook="check"] > .slip-item { box-shadow: inset calc(6px * var(--fl-k)) 0 0 var(--stamp); background: var(--tint-bad); animation: fl-check-row 1.1s ease-in-out infinite; }
-.fl-row[data-cook="check"] .fl-act[data-act="cook"] { color: var(--bg); background: var(--stamp); border-color: var(--stamp); box-shadow: 0 calc(3px * var(--fl-k)) 0 var(--stamp); animation: fl-check-tile 1.1s ease-in-out infinite; }
+.fl-row[data-cook="check"] .fl-act[data-act="cook"] { color: var(--paper); background: var(--stamp); border-color: var(--stamp); box-shadow: 0 calc(3px * var(--fl-k)) 0 var(--stamp); animation: fl-check-tile 1.1s ease-in-out infinite; }
 @keyframes fl-check-row { 0%, 100% { background-color: var(--tint-bad); } 50% { background-color: var(--tint-warn); } }
 @keyframes fl-check-tile { 0%, 100% { transform: none; } 50% { transform: scale(1.06); } }
 @media (prefers-reduced-motion: reduce) { .fl-row[data-cook="check"] > .slip-item, .fl-row[data-cook="check"] .fl-act[data-act="cook"] { animation: none; } }
+
+/* "Fire it now": a dish whose start time has come and nobody has started it. It is the dish the voice is calling, so the
+   row flashes red and its tile turns solid red until someone taps it; a cook who cannot read the words still sees which
+   dish to make. (Owner, Oct 2026: "what needs to be fired flashing red".) */
+.fl-row[data-kind="btn"][data-state="displayed"] > .slip-item { box-shadow: inset calc(8px * var(--fl-k)) 0 0 var(--crimson); animation: fl-fire-row 0.9s ease-in-out infinite; }
+.fl-row[data-kind="btn"][data-state="displayed"] .fl-act { color: var(--paper); background: var(--crimson); border-color: var(--crimson); box-shadow: 0 calc(3px * var(--fl-k)) 0 var(--ink); animation: fl-check-tile 0.9s ease-in-out infinite; }
+@keyframes fl-fire-row { 0%, 100% { background-color: var(--tint-bad); } 50% { background-color: var(--paper); } }
+@media (prefers-reduced-motion: reduce) { .fl-row[data-kind="btn"][data-state="displayed"] > .slip-item, .fl-row[data-kind="btn"][data-state="displayed"] .fl-act { animation: none; } .fl-row[data-kind="btn"][data-state="displayed"] > .slip-item { background: var(--tint-bad); } }
 
 /* The "do this next" line under a ticket's header. */
 .fl-main[data-hints="off"] .slip-next { display: none; }
@@ -424,7 +446,7 @@ button.slip-item.fl-item { cursor: pointer; }
 .fl-main[data-density="compact"] .slip-next .icon { width: 16px; height: 16px; }
 
 /* slip foot */
-.fl-slip .slip-foot { flex-wrap: nowrap; align-items: stretch; justify-content: flex-end; gap: var(--sp-2); padding: var(--sp-3); }
+.fl-slip .slip-foot { flex-wrap: nowrap; align-items: stretch; justify-content: flex-end; gap: calc(16px * var(--fl-k)); padding: var(--sp-3); }
 .fl-slip .slip-foot > .btn { flex: 1 1 auto; min-height: var(--tap-lg); }
 .fl-slip .slip-foot > .fl-more { flex: none; width: var(--tap-lg); min-width: var(--tap-lg); }
 .fl-zone, .fl-bump { font-size: var(--fs-3); font-weight: var(--w-bold); }
@@ -467,8 +489,8 @@ button.slip-item.fl-item { cursor: pointer; }
 .fl-main[data-density="compact"] .fl-slip .slip-clip { width: calc(34px * var(--fl-k)); height: calc(13px * var(--fl-k)); margin-left: calc(-17px * var(--fl-k)); }
 .fl-main[data-density="compact"] .fl-slip .slip-head { padding-bottom: var(--sp-2); row-gap: 0; }
 .fl-main[data-density="compact"] .fl-slip[data-rush="true"] .slip-head { box-shadow: inset 0 calc(4px * var(--fl-k)) 0 var(--stamp); padding-top: calc(var(--sp-2) + 3px * var(--fl-k)); }
-.fl-main[data-density="compact"] .fl-slip .slip-num { font-size: calc(clamp(calc(22px * var(--fl-k)), calc(10cqw * var(--fl-tl)), calc(30px * var(--fl-k) * var(--fl-tl))) * var(--fl-esc, 1)); }
-.fl-main[data-density="compact"] .fl-slip .slip-timer { font-size: calc(clamp(calc(20px * var(--fl-k)), calc(9cqw * var(--fl-tl)), calc(26px * var(--fl-k) * var(--fl-tl))) * var(--fl-esc, 1)); }
+.fl-main[data-density="compact"] .fl-slip .slip-num { font-size: calc(clamp(calc(28px * var(--fl-k)), calc(12cqw * var(--fl-tl)), calc(34px * var(--fl-k) * var(--fl-tl))) * var(--fl-esc, 1)); }
+.fl-main[data-density="compact"] .fl-slip .slip-timer { font-size: calc(clamp(calc(24px * var(--fl-k)), calc(10cqw * var(--fl-tl)), calc(28px * var(--fl-k) * var(--fl-tl))) * var(--fl-esc, 1)); }
 .fl-main[data-density="compact"] .fl-stamp-slot .stamp { font-size: var(--fs-1); padding: calc(2px * var(--fl-k)) calc(6px * var(--fl-k)) calc(1px * var(--fl-k)); }
 .fl-main[data-density="compact"] .fl-slip .slip-who { margin-top: 0; line-height: 1.1; }
 .fl-main[data-density="compact"] .fl-slip .slip-meta { margin-top: 2px; gap: 2px var(--sp-3); }
@@ -493,7 +515,7 @@ button.slip-item.fl-item { cursor: pointer; }
 .fl-main[data-density="compact"] .nm-full { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; } /* still read aloud */
 .fl-main[data-density="compact"] .fl-row .fl-act, .fl-main[data-density="compact"] .fl-row .fl-fire, .fl-main[data-density="compact"] .fl-row .fl-state { grid-area: a; margin-left: 0; }
 .fl-main[data-density="compact"] .fl-row .fl-sub { grid-area: s; padding-left: 0; flex: none; gap: 2px var(--sp-1); }
-.fl-main[data-density="compact"] .fl-sub .chip { min-height: calc(20px * var(--fl-k)); padding-block: 0; font-size: var(--fs-1); }
+.fl-main[data-density="compact"] .fl-sub .chip { min-height: calc(20px * var(--fl-k)); padding-block: 0; font-size: var(--fs-2); }
 .fl-main[data-density="compact"] .fl-act { min-width: calc(64px * var(--fl-k)); min-height: max(44px, calc(44px * var(--fl-k))); padding: 2px var(--sp-2); box-shadow: 0 calc(2px * var(--fl-k)) 0 var(--ink); }
 .fl-main[data-density="compact"] .fl-act[data-act="finish"] { box-shadow: 0 calc(2px * var(--fl-k)) 0 var(--sage); }
 .fl-main[data-density="compact"] .fl-act[data-act="cook"] { box-shadow: 0 calc(2px * var(--fl-k)) 0 var(--slip-amber); }
@@ -502,6 +524,26 @@ button.slip-item.fl-item { cursor: pointer; }
 .fl-main[data-density="compact"] .fl-slip .slip-foot { padding: calc(6px * var(--fl-k)) var(--sp-2); gap: var(--sp-2); }
 .fl-main[data-density="compact"] .fl-slip .slip-foot > .btn { min-height: var(--tap); }
 .fl-main[data-density="compact"] .fl-slip .slip-foot > .fl-more { width: var(--tap); min-width: var(--tap); }
+
+/* Tight tickets (owner, Oct 2026: "it runs out of space very quickly"). A compact ticket aims for one 44 px row per dish:
+   the "do this next" line is dropped (the voice says it and the called dish flashes), a waiting dish's Start now tile
+   becomes a square icon tile, the station chip is smaller, and the head is two short lines. */
+.fl-main[data-density="compact"] .slip-next { display: none; }
+.fl-main[data-density="compact"] .fl-slip .slip-head { padding-top: 2px; }
+.fl-main[data-density="compact"] .fl-slip .slip-num { font-size: calc(24px * var(--fl-k) * var(--fl-tl) * var(--fl-esc, 1)); }
+.fl-main[data-density="compact"] .fl-slip .slip-timer { font-size: calc(22px * var(--fl-k) * var(--fl-tl) * var(--fl-esc, 1)); }
+.fl-main[data-density="compact"] .fl-slip .slip-meta { font-size: var(--fs-1); margin-top: 0; }
+.fl-main[data-density="compact"] .fl-slip .slip-meta .icon { width: 14px; height: 14px; }
+.fl-main[data-density="compact"] .fl-row .slip-item { min-height: 44px; padding-block: 2px; row-gap: 0; }
+.fl-main[data-density="compact"] .fl-row .slip-name { line-height: 1.15; }
+.fl-main[data-density="compact"] .fl-sub { font-size: var(--fs-1); line-height: 1.1; }
+.fl-main[data-density="compact"] .fl-sub .icon { width: 13px; height: 13px; }
+.fl-main[data-density="compact"] .fl-sub .chip { min-height: 0; padding: 0 4px; font-size: var(--fs-1); line-height: 1.3; }
+.fl-main[data-density="compact"] .fl-fire { width: 44px; min-width: 44px; min-height: 44px; padding: 0; justify-content: center; }
+.fl-main[data-density="compact"] .fl-fire > span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.fl-main[data-density="compact"] .fl-act { min-height: 44px; min-width: calc(56px * var(--fl-k)); }
+.fl-main[data-density="compact"] .fl-slip .slip-foot { padding: 4px var(--sp-2); gap: calc(16px * var(--fl-k)); }
+.fl-main[data-density="compact"] .fl-slip .slip-foot > .btn { min-height: 44px; }
 
 /* The all-day strip pinned under the slips: a fold button, the total, and a scrolling row of dish chips. */
 .fl-dock {
@@ -569,13 +611,12 @@ button.slip-item.fl-item { cursor: pointer; }
 .sb-shell[data-view="floor"] .toast-host, .sb-shell[data-view="floor"] .toast { pointer-events: none; }
 .sb-shell[data-view="floor"] .toast .btn { pointer-events: auto; }
 
-/* Calmer header: the sanitize chip is only an icon until a check is due within 30 minutes or is late. */
-.fl-san[data-urgent="false"] .fl-chip-t, .fl-san[data-urgent="false"] .fl-chip-w { display: none; }
-.fl-san[data-urgent="false"] { min-width: var(--tap); padding-inline: 0; justify-content: center; opacity: 0.8; }
+/* Calmer header: until a check is due within 30 minutes or is late, the sanitize chip is quiet paper, but it always says "Sanitize". */
+.fl-san[data-urgent="false"] .fl-chip-w { display: inline; }
 /* Device roles: a kitchen device shows only the board, the cabinet, 86 and Recall (plus Menu for settings and help), so
    New ticket, Orders, Demo and Back office are hidden; a front device hides the Cabinet tab. All-in-one is unchanged. */
 .fl[data-role="kitchen"] .fl-new, .fl[data-role="kitchen"] .fl-orders, .fl[data-role="kitchen"] .fl-office,
-.fl[data-role="kitchen"] [data-tool="demo"], .fl[data-role="kitchen"] .fl-demo-chip,
+.fl[data-role="kitchen"] [data-tool="demo"], .fl[data-role="kitchen"] [data-tool="front"], .fl[data-role="kitchen"] .fl-demo-chip,
 .fl[data-role="kitchen"] .fl-empty .btn-primary, .fl[data-role="kitchen"] .fl-start-demo,
 .fl[data-role="front"] .fl-seg [data-id="cabinet"] { display: none; }
 /* Wall mode (a setting, and only at 1700 px and wider): the board turns into three panes in one window. The kitchen
@@ -661,6 +702,10 @@ html[data-cabinet="on"] .sb-shell[data-view="floor"] .toast-host { bottom: auto;
 .fl-strip-x { flex: none; display: grid; place-items: center; width: calc(44px * var(--fl-k)); border: 0; background: transparent; color: inherit; opacity: 0.75; cursor: pointer; }
 .fl-strip-x:hover, .fl-strip-x:focus-visible { opacity: 1; background: rgba(127, 127, 127, 0.18); }
 .fl-strip-x:focus-visible { outline: var(--bw-focus) solid var(--focus); outline-offset: -3px; }
+.fl-strip-bar .fl-strip-x { opacity: 1; }
+/* A warning row's clear button is a real, labeled button a cook can find at a glance, not a faint mark at the edge. */
+.fl-strip-rowwrap .fl-strip-x { display: flex; align-items: center; gap: 6px; width: auto; align-self: center; margin: 6px var(--sp-3); padding: 0 var(--sp-4); border: 2px solid currentColor; border-radius: var(--r-btn); background: var(--paper); color: var(--ink); opacity: 1; font: inherit; font-weight: var(--w-heavy); font-size: var(--fs-2); }
+.fl-strip-rowwrap .fl-strip-x:hover { background: var(--sub); }
 /* A sanitize chip that needs attention names itself ("Sanitize not logged"), so a bare "not logged" is never a puzzle. */
 .fl-san[data-urgent="true"] .fl-chip-w { display: inline; }
 /* Station tab names never break across lines (Cabinet once wrapped to "Cabine" and "t" on a phone). */
@@ -671,10 +716,11 @@ html[data-cabinet="on"] .sb-shell[data-view="floor"] .toast-host { bottom: auto;
    Overdue badge, so a wall of late tickets still shows where to start. */
 .fl-slip[data-tier="1"]::before, .fl-slip[data-tier="2"]::before {
   position: absolute; z-index: 3; top: calc(5px * var(--fl-k)); left: calc(12px * var(--fl-k)); padding: 1px calc(8px * var(--fl-k));
-  font: var(--w-heavy) calc(12px * var(--fl-k)) / 1.5 var(--font-display); letter-spacing: 0.06em; text-transform: uppercase;
+  font: var(--w-heavy) calc(15px * var(--fl-k)) / 1.4 var(--font-display); letter-spacing: 0.06em; text-transform: uppercase;
   border-radius: 4px; color: var(--on-danger, #fff); background: var(--crimson);
 }
-.fl-slip[data-tier="1"], .fl-slip[data-tier="2"] { padding-top: calc(24px * var(--fl-k)); }
+.fl-slip[data-tier="1"], .fl-slip[data-tier="2"],
+.fl-main[data-density="compact"] .fl-slip[data-tier="1"], .fl-main[data-density="compact"] .fl-slip[data-tier="2"] { padding-top: calc(29px * var(--fl-k)); } /* room for the tag, compact too */
 .fl-slip[data-tier="1"]::before { content: "Do this first"; }
 .fl-slip[data-tier="2"]::before { content: "Next"; background: var(--slip-ink); color: var(--slip); }
 .fl-slip[data-tier="2"][data-level="breach"] .slip-head, .fl-slip[data-tier="2"][data-level="breach"] .slip-body, .fl-slip[data-tier="2"][data-level="breach"] .slip-tear,
@@ -686,8 +732,7 @@ html[data-cabinet="on"] .sb-shell[data-view="floor"] .toast-host { bottom: auto;
 
 /* A station tab with nothing on it shows no "0" bubble; the tab alone says the station is quiet. */
 .fl-seg .seg-count[data-zero="true"] { display: none; }
-/* The all-day chips fade out at the right edge so a cut-off chip reads as "scroll for more", not as a mistake. */
-.fl-dock-list { -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent); mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent); }
+/* The all-day chips sit on one line of whole chips; the ones that do not fit wait behind "+N more" (see fitDock). */
 /* Wall mode keeps one notice row and no sound-pause note: the TV is for glancing, and the three panes need the height. */
 .fl[data-wall="on"] .fl-bar-pause { display: none; }
 
@@ -715,8 +760,9 @@ html[data-cabinet="on"] .sb-shell[data-view="floor"] .toast-host { bottom: auto;
 .fl-row .slip-name { font-size: calc(var(--fs-item) * 1.15); }
 .fl-row[data-state="queued"] .slip-name { font-weight: var(--w-bold); color: var(--ink2); }
 .fl-sub { padding-left: calc(var(--qty-w) + var(--sp-3)); gap: 0 var(--sp-2); }
-.fl-sub .chip { min-height: calc(22px * var(--fl-k)); padding-block: 0; font-size: var(--fs-1); }
-.fl-deck, .fl-cook { font-size: var(--fs-1); }
+/* Modifier chips ("No onions", "Sauce on the side") change what gets made, so they read at the size of other helper text, not the smallest. */
+.fl-sub .chip { min-height: calc(24px * var(--fl-k)); padding-block: 0; font-size: var(--fs-2); }
+.fl-deck { font-size: var(--fs-1); } /* the cooking countdown (.fl-cook) keeps its larger size: it is read from across the line */
 .fl-deck { color: var(--ink3); }
 .slip-next { margin: var(--sp-1) var(--sp-3) 0; padding: calc(4px * var(--fl-k)) var(--sp-2); font-size: var(--fs-2); font-weight: var(--w-semi); }
 .fl-slip .slip-head { padding-bottom: var(--sp-3); }
@@ -797,3 +843,132 @@ html[data-cabinet="on"] .sb-shell[data-view="floor"] .toast-host { bottom: auto;
   .fl-bar-clock .btn { flex: 1 1 40%; align-self: stretch; }
   .fl-bar-clock > .icon { margin-left: 0; }
 }
+
+/* The one-station bar: says in words that the board shows one station, with a way back to every station. */
+.fl-station-bar { display: flex; align-items: center; gap: var(--sp-2); margin: var(--sp-2) var(--sp-3) 0; padding: var(--sp-2) var(--sp-3); border: 2px solid var(--ink); border-radius: var(--r-btn); background: var(--paper); color: var(--ink); font-weight: var(--w-heavy); font-size: var(--fs-2); }
+.fl-station-bar[hidden] { display: none; }
+.fl-station-t { flex: 1; min-width: 0; }
+
+/* ===== Tablet polish: names on tabs, plain buttons, compact notices ===== */
+/* Station tabs show the station's name; a tab too narrow for it (fitTabs) or a squeezed header shows the short code. */
+.fl-tab-code { display: none; }
+.fl-seg .seg-opt[data-short="true"] .fl-tab-full, .fl-head[data-fit] .fl-tab-full { display: none; }
+.fl-seg .seg-opt[data-short="true"] .fl-tab-code, .fl-head[data-fit] .fl-tab-code { display: inline; }
+.fl-seg .seg-opt[data-short="true"]:not([data-zone]) .icon { display: none; }
+/* The sanitize chip always names itself: "Sanitize" and its time (or "not logged") as one label with one plain space. */
+.fl-head .fl-san .fl-chip-w { display: inline; }
+.fl-san-l { white-space: nowrap; text-align: left; line-height: 1.1; }
+@media (max-width: 999.98px) { .fl-head .fl-san .fl-chip-w { display: block; } }
+/* Sold out: the small "86" sits in the corner as a hint for those who know the word. */
+.fl-tool-hint { position: absolute; top: calc(5px * var(--fl-k)); right: calc(6px * var(--fl-k)); font: var(--w-heavy) calc(11px * var(--fl-k)) / 1 var(--font-display); color: var(--ink2); }
+.fl-tool[data-tool="board86"] { min-width: calc(62px * var(--fl-k)); }
+.fl-tool[data-tool="board86"][data-tone="bad"] .fl-tool-hint { display: none; } /* the red count badge takes the corner */
+/* An empty kitchen (no dishes, no tickets): Recall, Sold out, Orders and Front counter wait for the first dish. */
+.fl[data-tools="off"] [data-tool="recall"], .fl[data-tools="off"] [data-tool="board86"], .fl[data-tools="off"] [data-tool="front"], .fl[data-tools="off"] .fl-orders { display: none; }
+/* Front counter stays in the Menu list on narrow screens, where the header has no room for it. */
+@media (max-width: 699.98px) { .fl-tools [data-tool="front"] { display: none; } }
+/* A narrow tablet (601 px portrait) drops the logo so New ticket keeps room beside Recall and Sold out. */
+@media (max-width: 699.98px) { .fl-brand { display: none; } .fl-new { min-width: 0; padding: 0 var(--sp-3); } }
+
+/* Done on a dish is a button to press: a strong ink frame and the word, unlike a finished dish's quiet green "Done". */
+.fl-act[data-act="finish"] { color: var(--ink); background: var(--slip); border: calc(3px * var(--fl-k)) solid var(--ink); box-shadow: 0 calc(3px * var(--fl-k)) 0 var(--ink); }
+.fl-act[data-act="finish"] .fl-act-top { display: none; }
+.fl-act[data-act="finish"] .fl-act-word { font-size: var(--fs-4); font-weight: var(--w-heavy); letter-spacing: 0.02em; text-transform: none; }
+.fl-main[data-density="compact"] .fl-act[data-act="finish"] { box-shadow: 0 calc(2px * var(--fl-k)) 0 var(--ink); }
+
+/* RUSH on a ticket is a solid red label, readable at a glance, not a faint tilted stamp. */
+.fl-stamp-slot .stamp, .fl-main[data-density="compact"] .fl-stamp-slot .stamp {
+  transform: none; opacity: 1; -webkit-mask: none; mask: none; outline: 0; animation: none;
+  padding: calc(3px * var(--fl-k)) calc(9px * var(--fl-k)) calc(2px * var(--fl-k)); border: 0; border-radius: calc(4px * var(--fl-k));
+  font-size: var(--fs-3); letter-spacing: 0.08em; color: var(--on-danger, #fff); background: var(--stamp);
+}
+
+/* Warning rows: one compact line (a bold name, then what to do and why) that wraps onto a second line only when it must. */
+.fl-strip-row { min-height: 44px; padding-block: calc(3px * var(--fl-k)); gap: var(--sp-3); }
+.fl-strip-text { display: block; line-height: 1.25; }
+.fl-strip-what { font-size: calc(16px * var(--fl-k) * var(--fl-far)); font-weight: var(--w-heavy); }
+.fl-strip-what::after { content: "\00a0\2014\00a0"; font-weight: var(--w-semi); }
+.fl-strip-why { display: inline; font-size: calc(15px * var(--fl-k) * var(--fl-far)); -webkit-line-clamp: unset; overflow: visible; }
+.fl-strip-row .fl-strip-when { font-size: calc(22px * var(--fl-k) * var(--fl-far)); min-width: 3.6ch; }
+.fl-strip-rowwrap .fl-strip-x { margin-block: 4px; min-height: 40px; }
+.fl[data-far="on"] .fl-strip-what { font-size: calc(16px * var(--fl-k) * var(--fl-far) * 1.25); }
+.fl[data-far="on"] .fl-strip-why { font-size: calc(15px * var(--fl-k) * var(--fl-far) * 1.25); }
+/* The sound bar is one short line. */
+.fl-strip-sound { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* The all-day strip: one line of whole chips, "+N more" for the rest; opened, it wraps and scrolls inside itself. */
+.fl-dock-list { flex-wrap: wrap; overflow: hidden; max-height: calc(var(--tap) + 9px * var(--fl-k)); scrollbar-width: none; }
+.fl-dock[data-open="true"] { align-items: flex-start; }
+.fl-dock[data-open="true"] .fl-dock-list { max-height: 40vh; overflow-y: auto; }
+.fl-dock-more { flex: none; min-height: var(--tap); padding: 0 var(--sp-3); font-weight: var(--w-heavy); font-size: var(--fs-3); }
+.fl-dock-more[hidden], .fl-full[hidden] { display: none; }
+.fl-full { flex: none; min-height: var(--tap); padding: 0 var(--sp-3); gap: 6px; font-size: var(--fs-2); }
+/* A chip that does not fit keeps its place but is not seen (it counts in "+N more"). */
+.fl-dchip.is-out { visibility: hidden; }
+/* On a narrow screen Full screen is its icon only (its name stays for screen readers). */
+@media (max-width: 699.98px) { .fl-dock-sum { display: none; } .fl-dock-more { padding: 0 var(--sp-2); } .fl-full { min-width: var(--tap); padding: 0; } .fl-full > span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; } }
+/* The Updated stamp is for laptops and wall screens; on a tablet the dishes and Full screen need the room. */
+@media (max-width: 1199.98px) { .fl-checked { display: none; } }
+
+/* A short screen (a landscape tablet, 601 px tall): the header, tabs, notices and strip tighten so a whole ticket fits. */
+@media (max-height: 700px) {
+  .fl-head { padding-top: calc(6px * var(--fl-k)); padding-bottom: calc(5px * var(--fl-k)); row-gap: calc(6px * var(--fl-k)); border-bottom-width: calc(4px * var(--fl-k)); }
+  .fl-tool, .fl-office, .fl-orders { min-height: var(--tap); padding-block: 2px; }
+  .fl-new, .fl-menu, .fl-head .fl-chip { min-height: var(--tap); }
+  .fl-tabs { padding-top: calc(6px * var(--fl-k)); }
+  .fl-seg .seg-opt { min-height: 44px; }
+  .fl-seg .seg-opt[aria-selected="true"] { border-bottom-width: calc(6px * var(--fl-k)); }
+  .fl-strip-sound, .fl-strip-pause { min-height: 40px; padding-block: 2px; }
+  .fl-strip-bar .fl-strip-x { min-height: 40px; }
+  .fl-strip-row { min-height: 40px; }
+  .fl-dock { padding-block: calc(4px * var(--fl-k)); padding-bottom: max(calc(4px * var(--fl-k)), env(safe-area-inset-bottom)); }
+  .fl-dock-toggle, .fl-dchip, .fl-dock-more, .fl-full, .fl-dock-clear { min-height: 44px; }
+  .fl-dock-list { max-height: calc(44px + 9px * var(--fl-k)); }
+  .fl-main, .fl-main[data-density="compact"] { padding-top: var(--sp-2); }
+  /* Tighter still (owner, Oct 2026: the bars took half of an 8-inch tablet): less padding around the 44 px buttons. */
+  .fl-head { padding-top: 4px; padding-bottom: 4px; row-gap: 4px; }
+  .fl-tabs { padding-top: 2px; }
+  .fl-strip-sound, .fl-strip-pause { min-height: 34px; }
+  .fl-strip-when { font-size: calc(22px * var(--fl-k) * var(--fl-far)); }
+}
+@media (max-height: 700px) {
+  .sb-banner { min-height: 34px; padding-block: 0; }
+  .sb-banner .btn { min-height: 30px; }
+}
+
+/* The coach bar: one plain instruction for the tab (the next thing to tap), above the tickets. The colour says the kind of job:
+   red to start or make a dish now, green to bump a finished ticket, amber to check a dish whose time is up, grey for what comes next. */
+.fl-coach {
+  flex: none; display: flex; align-items: center; gap: var(--sp-3); width: 100%; min-height: 44px; padding: 4px var(--sp-4);
+  border: 0; border-bottom: 2px solid var(--line); text-align: left; cursor: pointer;
+  font: var(--w-heavy) calc(19px * var(--fl-k) * var(--fl-tl)) / 1.2 var(--font-body); color: var(--ink); background: var(--sub);
+}
+.fl-coach[hidden] { display: none; }
+.fl-coach-i { flex: none; display: inline-flex; }
+.fl-coach-t { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fl-coach[data-tone="fire"] { color: var(--paper); background: var(--crimson); }
+.fl-coach[data-tone="go"] { color: var(--sage-ink); background: var(--tint-ok); border-bottom-color: var(--sage); }
+.fl-coach[data-tone="check"] { color: var(--amber-ink); background: var(--tint-warn); border-bottom-color: var(--amber); }
+.fl-coach[data-tone="wait"] { color: var(--ink2); font-weight: var(--w-bold); }
+.fl-coach:focus-visible { outline: var(--bw-focus) solid var(--focus); outline-offset: -4px; }
+/* The button the coach points at gets a pulsing ring for a moment after the bar is tapped. */
+.fl-spot { outline: 4px solid var(--focus); outline-offset: 2px; animation: fl-spot 0.65s ease-in-out 4; }
+@keyframes fl-spot { 0%, 100% { outline-color: var(--focus); } 50% { outline-color: transparent; } }
+@media (prefers-reduced-motion: reduce) { .fl-spot { animation: none; } }
+/* The Undo on a dish just marked done: it covers the right side of the row for 4 seconds, big enough for a gloved thumb. */
+.fl-row { position: relative; }
+.fl-row > .btn.fl-undo { position: absolute; top: 2px; right: 2px; bottom: 2px; z-index: 3; min-height: 44px; padding: 0 var(--sp-3); gap: 6px; opacity: 1; font-weight: var(--w-heavy);
+  --b-bg: var(--ink); --b-fg: var(--paper); --b-edge: var(--ink); color: var(--paper); background: var(--ink); border-color: var(--ink); }
+/* Special requests carry a picture and a colour, so a cook sees the kind before reading the words. */
+.chip-mod[data-kind="allergy"] { color: var(--paper); background: var(--crimson); border-color: var(--crimson); }
+.chip-mod[data-kind="no"] { color: var(--crimson); border-color: var(--crimson); }
+.chip-mod[data-kind="extra"] { color: var(--sage-ink); border-color: var(--sage); }
+.chip-mod[data-kind="swap"] { color: var(--amber-ink); border-color: var(--amber); }
+.slip-note[data-kind="allergy"] { color: var(--crimson); border-color: var(--crimson); }
+.slip-note[data-kind="allergy"] .icon { color: var(--crimson); }
+.slip-note-do { display: block; margin-top: 2px; font-weight: var(--w-heavy); }
+/* A due dish whose station is full (the kitchen planner says when a slot frees): no red flash, a calm dashed edge instead.
+   The coach bar says which station is full and when the dish can go in. */
+.fl-row[data-kind="btn"][data-state="displayed"][data-wait="full"] > .slip-item, .fl-row[data-kind="btn"][data-state="displayed"][data-wait="full"] .fl-act { animation: none; }
+.fl-row[data-kind="btn"][data-state="displayed"][data-wait="full"] > .slip-item { background: var(--sub); box-shadow: inset calc(8px * var(--fl-k)) 0 0 var(--line); }
+.fl-row[data-kind="btn"][data-state="displayed"][data-wait="full"] .fl-act { color: var(--ink2); background: var(--paper); border-style: dashed; border-color: var(--line); box-shadow: none; }

@@ -17,7 +17,7 @@ test('a blank state is empty, healthy and marked', () => {
   assert.deepEqual(b.stock, {}); assert.deepEqual(b.avail, {}); assert.deepEqual(b.ledger, {});
   assert.equal(b.catalog, 'own');
   assert.equal(b.settings.service.taxRatePct, 0);
-  assert.equal(b.settings.pacing.enabled, false);
+  assert.equal(b.settings.pacing.enabled, true);   // the timing engine is on from the start
   assert.deepEqual(b.settings.modules, { cookAhead: false });
   assert.deepEqual(E.checkInvariants(b, T), []);
   assert.equal(JSON.stringify(b).indexOf('brisket'), -1);

@@ -17,7 +17,7 @@ test('with no brisket on hand it says so and does not guess a time', () => {
 test('a run-out time is shown as an estimate with its basis', () => {
   const r = runOutLine({ onHandG: 4200, shortfallAt: now + 90 * 60e3, rateKnown: true }, now);
   assert.equal(r.tone, 'warn');
-  assert.match(r.text, /4\.20 kg on hand/);
+  assert.match(r.text, /4\.2 kg on hand/);
   assert.match(r.text, /around 7:30 pm \(an estimate from the last 2 hours of sales\)/);
 });
 

@@ -1,10 +1,10 @@
-# Import a menu
+# Import or export your menu
 
 Bring dishes in from a spreadsheet or a point-of-sale export, instead of typing each one.
 
 ## Open it
 
-Tap **Settings**, **Dishes and prices**, **More ways to add dishes**, then **Have a menu file? Import it**. Choose a file or paste a list, then tap **Check it**. Nothing is added yet.
+Tap **Settings**, **Dishes and prices**, **More ways to add dishes**, then **Have a menu file? Import it**. Tap **Choose a menu file** or paste a list, then tap **Preview**. Nothing is added yet.
 
 ## Read the preview
 
@@ -20,3 +20,7 @@ Smokebox says what kind of file it thinks this is, such as a spreadsheet or a Li
 Tap **Import** with the number shown, like Import 12 dishes. Changed your mind? Tap **Remove these** and the whole import comes off the menu.
 
 Adding dishes by hand in Dishes and prices works just as well.
+
+## Export your menu
+
+Tap **Export my menu** on the same screen. It saves your dishes as a spreadsheet file, smokebox-menu.csv, that you can edit and import again.

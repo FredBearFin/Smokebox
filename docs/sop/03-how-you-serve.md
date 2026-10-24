@@ -8,11 +8,11 @@ Tap **Settings**, then **How you serve**. Every change saves at once, and a bar 
 
 ## Counter service
 
-Turn on **Counter service** if you hand food over at the counter. The board shows one list of orders, with no station tabs, no Start step and no late colors. When an order is paid, its tickets finish and clear themselves. With **Pay later**, the ticket waits until you pay from **Orders** or tap **Bump**. Leave it off if cooks work from tickets.
+The switch says On or Off beside its name. Turn on **Counter service** if you hand food over at the counter. The board shows one list of orders, with no station tabs, no Start step and no late colors. When an order is paid, its tickets finish and clear themselves. With **Pay later**, the ticket waits until you pay from **Orders** or tap **Bump**. Leave it off if cooks work from tickets.
 
 ## Order buttons
 
-These are the quick buttons on the order screen, like Walk-up, Pickup and tables. Type over a name to rename it. The arrows move a button. Tap **Remove** to delete one, **Add button** to add one (up to 12), or **Reset to the starting list** to start again.
+These are the quick buttons on the order screen, like Walk-up, Pickup and tables. The ones in use show as buttons: tap one to remove it. Type a name and tap **Add button** to add one (up to 12), or tap **Use the starting list** to start again. With none, the order screen shows only the name box.
 
 ## Currency symbol
 

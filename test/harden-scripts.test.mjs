@@ -27,6 +27,9 @@ if grep -q 'import smokebox_log' "$f"; then
   [ -f ${R}/etc/caddy/harden-log.caddy ] || exit 1
   blocks=$(grep -cE '^[^[:space:]#(}{][^{]*\\{[[:space:]]*$' "$f"); imports=$(grep -c '^[[:space:]]*import smokebox_log' "$f")
   [ "$blocks" -eq "$imports" ] || exit 1
+  # like the real Caddy: the snippet must be defined (its file imported) before the first site uses it
+  def=$(grep -n '^import /etc/caddy/harden-log.caddy$' "$f" | head -1 | cut -d: -f1); use=$(grep -n 'import smokebox_log' "$f" | head -1 | cut -d: -f1)
+  [ "$def" -lt "$use" ] || exit 1
 fi
 exit 0`);
 const run = (script, args = []) => spawnSync('bash', [path.join(ROOT, script), ...args], { env: Object.assign({}, process.env, { PATH: BIN + ':' + process.env.PATH, SMOKEBOX_HARDEN_ROOT: R }), encoding: 'utf8', timeout: 60000 });
@@ -47,8 +50,8 @@ test('installs: log snippet, import in every site block (main and beta), jail wi
   const main = rd('etc/caddy/Caddyfile'), beta = rd('etc/caddy/beta.caddy');
   assert.match(main, /1-2-3-4\.sslip\.io \{\n\timport smokebox_log\n/); assert.match(beta, /beta\.1-2-3-4\.sslip\.io \{\n\timport smokebox_log\n/);
   assert.equal((main.match(/import smokebox_log/g) || []).length, 1, 'inner blocks (reverse_proxy, basic_auth) get no import');
-  assert.match(main, /\nimport \/etc\/caddy\/harden-log\.caddy\n$/);
-  const snip = rd('etc/caddy/harden-log.caddy'); assert.match(snip, /^\(smokebox_log\) \{/); assert.match(snip, /output file \/var\/log\/caddy\/access\.log/); assert.match(snip, /mode 0640/); assert.match(snip, /roll_size 10MiB/); assert.match(snip, /format json/);
+  assert.match(main, /^# smokebox-harden\nimport \/etc\/caddy\/harden-log\.caddy\n\n1-2-3-4/, 'the snippet is imported before any site uses it');
+  const snip = rd('etc/caddy/harden-log.caddy'); assert.match(snip, /^\(smokebox_log\) \{/); assert.match(snip, /output file \/var\/log\/caddy\/access\.log/); assert.match(snip, /mode 0640/); assert.match(snip, /roll_size 10MiB/); assert.match(snip, /wrap json/); assert.match(snip, /request>uri query \{\s*delete code\s*\}/, 'the beta codes in tablet links are not kept in the log');
   const jail = rd('etc/fail2ban/jail.d/caddy-401.local'); assert.match(jail, /maxretry = 8/); assert.match(jail, /ignoreip = 127\.0\.0\.0\/8 ::1/); assert.match(jail, /logpath  = \/var\/log\/caddy\/access\.log/);
   assert.match(rd('etc/apt/apt.conf.d/20auto-upgrades'), /Unattended-Upgrade "1"/); assert.ok(!/Automatic-Reboot/.test(rd('etc/apt/apt.conf.d/20auto-upgrades')), 'no automatic reboot');
   const calls = fs.readFileSync(path.join(tmp, 'calls.log'), 'utf8'); assert.ok(calls.indexOf('caddy validate') < calls.indexOf('systemctl reload caddy'), 'validated before reload');
@@ -81,4 +84,35 @@ test('if Caddy refuses the log settings: Caddy files restored, jail and filter r
   assert.equal(rd('etc/caddy/Caddyfile'), MAIN + '\nimport /etc/caddy/beta.caddy\n'); assert.equal(rd('etc/caddy/beta.caddy'), BETA);
   for (const p of ['etc/caddy/harden-log.caddy', 'etc/fail2ban/jail.d/caddy-401.local', 'etc/fail2ban/filter.d/caddy-401.conf']) assert.ok(!fs.existsSync(path.join(R, p)), p + ' removed');
   assert.ok(!/systemctl restart fail2ban/.test(fs.readFileSync(path.join(tmp, 'calls.log'), 'utf8').split('caddy-refuses')[0] && ''), 'n/a'); fs.rmSync(path.join(tmp, 'caddy-refuses'));
+});
+
+// Runs keep_imports from server/setup-server.sh on its own (the rest of that script installs packages and cannot run here).
+const keepImports = (oldText, newText) => {
+  const src = fs.readFileSync(path.join(ROOT, 'server/setup-server.sh'), 'utf8');
+  const fn = /\nkeep_imports\(\) \{\n[\s\S]*?\n\}\n/.exec(src)[0];
+  const d = fs.mkdtempSync(path.join(tmp, 'keep-')), o = path.join(d, 'old'), n = path.join(d, 'new');
+  fs.writeFileSync(o, oldText); fs.writeFileSync(n, newText);
+  const r = spawnSync('bash', ['-c', 'set -euo pipefail\n' + fn + '\nkeep_imports "$1" "$2"', 'x', o, n], { encoding: 'utf8' });
+  assert.equal(r.status, 0, r.stderr);
+  return fs.readFileSync(n, 'utf8');
+};
+
+test('re-running the installer keeps the beta site and the hardening log in the rewritten Caddy file', () => {
+  files(); assert.equal(run('harden.sh').status, 0);
+  const hardened = rd('etc/caddy/Caddyfile');
+  // the installer's fresh site (a new password hash) must come out exactly like the hardened file, apart from the hash
+  const fresh = MAIN.replace('abcdefghijklmnopqrstuv', 'NEWHASHnewhashNEWHASHx');
+  assert.equal(keepImports(hardened, fresh), hardened.replace('abcdefghijklmnopqrstuv', 'NEWHASHnewhashNEWHASHx'));
+  assert.equal(keepImports(MAIN + '\nimport /etc/caddy/beta.caddy\n', fresh), fresh + '\nimport /etc/caddy/beta.caddy\n', 'beta only');
+  assert.equal(keepImports(MAIN, fresh), fresh, 'nothing extra: the plain site');
+  const src = fs.readFileSync(path.join(ROOT, 'server/setup-server.sh'), 'utf8');
+  assert.match(src, /caddy validate --config "\$CADDYFILE\.setup"/, 'the kept version is checked by Caddy before it replaces the file');
+  assert.match(src, /printf '%s\\n' "\$PASS" \| caddy hash-password/, 'the password goes to Caddy on its input first');
+  assert.equal(run('harden-remove.sh').status, 0);
+});
+
+test('tunnel.sh finds the site name even when harden.sh put its import lines at the top', () => {
+  const awkProg = /DOMAIN="\$\(awk '([^']+)'/.exec(fs.readFileSync(path.join(ROOT, 'tunnel.sh'), 'utf8'))[1];
+  const f = path.join(tmp, 'tunnel-caddy'); fs.writeFileSync(f, '# smokebox-harden\nimport /etc/caddy/harden-log.caddy\n\n' + MAIN + '\nimport /etc/caddy/beta.caddy\n');
+  assert.equal(spawnSync('awk', [awkProg, f], { encoding: 'utf8' }).stdout.trim(), '1-2-3-4.sslip.io');
 });

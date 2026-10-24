@@ -9,7 +9,7 @@ export default [
     shot: 'contact-floor.png',
   },
   {
-    where: 'Office, page title of Tickets, Stations, Sales and money, Safety, Stock and 86, Menu and settings (Ember and Paper, also 280 and 390)',
+    where: 'Office, page title of Tickets, Stations, Sales and money, Safety, Stock and 86, Menu, prices and shop (Ember and Paper, also 280 and 390)',
     what: 'After moving to a page from the left rail the title (h1) is drawn inside a thick focus-ring box; only Pace (the first page) has no box. It looks like a stray frame around the heading. Move focus to the heading without a visible ring (the ring is for keyboard users on controls), or keep it only when the move came from the keyboard.',
     owner: 'officeA',
     shot: 'contact-office-ember.png',

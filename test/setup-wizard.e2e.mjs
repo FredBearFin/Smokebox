@@ -1,4 +1,4 @@
-// Quick browser check (about 15 s) of the first-run flow: the empty board with one "Add your first dish" button, the
+// Quick browser check (about 15 s) of the first-run flow: the empty board with one "Add my menu" button, the
 // Dishes and prices form (name, price, station tile, save and add another, remembered station, More options), editing
 // and removing a dish, the example menu fold, the Tax, hours and PIN sheet, no "New tablet?" toast, and that closing the
 // tab and coming back loses nothing. A brand-new install is blank once the blank-start data work is merged; before that
@@ -12,7 +12,7 @@ await withPage({ w: 1280, h: 800, touch: true }, async (page, logs) => {
   // Reaches the blank first-run state whichever way this build starts (blank, or with old sample dishes to archive).
   await page.evaluate(() => { SB.store.getState().menu.filter((m) => !m.archived).forEach((m) => SB.store.dispatchEx('updateMenuItem', { id: m.id, patch: { archived: true } }, { source: 'ui' })); });
   await page.waitForTimeout(500);
-  check('first run shows one big Add your first dish button', await page.locator('.fl-first-dish').isVisible());
+  check('first run shows one big Add my menu button', await page.locator('.fl-first-dish').isVisible());
   check('no welcome card and no demo tickets on first run', !(await page.locator('.fl-welcome').isVisible()) && (await page.evaluate(() => SB.store.getState().tickets.length)) === 0);
   await page.screenshot({ path: SHOT + '/first-run.png' });
   check('New ticket with no dishes opens Dishes and prices', await (async () => { await page.click('.fl-new'); await page.waitForTimeout(300); return page.locator('.sheet:has-text("Dishes and prices")').isVisible(); })());
@@ -134,7 +134,9 @@ await withPage({ w: 1280, h: 800, touch: true }, async (page, logs) => {
   await page.screenshot({ path: SHOT + '/ca-question.png' });
   await page.click('.dp-ca [data-act=add-cooked]'); await page.waitForTimeout(400);
   await page.fill('.sheet:has-text("Cooked-ahead food") .dp-name', 'Brisket');
+  check('the grams boxes start empty and off until a dish is ticked', (await page.locator('.sheet:has-text("Cooked-ahead food") [aria-label^="Grams of it in one"]').evaluateAll((els) => els.every((e) => e.value === '' && e.disabled))));
   await page.locator('.sheet:has-text("Cooked-ahead food") .dp-row', { hasText: 'Pulled pork plate' }).locator('input[type=checkbox]').check();
+  await page.fill('[aria-label="Grams of it in one Pulled pork plate"]', '150');
   await page.click('[data-act=save-cooked]'); await page.waitForTimeout(400);
   const ca = await page.evaluate(() => { const s = SB.store.getState(); const i = s.ingredients.find((x) => x.name === 'Brisket'); const d = s.menu.find((m) => m.name === 'Pulled pork plate'); return { ing: i && [i.tcs, i.hold, i.maxHoldH], bom: d && d.bom }; });
   check('Brisket is added as cooked-ahead (hot, 4 h) and linked to the dish', ca.ing && ca.ing[0] === true && ca.ing[1] === 'hot' && ca.ing[2] === 4 && ca.bom.length === 1 && ca.bom[0].qty === 150, ca);
@@ -150,8 +152,8 @@ await withPage({ w: 1280, h: 800, touch: true }, async (page, logs) => {
   await page.evaluate(() => SB.sheets.open('cookahead')); await page.waitForTimeout(400);
   const csh = '.sheet:has-text("Cooked-ahead food")';
   await page.locator(csh + ' .seg-opt', { hasText: 'Cold' }).click(); await page.fill(csh + ' .dp-name', 'Chicken salad');
-  await page.fill(csh + ' [aria-label="Days it may stay in the fridge"]', '3'); await page.fill(csh + ' [aria-label="Hours it may be out of the fridge"]', '2');
-  await page.locator(csh + ' .dp-row').first().locator('input[type=checkbox]').check(); await page.click('[data-act=save-cooked]'); await page.waitForTimeout(500);
+  await page.fill(csh + ' [aria-label="How many days may it stay in the fridge?"]', '3'); await page.fill(csh + ' [aria-label="How many hours may it be out of the fridge?"]', '2');
+  await page.locator(csh + ' .dp-row').first().locator('input[type=checkbox]').check(); await page.fill(csh + ' [aria-label^="Grams of it in one"]:enabled >> nth=0', '150'); await page.click('[data-act=save-cooked]'); await page.waitForTimeout(500);
   const cold = await page.evaluate(() => { const i = SB.store.getState().ingredients.find((x) => x.name === 'Chicken salad'); return i && { hold: i.hold, fridge: i.fridge, d: i.fridgeDays, o: i.outHours }; });
   check('the cold item is saved as kept in a fridge with 3 days and 2 hours out', cold && cold.hold === 'cold' && cold.fridge === true && cold.d === 3 && cold.o === 2, cold);
   await page.click('[data-act=log-first-batch]'); await page.waitForTimeout(600); await page.click('.hc-add'); await page.waitForTimeout(500);

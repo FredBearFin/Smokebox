@@ -10,8 +10,8 @@ No **Cabinet** tab? Say yes to cooking ahead first (see Cooked-ahead food and po
 
 1. Open the **Cabinet** tab. Tap **New batch**, choose the food, and enter the weight and a first temperature reading. Tap **Put in hold cabinet**.
 2. Each batch has a card with two main buttons. **Pull** takes out the usual amount, like Pull 4.50 kg, as food leaves the cabinet. **Log temp** writes down a temperature reading. Take one at every check. A reading in range keeps the batch on the menu.
-3. The button can change. When a batch is too cool it becomes **Reheat**. Smokebox allows one reheat per batch: its own rule, not a health code rule. When a batch is past its quality limit it becomes **Keep serving**: check the food, then decide.
-4. The **More for this batch** button (...) opens **Pull**, **Start cooling** and **Discard**, and **Remind me in 10 min** while a warning is showing. Tap **Discard** and pick a reason when a batch is out of time or out of range.
+3. The button can change. A batch too cool for under 2 hours becomes **Reheat**; later, it must be thrown out. One reheat per batch is Smokebox's own rule. When a batch is past its quality limit it becomes **Keep serving**: check the food, then decide.
+4. The **More for this batch** button (...) opens **Pull**, **Start cooling** and **Discard**, and **Remind me in 10 min** while a warning is showing. Tap **Discard** and pick a reason when a batch is out of time or range.
 
 ## Warnings before the time runs out
 
@@ -22,6 +22,6 @@ No **Cabinet** tab? Say yes to cooking ahead first (see Cooked-ahead food and po
 3. 10 minutes left: a loud tone and voice. It repeats every 20 seconds until you tap the strip row.
 4. Time is up: a different sound, and the batch comes off the menu.
 
-Some foods warn earlier, and you can change the times in Settings. A nearly empty batch stays quiet.
+Some foods warn earlier. Change the times in Menu, prices and shop, **Batch expiry warnings only**. A nearly empty batch stays quiet.
 
 Warnings sound only while the screen is on and Smokebox is open on the board, with the volume up, inside your opening hours.

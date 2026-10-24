@@ -1,5 +1,5 @@
 /*
- * WHAT THIS FILE IS: The back office page "Menu and settings": edit the menu, ingredients, ticket time limits,
+ * WHAT THIS FILE IS: The back office page "Menu, prices and shop": edit the menu, ingredients, ticket time limits,
  *   pacing, food-safety limits, the PIN and display choices; back up, import or reset the data. Every edit goes
  *   through the engine, which can refuse it; the refusal shows beside the field and the old value stays.
  * PARTS: helpers, number field, nine panels (menu to about), then the page itself and its contents list.
@@ -16,6 +16,8 @@
 
   const SAVE_DELAY = 600;           // ms after the last change before a field is written (longer than the stepper's 500 ms hold-repeat gap)
   const MAX_IMPORT_CHARS = 20e6;    // same ceiling as SB.store.importAll
+  // Said with the undo copy when the browser was short on space and it keeps only recent tickets.
+  const TRIMMED_WORDS = 'This browser was short on space, so the copy keeps only your most recent tickets. Your menu, settings, PIN and food safety records are all in it.';
 
   // Builds the always-visible "Saved history" card of the Data page: a plain meter of how full the saved history is, a calm amber note with a
   // button into Close the month from 70 percent, the sentence about history already dropped, and the browser-may-delete line. Reads the store's
@@ -109,9 +111,9 @@
   // Real finite numbers only, and an icon builder that never throws.
   const isNum = (n) => typeof n === 'number' && isFinite(n);
   const ico = (name, size) => { try { return SB.icons.svg(name, { size: size || 18 }); } catch (e) { return doc.createElement('span'); } };
-  // The current state (null if the store is not ready), and a m:ss clock text.
+  // The current state (null if the store is not ready), and a time in plain words (5 min, 2 min 5 s, 45 s).
   const cur = () => { try { return SB.store.getState(); } catch (e) { return null; } };
-  const mmss = (sec) => { const s = Math.max(0, Math.round(sec)); return Math.floor(s / 60) + ':' + U.pad2(s % 60); };
+  const mmss = (sec) => { const s = Math.max(0, Math.round(sec)), m = Math.floor(s / 60), r = s % 60; return m && r ? m + ' min ' + r + ' s' : m ? m + ' min' : r + ' s'; };
   // A trimmed number for display, and how many decimals a step has.
   const num = (n, d) => (isNum(n) ? String(+n.toFixed(d == null ? 2 : d)) : '-');
   const decs = (n) => { const s = String(n); const i = s.indexOf('.'); return i < 0 ? 0 : s.length - i - 1; };
@@ -128,7 +130,7 @@
   const patchFor = (path, v) => { const ks = path.split('.'); const root = {}; let c = root; ks.forEach((k, i) => { if (i === ks.length - 1) c[k] = v; else c = c[k] = {}; }); return root; };
   // The unit word for an ingredient, and an amount written with that unit.
   const unitWord = (ing) => (ing && ing.unit === 'ea' ? 'pieces' : 'g');
-  const amountText = (ing, v) => (ing && ing.unit === 'ea' ? num(v, 1) + ' ' + U.plural(v, 'piece') : U.weightText(v));
+  const amountText = (ing, v) => (ing && ing.unit === 'ea' ? num(v, 1) + ' ' + U.plural(v, 'piece') : ((SB.office && SB.office.weightText) || U.weightText)(v));
   // Dollars with cents, as shown in field messages.
   const money = (v) => U.fmtMoney(v, 2);
   // The currency symbol the shared formatter prints ($ unless another one was chosen).
@@ -303,7 +305,7 @@
 
   // Panels. The sticky table of contents links to them; each panel is a section with a focusable heading.
   const SECTIONS = [
-    { id: 'menu', label: 'Menu', title: 'Dishes and what goes in them', group: 'Shop' },
+    { id: 'menu', label: 'Menu', title: 'Dishes and prices', group: 'Shop' },
     { id: 'ingredients', label: 'Ingredients', title: 'Ingredients', group: 'Kitchen' },
     { id: 'times', label: 'Time limits', title: 'Ticket time limits by channel', group: 'Kitchen' },
     { id: 'pacing', label: 'Finish together', title: 'Finish together', group: 'Advanced' },
@@ -499,12 +501,12 @@
         else { trackSeg.setValue(getMi().track === 'two' ? 'two' : 'one'); status.bad(refusal(r, null)); }
       },
     });
-    const archChip = h('span', { class: 'od-archived' }, ico('package', 16), h('span', null, 'Archived'));
+    const archChip = h('span', { class: 'od-archived' }, ico('package', 16), h('span', null, 'Removed'));
     const archBtn = h('button', { type: 'button', class: 'btn btn-sm od-arch' });
     archBtn.addEventListener('click', () => {
       const to = !getMi().archived;
       const r = send('updateMenuItem', { id, patch: { archived: to } });
-      if (good(r)) status.ok(to ? 'Archived. It can no longer be ordered, and past tickets keep it. Unarchive it any time.' : 'Unarchived. It can be ordered again.');
+      if (good(r)) status.ok(to ? 'Removed. It can no longer be ordered, and past tickets keep it. Bring it back any time.' : 'Brought back. It can be ordered again.');
       else status.bad(refusal(r, null));
     });
 
@@ -577,13 +579,13 @@
         trackSeg.setValue(mi.track === 'two' ? 'two' : 'one');
         root.dataset.zone = mi.zone;
         sumName.textContent = mi.name;
-        { const zn = C.zoneById[mi.zone] ? C.zoneById[mi.zone].name : '', cn = catName(mi.cat); sumMeta.textContent = (zn.toLowerCase() === cn.toLowerCase() ? zn : zn + ', ' + cn) + (mi.archived ? ', archived' : mi.prepConfirmed ? '' : ', starter prep time'); }
+        { const zn = C.zoneById[mi.zone] ? C.zoneById[mi.zone].name : '', cn = catName(mi.cat); sumMeta.textContent = (zn.toLowerCase() === cn.toLowerCase() ? zn : zn + ', ' + cn) + (mi.archived ? ', removed' : mi.prepConfirmed ? '' : ', starter prep time'); }
         sumPrice.textContent = money(mi.price); sumPrep.textContent = mmss(mi.prepSec);
         price.sync(mi.price); prep.sync(mi.prepSec);
         confSeg.setValue(mi.prepConfirmed ? 'confirmed' : 'starter');
         archChip.hidden = !mi.archived;
-        archBtn.replaceChildren(ico(mi.archived ? 'check' : 'ban', 18), h('span', null, mi.archived ? 'Unarchive' : 'Archive'));
-        archBtn.setAttribute('aria-label', (mi.archived ? 'Unarchive ' : 'Archive ') + mi.name);
+        archBtn.replaceChildren(ico(mi.archived ? 'check' : 'ban', 18), h('span', null, mi.archived ? 'Bring it back' : 'Remove'));
+        archBtn.setAttribute('aria-label', (mi.archived ? 'Bring back ' : 'Remove ') + mi.name);
         const l = s.learned && s.learned[id];
         if (l && isNum(l.est) && l.n >= 1 && mi.prepSec > 0) {
           const diff = (l.est - mi.prepSec) / mi.prepSec;
@@ -680,7 +682,7 @@
     const filter = P.menuFilter;
     pn.body.append(
       para('Changes save as you make them. New tickets use the new price, prep time and ingredients; tickets already on the board keep theirs. There is no Undo for settings, so check a value before you move on.', 'od-intro'),
-      para('A prep time is a starter estimate until you have timed it on the line and marked it confirmed. Archived items cannot be ordered, and past tickets keep them.', 'od-intro'));
+      para('A prep time is a starter estimate until you have timed it on the line and marked it confirmed. Removed dishes cannot be ordered, and past tickets keep them.', 'od-intro'));
 
     // Add a dish, and a one-tap way to drop the made-up starter dishes. The form opens under the buttons.
     const addForm = addDishForm((id) => {
@@ -691,9 +693,9 @@
     const addOpenBtn = btn('Add a dish', { icon: 'plus', cls: 'btn-primary' });
     addOpenBtn.addEventListener('click', () => addForm.open());
     const starterBtn = btn('Use only my own dishes', { icon: 'ban' });
-    const starterBox = h('div', { class: 'od-starter', hidden: true, role: 'group', 'aria-label': 'Archive the starter dishes' });
+    const starterBox = h('div', { class: 'od-starter', hidden: true, role: 'group', 'aria-label': 'Remove the starter dishes' });
     const starterMsg = h('p', { class: 'od-p' });
-    const starterYes = btn('Archive the starter dishes', { icon: 'ban', cls: 'btn-danger' });
+    const starterYes = btn('Remove the starter dishes', { icon: 'ban', cls: 'btn-danger' });
     const starterNo = btn('Keep them', { icon: 'x' });
     starterBox.append(starterMsg, h('div', { class: 'od-add-actions' }, starterYes, starterNo));
     const starterStatus = statusLine();
@@ -701,7 +703,7 @@
     const liveStarters = () => { const s = cur(); return s ? s.menu.filter((m) => C.menuById[m.id] && !m.archived) : []; };
     starterBtn.addEventListener('click', () => {
       const n = liveStarters().length;
-      starterMsg.textContent = 'This archives the ' + n + ' demo starter ' + U.plural(n, 'dish', 'dishes') + ' that came with the app, so only the dishes you add can be ordered. Past tickets keep them. You can unarchive any of them later.';
+      starterMsg.textContent = 'This removes the ' + n + ' demo starter ' + U.plural(n, 'dish', 'dishes') + ' that came with the app, so only the dishes you add can be ordered. Past tickets keep them. You can bring any of them back later.';
       starterBox.hidden = false; starterYes.focus();
     });
     starterNo.addEventListener('click', () => { starterBox.hidden = true; starterBtn.focus(); });
@@ -709,8 +711,8 @@
       const list = liveStarters(); let failed = 0;
       list.forEach((m) => { if (!good(send('updateMenuItem', { id: m.id, patch: { archived: true } }))) failed++; });
       starterBox.hidden = true;
-      if (failed) starterStatus.bad('Archived ' + (list.length - failed) + ' of ' + list.length + ' starter dishes. ' + failed + ' could not be archived.');
-      else starterStatus.ok('Archived ' + list.length + ' starter ' + U.plural(list.length, 'dish', 'dishes') + '. Add your own with Add a dish.');
+      if (failed) starterStatus.bad('Removed ' + (list.length - failed) + ' of ' + list.length + ' starter dishes. ' + failed + ' could not be removed.');
+      else starterStatus.ok('Removed ' + list.length + ' starter ' + U.plural(list.length, 'dish', 'dishes') + '. Add your own with Add a dish.');
     });
     pn.body.append(h('div', { class: 'od-add-bar' }, addOpenBtn, starterBtn), starterBox, starterStatus.el, addForm.el);
     P.syncs.push(() => { const n = liveStarters().length; starterBtn.hidden = n === 0; if (!n) starterBox.hidden = true; });
@@ -718,7 +720,7 @@
 
     const segStatus = SB.ui.segmented({
       label: 'Show items', value: filter.status,
-      options: [{ id: 'active', label: 'Active', count: 0 }, { id: 'archived', label: 'Archived', count: 0 }, { id: 'all', label: 'All', count: 0 }],
+      options: [{ id: 'active', label: 'Active', count: 0 }, { id: 'archived', label: 'Removed', count: 0 }, { id: 'all', label: 'All', count: 0 }],
       // Changes which items are listed by status.
       onChange: (v) => { filter.status = v; applyFilter(); },
     });
@@ -742,7 +744,10 @@
     function applyFilter() {
       const s = cur(); if (!s) return;
       let nA = 0, nR = 0, shown = 0;
-      for (const mi of s.menu) { if (mi.archived) nR++; else nA++; }
+      let nGuess = 0;
+      for (const mi of s.menu) { if (mi.archived) nR++; else { nA++; if (!mi.prepConfirmed) nGuess++; } }
+      // The starter-estimates filter only shows while there is a guessed prep time to find.
+      starterChip.hidden = !nGuess && !filter.starter;
       segStatus.setCount('active', nA); segStatus.setCount('archived', nR); segStatus.setCount('all', nA + nR);
       segStatus.setValue(filter.status); zoneSel.value = filter.zone;
       starterChip.setAttribute('aria-pressed', filter.starter ? 'true' : 'false');
@@ -794,13 +799,13 @@
     const thrMeta = { name: 'The sold-out amount', unit: pieces ? 'pieces' : 'g' };
     const par = numField({
       label: 'Opening amount (par)', aria: 'Opening amount of ' + nm, value: ing0.parG, min: 0, max: 1e7, step: pieces ? 1 : 100, big: pieces ? 10 : 1000, unit: pieces ? 'pieces' : 'g', meta: parMeta,
-      read: pieces ? null : (u) => U.weightText(u),
+      read: pieces ? null : (u) => ((SB.office && SB.office.weightText) || U.weightText)(u),
       // Par saves through the engine; the line under the row confirms it.
       save: (v) => mkPatch({ parG: v }, 'Saved. Par is ' + amountText(ing0, v) + '. After you erase tickets and records and keep settings, opening stock starts at this amount.', parMeta), onSaved: (t) => status.ok(t),
     });
     const thr = numField({
       label: 'Sold out at', aria: 'Sold out at, ' + nm, value: ing0.thresholdG, min: 0, max: 1e7, step: pieces ? 1 : 50, big: pieces ? 10 : 500, unit: pieces ? 'pieces' : 'g', meta: thrMeta,
-      read: pieces ? null : (u) => U.weightText(u), hint: 'Dishes that use this are marked sold out at or below this amount.',
+      read: pieces ? null : (u) => ((SB.office && SB.office.weightText) || U.weightText)(u), hint: 'Dishes that use this are marked sold out at or below this amount.',
       // The 86 point saves the same way.
       save: (v) => mkPatch({ thresholdG: v }, 'Saved. Items using ' + lower1(nm) + ' go 86 at ' + amountText(ing0, v) + ' or less.', thrMeta), onSaved: (t) => status.ok(t),
     });
@@ -820,7 +825,7 @@
       pull = numField({
         label: 'Amount per take-out', aria: 'Amount per take-out of ' + nm, value: ing0.pullG || 1000, min: 50, max: 50000, step: 100, big: 500, unit: 'g', meta: pullMeta,
         // Shows the pull size in kilograms next to the field once it reaches a kilogram.
-        read: (u) => U.weightText(u),
+        read: (u) => ((SB.office && SB.office.weightText) || U.weightText)(u),
         hint: 'What one tap on Pull takes out of the cabinet: one whole brisket, one rack, one pan.',
         // The pull size saves through the engine like the other fields.
         save: (v) => mkPatch({ pullG: v }, 'Saved. One tap on Pull takes ' + amountText(ing0, v) + ' out of the cabinet.', pullMeta), onSaved: (t) => status.ok(t),
@@ -1258,7 +1263,7 @@
 
   // Panel 7: themes, text size, sound and service hours.
   function buildLook(P) {
-    const pn = panel(SECTIONS[6], 'Display choices are remembered on this device only. The floor and the back office have their own light and dark themes.');
+    const pn = panel(SECTIONS[6], 'Display choices are remembered on this device only.');
     // Builds the two options of a two-way switch, and one labelled switch with its hint.
     const themeOpts = (a, b) => [{ id: a[0], label: a[1] }, { id: b[0], label: b[1] }];
     const mkSeg = (label, hint, opts, get, set) => {
@@ -1272,8 +1277,7 @@
     // Saves a unit choice (temperature or weight) in the settings and redraws the back office numbers.
     const saveUnit = (key, v) => { const r = send('updateSettings', { patch: { ui: { [key]: v } } }); if (good(r)) { try { if (SB.office && SB.office.refresh) SB.office.refresh(); } catch (e) { /* the next refresh catches up */ } } };
     const segs = [
-      mkSeg('Back office theme', 'Ember is dark and warm, Paper is light. This page and every chart follow it.', themeOpts(['ember', 'Ember'], ['paper', 'Paper']), () => SB.theme.office(), (v) => SB.theme.setOffice(v)),
-      mkSeg('Line theme', 'Day is the anti-glare parchment for bright kitchens, Night is for a dim prep corner.', themeOpts(['day', 'Day'], ['night', 'Night']), () => SB.theme.get(), (v) => SB.theme.set(v)),
+      mkSeg('Day or Night', 'Day is the light, anti-glare look for bright kitchens, Night is dark for a dim prep corner. The board, these pages and every chart follow it.', themeOpts(['day', 'Day'], ['night', 'Night']), () => SB.theme.get(), (v) => SB.theme.set(v)),
       mkSeg('Text size', 'Large makes all text about 20% bigger on the line and in the back office.', themeOpts(['normal', 'Normal'], ['large', 'Large']), () => SB.theme.textSize(), (v) => SB.theme.setTextSize(v)),
       mkSeg('Temperatures', 'Shows temperatures in Fahrenheit or Celsius. The limits on the Food safety page are always entered in °F.', themeOpts(['F', '°F'], ['C', '°C']), () => ((cur() || {}).settings.ui || {}).tempUnit || 'F', (v) => saveUnit('tempUnit', v)),
       mkSeg('Weights', 'Shows food weights in kilograms and grams, or in pounds and ounces. Amounts you type on the Ingredients page are still in grams.', themeOpts(['kg', 'kg and g'], ['lb', 'lb and oz']), () => ((cur() || {}).settings.ui || {}).weightUnit || 'kg', (v) => saveUnit('weightUnit', v)),
@@ -1363,7 +1367,7 @@
   function buildNames() {
     const wrap = h('div', { class: 'od-names' });
     wrap.appendChild(sub('Station, category and channel names'));
-    wrap.appendChild(para('Rename a station, a menu category or an order channel, or add a new one. Ids and history never change, only what people read. Changes show on every screen after you reload. Backups do not carry these names, so repeat them on a replacement device before restoring.', 'od-hint'));
+    wrap.appendChild(para('Rename a station, a menu category or an order channel, or add a new one. Ids and history never change, only what people read. Changes show on every screen after you reload. Backups carry these names, and restoring a backup puts them back.', 'od-hint'));
     const status = statusLine();
     // Reloads the page so every screen picks up the saved names.
     const reload = btn('Reload to apply', { icon: 'refresh', cls: 'btn-sm', onClick: () => g.location.reload() });
@@ -1462,6 +1466,11 @@
     if (text.length > MAX_IMPORT_CHARS) return { ok: false, reason: backupReason('too large') };
     let env;
     try { env = JSON.parse(text); } catch (e) { return { ok: false, reason: backupReason('not JSON') }; }
+    // A compact save (fmt 2) is unpacked first, the same way the restore itself reads it, so the check and the restore agree.
+    if (env && typeof env === 'object' && env.fmt !== undefined && SB.store.decodeSaved) {
+      env = SB.store.decodeSaved(env);
+      if (!env.state) return { ok: false, reason: 'It is a compact Smokebox save that cannot be read, so it cannot be restored.' };
+    }
     const v = SB.engine.validateBackup(env);
     if (!v.ok) return { ok: false, reason: backupReason(v.error) };
     const bySrc = { live: 0, demo: 0, sample: 0 };
@@ -1495,7 +1504,9 @@
       // Runs the erase once, then closes the box.
       const run = () => { if (go.disabled) return; cancel(); o.run(); };
       go.addEventListener('click', run);
-      input.addEventListener('keydown', (e) => { if (e.key === 'Enter') run(); if (e.key === 'Escape') cancel(); });
+      input.addEventListener('keydown', (e) => { if (e.key === 'Enter') run(); });
+      // Escape anywhere in the box closes only the box (the page-wide Escape would otherwise leave the back office) and gives focus back to the erase button.
+      dangerBox.onkeydown = (e) => { if (e.key === 'Escape' && !dangerBox.hidden) { e.preventDefault(); e.stopPropagation(); cancel(); } };
       const descId = U.uid('oddesc');
       input.setAttribute('aria-describedby', descId);
       dangerBox.replaceChildren(h('p', { class: 'od-danger-t' }, ico('alert', 20), h('strong', null, o.title)), h('div', { id: descId }, ...o.lines.map((t) => h('p', { class: 'od-p' }, t))),
@@ -1510,7 +1521,7 @@
       askTyped({
         opener: resetLiveBtn, title: 'Erase tickets and records?', word: 'ERASE', label: 'Erase tickets and records',
         lines: ['This clears ' + U.fmtNum(s.tickets.length) + ' ' + U.plural(s.tickets.length, 'ticket') + ', ' + U.fmtNum(SB.engine.allEvents(s).length) + ' saved records and ' + U.fmtNum(s.batches.length) + ' ' + U.plural(s.batches.length, 'batch', 'batches') + ' on this device, including any demo orders, and sets the clock back to real time.',
-          k ? 'Your dishes, ingredient edits, limits, Finish together and PIN stay as they are.' : 'It also puts every setting, dish edit and the PIN back to the starter values.',
+          (k ? 'Your dishes, ingredient edits, limits, Finish together and PIN stay as they are.' : 'It also puts every setting, dish edit and the PIN back to the starter values.') + ' The food safety record stays.',
           'There is no undo. Back up first if you might want this data.'],
         // Clears the live data after the word was typed.
         run: async () => {
@@ -1548,7 +1559,7 @@
 
   // Builds the restore card's working parts on the Data page (choose a file or paste text, check it, show what is inside, replace everything after a confirm and the PIN, and the way back from a restore) and returns what the page needs afterwards.
   function buildImportCard(env) {
-    const { stateNow, card2, card3, downloadBackup } = env;
+    const { stateNow, card2, card3, downloadBackup, P } = env;
     // Import: a chosen file or pasted text is checked and summarized before anything changes.
     const impResult = h('div', { class: 'od-impresult', 'aria-live': 'polite' });
     const fileIn = h('input', { type: 'file', accept: '.json,application/json,text/plain', class: 'visually-hidden', tabindex: -1, 'aria-hidden': 'true', id: U.uid('odfile') });
@@ -1567,6 +1578,7 @@
       b.dataset.action = 'undo-restore';
       undoBox.replaceChildren(
         h('p', { class: 'od-p od-undo-line' }, 'Your kitchen before this restore is kept for ' + days + ' ' + U.plural(days, 'day') + ' (until ' + U.fmtDateShort(U.dateKey(info.expiresAt)) + ' ' + U.fmtTime(info.expiresAt) + '). It was saved ' + U.fmtDateShort(U.dateKey(info.takenAt)) + ' ' + U.fmtTime(info.takenAt) + '.'),
+        info.trimmed ? h('p', { class: 'od-hint' }, TRIMMED_WORDS) : null,
         h('div', { class: 'od-actions' }, b));
     }
     // After a confirm dialog and the PIN, puts the kitchen from before the restore back. Nothing changes if the PIN is not entered.
@@ -1574,13 +1586,62 @@
       const info = SB.store.beforeRestoreInfo ? SB.store.beforeRestoreInfo() : null;
       if (!info) { paintUndo(); return; }
       const ok = await SB.ui.confirm({ title: 'Undo this restore?', tone: 'danger', confirmLabel: 'Put my old kitchen back', cancelLabel: 'Keep what I have',
-        body: ['This puts back the kitchen you had before the restore (saved ' + U.fmtDateShort(U.dateKey(info.takenAt)) + ' ' + U.fmtTime(info.takenAt) + ') and replaces what is here now. What is here now is kept for the same time, so this can be undone once too.'] });
+        body: ['This puts back the kitchen you had before the restore (saved ' + U.fmtDateShort(U.dateKey(info.takenAt)) + ' ' + U.fmtTime(info.takenAt) + ') and replaces what is here now. What is here now is kept for the same time, so this can be undone once too.'].concat(info.trimmed ? [TRIMMED_WORDS] : []) });
       if (!ok) return;
       if (SB.shell.requirePin && !(await SB.shell.requirePin())) { SB.ui.toast('The PIN was not entered. Nothing was changed.', { tone: 'warn' }); return; }
       const rep = SB.store.undoRestore();
       if (rep === 'ok') SB.ui.toast('Your kitchen from before the restore is back.', { tone: 'ok' });
       else SB.ui.toast(rep === 'noCopy' ? 'The copy from before the restore is gone, so nothing was changed.' : SB.engine.describe(rep, (SB.store.lastResult() || {}).info, (stateNow() || {}).settings), { tone: 'warn' });
       paintUndo();
+    }
+    // A copy that was set aside as unreadable (or by a newer build) can still be read: say what it holds and offer to bring it back or throw it away.
+    const parkedBox = h('div', { class: 'od-parked', 'data-region': 'parked-copy' });
+    const PARK_WORD = 'RESTORE';
+    // Draws the set-aside copy card again, or nothing when no readable copy is set aside.
+    function paintParked() {
+      const pc = SB.store.parkedCopy ? SB.store.parkedCopy() : null;
+      if (!pc || (SB.store.isHubClient && SB.store.isHubClient()) || (SB.store.isFollower && SB.store.isFollower())) { parkedBox.replaceChildren(); parkedBox.hidden = true; return; }
+      parkedBox.hidden = false;
+      let savedFirst = false;
+      const status = h('p', { class: 'od-p', role: 'status' });
+      const word = h('input', { class: 'input od-danger-in', type: 'text', autocomplete: 'off', spellcheck: 'false', 'aria-label': 'Type ' + PARK_WORD + ' to confirm' });
+      const go = btn('Bring the set-aside copy back', { icon: 'upload', cls: 'btn-danger' }); go.dataset.action = 'parked-restore'; go.disabled = true;
+      // The red button wakes only when the backup of what is here now was saved and the word was typed.
+      const sync = () => { go.disabled = !(savedFirst && word.value.trim().toUpperCase() === PARK_WORD); };
+      word.addEventListener('input', sync);
+      // Saves a backup file of what is on this device now, so bringing the other copy back can never lose it.
+      const saveFirst = btn('Save a backup of what is here now first', { icon: 'download', cls: 'btn-sm', onClick: () => {
+        let text = null; try { text = SB.store.exportAll(); } catch (e) { text = null; }
+        if (!text) { status.textContent = 'The backup could not be made, so nothing can be replaced. Nothing was changed.'; return; }
+        // Pads a number to two digits so the file name sorts by time.
+        const z = (n) => String(n).padStart(2, '0');
+        try { const d = new Date(); const fname = 'smokebox-backup-before-set-aside-restore-' + d.getFullYear() + z(d.getMonth() + 1) + z(d.getDate()) + '-' + z(d.getHours()) + z(d.getMinutes()) + '.json'; const url = URL.createObjectURL(new Blob([text], { type: 'application/json' })); const a = document.createElement('a'); a.href = url; a.download = fname; a.style.display = 'none'; document.body.appendChild(a); a.click(); setTimeout(() => { a.remove(); URL.revokeObjectURL(url); }, 4000); savedFirst = true; status.textContent = 'Asked your browser to save ' + fname + '. Look in your downloads folder to be sure it is there, then type ' + PARK_WORD + '.'; sync(); }
+        catch (e) { status.textContent = 'This browser would not save the file. Nothing was changed.'; }
+      } }); saveFirst.dataset.action = 'parked-backup';
+      // After the PIN, brings the set-aside copy back; the kitchen it replaces is kept for 7 days (Undo this restore below).
+      go.addEventListener('click', async () => {
+        if (go.disabled) return;
+        if (SB.shell.requirePin && !(await SB.shell.requirePin())) { SB.ui.toast('The PIN was not entered. Nothing was changed.', { tone: 'warn' }); return; }
+        const rep = SB.store.restoreParked();
+        if (rep === 'ok') SB.ui.toast('The set-aside copy is back. What was here before is kept for 7 days: Undo this restore.', { tone: 'ok' });
+        else SB.ui.toast(rep === 'noCopy' ? 'The set-aside copy is gone, so nothing was changed.' : SB.engine.describe(rep, (SB.store.lastResult() || {}).info, (stateNow() || {}).settings) + ' Nothing was changed.', { tone: 'warn' });
+        paintParked(); paintUndo();
+      });
+      // Throws the set-aside copy away after asking; the current kitchen is not touched.
+      const drop = btn('Throw the set-aside copy away', { icon: 'trash', cls: 'btn-sm', onClick: async () => {
+        const ok = await SB.ui.confirm({ title: 'Throw the set-aside copy away?', tone: 'danger', confirmLabel: 'Throw it away', cancelLabel: 'Keep it', body: ['This removes the copy that was set aside. Your kitchen as it is now is not touched. It cannot be brought back.'] });
+        if (!ok) return;
+        if (SB.shell.requirePin && !(await SB.shell.requirePin())) { SB.ui.toast('The PIN was not entered. Nothing was changed.', { tone: 'warn' }); return; }
+        try { const k = SB.store.CORRUPT_KEY; SB.util.storage.remove(k); SB.util.storage.remove(k + 'at'); } catch (e) { /* the check below tells the truth */ }
+        SB.ui.toast(SB.store.parkedCopy && SB.store.parkedCopy() ? 'The copy could not be removed.' : 'The set-aside copy was thrown away.', { tone: 'ok' });
+        paintParked();
+      } }); drop.dataset.action = 'parked-drop';
+      const when = pc.at ? U.fmtDateShort(U.dateKey(pc.at)) + ' ' + U.fmtTime(pc.at) : 'earlier';
+      parkedBox.replaceChildren(
+        h('h3', { class: 'od-sub' }, 'A copy of your kitchen was set aside'),
+        h('p', { class: 'od-p' }, 'Smokebox set this copy aside on ' + when + ' because it could not read it then, or it came from a newer version. It can be read now and holds ' + U.fmtNum(pc.tickets) + ' ' + U.plural(pc.tickets, 'ticket') + ' and ' + U.fmtNum(pc.orders) + ' ' + U.plural(pc.orders, 'order') + '.'),
+        h('p', { class: 'od-p' }, 'Bringing it back replaces everything on this device. What is here now is kept for 7 days, and you can undo it. First save a backup file of what is here now, then type ' + PARK_WORD + '.'),
+        h('div', { class: 'od-actions' }, saveFirst), SB.ui.field({ label: 'Type ' + PARK_WORD, control: word }), h('div', { class: 'od-actions' }, go, drop), status);
     }
     const pasteLabelId = U.uid('odpl');
     const pasteArea = h('textarea', { class: 'textarea od-paste', rows: 5, spellcheck: 'false', autocomplete: 'off', 'aria-labelledby': pasteLabelId, placeholder: 'Paste the whole backup text here' });
@@ -1590,13 +1651,16 @@
     const pasteDet = h('details', { class: 'od-paste-det' }, h('summary', { id: pasteLabelId }, ico('chevron-down', 18), h('span', null, 'Paste a backup instead')), pasteArea, h('div', { class: 'od-actions' }, pasteBtn));
     card2.body.append(
       para('Choose a backup file. Smokebox shows what is inside it before anything changes, and refuses a file that is not a Smokebox backup or that belongs to another kind of kitchen (demo or real).', 'od-p'),
-      h('div', { class: 'od-actions' }, chooseBtn, fileIn), pasteDet, impResult, undoBox);
+      h('div', { class: 'od-actions' }, chooseBtn, fileIn), pasteDet, impResult, undoBox, parkedBox);
+    paintParked();
+    // A month close, or the copy's 7 days running out, while this page is open shows here on the next refresh.
+    P.syncs.push(() => paintUndo());
     card3.body.append(
       h('ol', { class: 'od-steps' },
         h('li', null, 'On the old device, if it still works: tap Download backup (JSON) in card 1 and copy the file somewhere else (email it to yourself or use a USB drive).'),
         h('li', null, 'On the new device: copy the same smokebox.html file onto it and open it. Install it as an app (Share, then Add to Home Screen, or Install app).'),
         h('li', null, 'Run Menu, then Set up this tablet. Sound, screen-on and loudness are per device and are redone here.'),
-        h('li', null, 'Open Back office, then Menu and settings, then Data. In card 2 choose the backup file, read what is inside and tap Replace everything with this backup.'),
+        h('li', null, 'Open Back office, then Menu, prices and shop, then Data. In card 2 choose the backup file, read what is inside and tap Replace everything with this backup.'),
         h('li', null, 'Check the board and your dishes. Take a fresh backup from the new device, then retire the old one.')),
       h('p', { class: 'od-hint' }, 'If the old device is broken and you have no backup file, its data cannot be recovered. This is why a daily backup matters.'));
 
@@ -1628,7 +1692,7 @@
         h('p', { class: 'od-card-h' }, ico('check-circle', 20), h('span', null, 'This ' + source + ' is a valid Smokebox backup.')),
         h('dl', { class: 'od-stats od-stats-tight' }, rows.map(([k, v]) => h('div', { class: 'od-stat' }, h('dt', null, k), h('dd', { class: 'od-stat-v' }, v)))),
         repairs ? h('p', { class: 'od-hint' }, 'Smokebox repaired ' + repairs + ' small ' + U.plural(repairs, 'problem') + ' while reading it: ' + res.repaired.slice(0, 3).join('; ') + (repairs > 3 ? '; and ' + (repairs - 3) + ' more.' : '.')) : null,
-        h('p', { class: 'od-warn' }, ico('alert', 18), h('span', null, 'This replaces everything on this device: ' + U.fmtNum(live.tickets.length) + ' ' + U.plural(live.tickets.length, 'ticket') + ', ' + U.fmtNum(live.batches.length) + ' ' + U.plural(live.batches.length, 'batch', 'batches') + ', your menu edits and your settings. Back up first if you might want what is here.')),
+        h('p', { class: 'od-warn' }, ico('alert', 18), h('span', null, 'This replaces everything on this device: ' + U.fmtNum(live.tickets.length) + ' ' + U.plural(live.tickets.length, 'ticket') + ', ' + U.fmtNum(live.batches.length) + ' ' + U.plural(live.batches.length, 'batch', 'batches') + ', your menu edits, your settings, and your station, category and channel names and hidden stations. Back up first if you might want what is here.')),
         h('div', { class: 'od-actions' },
           btn('Back up what is here first', { icon: 'download', cls: 'btn-sm', onClick: downloadBackup }),
           // The replace button asks again in a dialog before anything is written.
@@ -1642,8 +1706,8 @@
       const p = pending, live = stateNow();
       const ok = await SB.ui.confirm({
         title: 'Replace everything on this device?', tone: 'danger', confirmLabel: 'Replace everything', cancelLabel: 'Keep what I have',
-        body: ['This replaces ' + U.fmtNum(live.tickets.length) + ' ' + U.plural(live.tickets.length, 'ticket') + ', ' + U.fmtNum(live.batches.length) + ' ' + U.plural(live.batches.length, 'batch', 'batches') + ', every setting, your menu edits and the PIN with the backup\'s ' + U.fmtNum(p.state.tickets.length) + ' ' + U.plural(p.state.tickets.length, 'ticket') + ' and ' + U.fmtNum(p.state.batches.length) + ' ' + U.plural(p.state.batches.length, 'batch', 'batches') + '.',
-          'There is no undo. If you might want what is here now, cancel and download a backup first.'],
+        body: ['This replaces ' + U.fmtNum(live.tickets.length) + ' ' + U.plural(live.tickets.length, 'ticket') + ', ' + U.fmtNum(live.batches.length) + ' ' + U.plural(live.batches.length, 'batch', 'batches') + ', every setting, your menu edits, the PIN, and your station, category and channel names and hidden stations with the backup\'s ' + U.fmtNum(p.state.tickets.length) + ' ' + U.plural(p.state.tickets.length, 'ticket') + ' and ' + U.fmtNum(p.state.batches.length) + ' ' + U.plural(p.state.batches.length, 'batch', 'batches') + '.',
+          'Smokebox keeps a copy of what is here now for 7 days so this can be undone, but only if this browser has room for it. To be safe, cancel and download a backup first.'],
       });
       if (!ok) return;
       // With a PIN set, restoring a backup asks for it again, even inside the back office grace period.
@@ -1651,7 +1715,11 @@
       const rep = SB.store.importAll(p.text);
       if (rep === 'ok') {
         clearImport(); pasteArea.value = ''; fileIn.value = '';
-        impResult.replaceChildren(h('div', { class: 'od-card', 'data-tone': 'ok', role: 'status' }, h('p', { class: 'od-card-h' }, ico('check-circle', 20), h('span', null, 'Backup restored: ' + U.fmtNum(p.state.tickets.length) + ' ' + U.plural(p.state.tickets.length, 'ticket') + ' and ' + U.fmtNum(p.state.batches.length) + ' ' + U.plural(p.state.batches.length, 'batch', 'batches') + '.'))));
+        const kept = ((SB.store.lastResult() || {}).info || {}).beforeRestore === true;
+        const hadData = live.tickets.length + live.batches.length > 0;
+        impResult.replaceChildren(h('div', { class: 'od-card', 'data-tone': 'ok', role: 'status' }, h('p', { class: 'od-card-h' }, ico('check-circle', 20), h('span', null, 'Backup restored: ' + U.fmtNum(p.state.tickets.length) + ' ' + U.plural(p.state.tickets.length, 'ticket') + ' and ' + U.fmtNum(p.state.batches.length) + ' ' + U.plural(p.state.batches.length, 'batch', 'batches') + '.')),
+          // WATCH OUT: when the browser had no room for the copy there is no undo, and the owner must hear that now.
+          !kept && hadData ? h('p', { class: 'od-warn' }, ico('alert', 18), h('span', null, 'This browser had no room to keep a copy of the kitchen that was here, so this restore cannot be undone. A backup file you downloaded earlier is the only way back.')) : null));
         SB.ui.toast('Backup restored.', { tone: 'ok' });
         paintUndo();
       } else {
@@ -1747,7 +1815,7 @@
     card1.body.append(
       lastLine,
       para('A backup is one file with your dishes, orders, settings and records. Back up at the end of every day, and keep a copy off this device (email it to yourself or use a USB drive): if the browser data is cleared or the device is replaced, a copy on the same device is gone too.', 'od-p'),
-      para('The starting cash you type on Close the day is remembered on this device only. It is not in a backup.', 'od-hint'),
+      para('Some choices are kept on this device only and are not in a backup: the starting cash you type on Close the day, the look (day or night), text size, and sound and screen-on. Set them again on a new device.', 'od-hint'),
       h('div', { class: 'od-actions' }, dlBtn, cpBtn), exStatus.el, fb);
     // The spreadsheet files and the pilot report are less common, so they sit in a closed group below the flow.
     pn.body.appendChild(h('details', { class: 'od-paste-det od-more' }, h('summary', null, ico('chevron-down', 18), h('span', null, 'Spreadsheet files and the pilot report')),
@@ -1891,7 +1959,7 @@
     }
     buildExportCard({ stateNow, exStatus, reportSave, downloadCsv, downloadBackup, copyBackup, card1, fb, pn, P });
 
-    const { check } = buildImportCard({ stateNow, card2, card3, downloadBackup });
+    const { check } = buildImportCard({ stateNow, card2, card3, downloadBackup, P });
 
     const { resetStatus } = buildDangerZone({ pn, stateNow });
 
@@ -1942,7 +2010,7 @@
       const keeping = st.persistent !== false && st.lastSaveOk !== false;
       const n = starterCount(s);
       headline.textContent = (keeping ? 'Your settings are saved on this device.' : 'This browser is not keeping your changes, so they will be lost when you close the page. Allow site data for this page.') + ' ' +
-        (n.total ? n.total + ' starter ' + U.plural(n.total, 'estimate is', 'estimates are') + ' not confirmed yet.' : 'Every prep time and yield is confirmed.');
+        (n.total ? n.total + ' ' + U.plural(n.total, 'starter estimate is still a guess', 'starter estimates are still guesses') + ', not confirmed yet.' : s.menu.some((m) => !m.archived) ? 'Every prep time and yield is confirmed.' : '');
       headline.dataset.tone = keeping ? 'ok' : 'bad';
       headSub.textContent = n.total ? n.prep + ' prep ' + U.plural(n.prep, 'time') + ' and ' + n.yld + ' cooked ' + U.plural(n.yld, 'yield') + '. Starter estimates are fine to run on; confirm each one when you have timed or weighed it.' : '';
       showBtn.hidden = !n.prep;
@@ -2051,5 +2119,5 @@
   }
 
   SB.dataPage = { saveFile, inspectBackup, backupReason, starterCount, version: 1 };
-  if (SB.office && typeof SB.office.registerPage === 'function') SB.office.registerPage('data', { title: 'Menu and settings', icon: 'sliders', order: 7, render });
+  if (SB.office && typeof SB.office.registerPage === 'function') SB.office.registerPage('data', { title: 'Menu, prices and shop', icon: 'sliders', order: 7, render });
 })(typeof globalThis !== 'undefined' ? globalThis : window);

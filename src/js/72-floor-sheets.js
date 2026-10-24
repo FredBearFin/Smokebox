@@ -153,11 +153,20 @@
   const endDot = (s) => (/[.!?]$/.test(s) ? s : s + '.');
   const listWords = (a) => (a.length <= 3 ? a.join(', ') : a.slice(0, 3).join(', ') + ' and ' + (a.length - 3) + ' more');
 
+  // The id of the engine's newest undo record, or null (the action an Undo button would revert right now).
+  function topUndoId() {
+    const s = st(), u = s && Array.isArray(s.undo) ? s.undo : [];
+    return u.length && u[u.length - 1] ? u[u.length - 1].id || null : null;
+  }
   // Toast with Undo that runs the engine's own undo.
+  // WATCH OUT: the engine only undoes its newest action. The toast remembers which record that was when it was raised,
+  // and refuses when another action (from another tablet, say) came after, so Undo never reverts what it does not name.
   function undoToast(msg, tone) {
+    const mine = topUndoId();
     toast(msg, tone || 'ok', {
       // Undo asks the engine to undo its newest action (only the newest one can be undone).
       undo: () => {
+        if (mine && topUndoId() !== mine) { toast('Cannot undo: something else was done after it. Fix it by hand instead.', 'warn'); return; }
         const r = run('undo', {});
         if (r.report !== 'ok') toast(say(r), 'warn'); else SB.ui.announce('Undone.');
       },
@@ -272,8 +281,16 @@
   // audit:data-end
   const H1 = 3600e3;
 
-  // How long a batch may stay in the cabinet: its own limit or the shop limit, whichever is shorter.
-  const holdLimitMs = (b) => Math.min(U.isNum(b.maxHoldH) ? b.maxHoldH : Infinity, safety().defaultMaxHoldH) * H1;
+  // The safety settings with every default filled in, the same way the engine and the warnings read them.
+  const fullSafety = () => Object.assign({}, C.safety, safety());
+  // The hard cap in hours: no batch stays longer than this, whatever its own limit (engine hardCapH).
+  const hardCapH = () => { const S = fullSafety(); return U.isNum(S.hardCapH) ? S.hardCapH : S.defaultMaxHoldH; };
+  // How long a batch may stay in the cabinet: the engine's own number (its limit, or the default, capped by the hard
+  // cap), so the card shows the time the engine will act on.
+  const holdLimitMs = (b) => E()._internal.holdLimitMs(b, fullSafety());
+  // True when going past the limit only takes the batch off the menu for a check (a quality limit below the hard cap);
+  // otherwise the batch is thrown out at that time.
+  const qualityStage = (b) => b.fridge !== true && b.holdBasis === 'quality' && (U.isNum(b.maxHoldH) ? b.maxHoldH : fullSafety().defaultMaxHoldH) < hardCapH();
   // A number with at most one decimal, like 1.5 or 2.
   const trimNum = (n) => String(Math.round(n * 10) / 10);
 
@@ -513,7 +530,9 @@
       const v = Math.min(100, frac * 100).toFixed(1);
       if (rec.ring._v !== v) { rec.ring._v = v; rec.ring.style.setProperty('--v', v); }
       attr(rec.ring, 'data-tone', frac >= 1 ? 'bad' : frac >= 0.75 ? 'warn' : 'ok');
-      text(rec.ringT, hmShort(elapsed)); text(rec.ringS, 'of ' + trimNum(limitMs / H1) + ' h');
+      // The number a cook needs is the time LEFT; the ring still fills with the time used.
+      const leftMs = limitMs - elapsed;
+      text(rec.ringT, hmShort(Math.abs(leftMs))); text(rec.ringS, leftMs >= 0 ? 'left of ' + trimNum(limitMs / H1) + ' h' : 'past the ' + trimNum(limitMs / H1) + ' h');
       attr(rec.ring, 'aria-label', (b.kind === 'cooling' ? 'Time cooling: ' : 'Time in the cabinet: ') + hmLong(elapsed) + ' of ' + trimNum(limitMs / H1) + ' hours');
       // A cold item's ring counts the time out of the fridge against the owner's hours (no ring fill when no hours are set).
       if (ci) {
@@ -554,7 +573,7 @@
       const coolingNow = b.kind === 'cooling';
       setHidden(rec.dtServe, coolingNow); setHidden(rec.ddServe, coolingNow);
       // One answer per row: the label says which kind of limit it is and the value is just the time.
-      if (!coolingNow) { text(rec.dtServe, b.holdBasis === 'safety' ? 'Throw out at' : 'Quality limit'); text(rec.ddServe, U.fmtTime(b.enteredAt + holdLimitMs(b))); }
+      if (!coolingNow) { text(rec.dtServe, qualityStage(b) ? 'Quality limit' : 'Throw out at'); text(rec.ddServe, U.fmtTime(b.enteredAt + holdLimitMs(b))); }
       // A cold item shows its fridge date instead: the last day in the fridge, or that no days were set.
       if (ci) {
         text(rec.dtServe, 'Fridge date');
@@ -1249,7 +1268,7 @@
     const sheet = SB.ui.sheet({ title: '86 board and stock', side: 'right', width: 'min(1060px, 96vw)', name: 'board86', onClose: () => offs.splice(0).forEach((f) => f()) });
 
     // Filter: all items, or only the ones that are off the menu.
-    const filterSeg = SB.ui.segmented({ label: 'Show', class: 'bd-filter', value: filter, options: [{ id: 'all', label: 'All items', count: 0 }, { id: 'off', label: 'Off the menu', count: 0 }], onChange: (id) => { filter = id; applyFilter(); } });
+    const filterSeg = SB.ui.segmented({ label: 'Show', class: 'bd-filter', value: filter, options: [{ id: 'all', label: 'All items', count: 0 }, { id: 'off', label: 'Out now', count: 0 }], onChange: (id) => { filter = id; applyFilter(); } });
     const menuBox = h('section', { class: 'fs-section bd-menu', 'aria-label': 'Menu availability' }, h('div', { class: 'fs-row' }, h('h3', { class: 'fs-h grow' }, 'Menu'), filterSeg));
     const catHost = h('div', { class: 'bd-cats' });
     const noneOff = h('div', { class: 'empty bd-none', hidden: true }, ico('check-circle', 36), h('h3', null, 'Everything is on the menu'), h('p', null, 'Nothing is 86 right now. Tap 86 it on an item that has run out.'));
@@ -1350,7 +1369,7 @@
       if (ing.tcs) closeThen(sheet, () => SB.sheets.open('hold', { tab: 'new', ing: ingId }));
       else openRestock(ingId);
     }
-    // Applies the All items or Off the menu filter to the rows and hides empty categories.
+    // Applies the All items or Out now filter to the rows and hides empty categories.
     function applyFilter() {
       let shown = 0;
       rows.forEach((rec) => { const hide = filter === 'off' && !rec.off; setHidden(rec.el, hide); if (!hide) shown++; });
@@ -1451,8 +1470,8 @@
       h('p', { class: 'fs-sub' }, cookOn() ? 'Par and 86 levels are starter estimates. Cooked meat and cold sides live in the hold cabinet, so they are added as batches.' : 'Par and 86 levels are starter estimates.'),
       stockList, cookOn() ? safetyNote() : null);
     // With no dishes yet there is nothing to mark sold out: one friendly line and the one next step.
-    const noDishBtn = h('button', { type: 'button', class: 'btn btn-primary', onClick: () => closeThen(sheet, () => SB.sheets.open('dishes')) }, ico('plus', 20), h('span', null, 'Add your first dish'));
-    const noDishBox = h('div', { class: 'empty bd-nodishes', hidden: true }, ico('ban', 40), h('h3', null, 'No dishes yet'), h('p', null, 'Add your first dish. Then you can mark it sold out here, and Smokebox marks it for you when stock runs low.'), noDishBtn);
+    const noDishBtn = h('button', { type: 'button', class: 'btn btn-primary', onClick: () => closeThen(sheet, () => SB.sheets.open('dishes')) }, ico('plus', 20), h('span', null, 'Add my menu'));
+    const noDishBox = h('div', { class: 'empty bd-nodishes', hidden: true }, ico('ban', 40), h('h3', null, 'No dishes yet'), h('p', null, 'Add your menu. Then you can mark a dish sold out here, and Smokebox marks it for you when stock runs low.'), noDishBtn);
     const bdCols = h('div', { class: 'bd-cols' }, menuBox, stockBox);
     sheet.body.append(h('div', { class: 'bd' }, noDishBox, bdCols));
 
@@ -1668,7 +1687,7 @@
     // Listeners are removed when the sheet closes, so nothing keeps updating a screen that is gone.
     // In a real kitchen (not the demo tab) this sheet only explains the demo and opens it; the crew and clock live in the demo.
     const realKitchen = !!(SB.store.isolated && SB.store.isolated() && !SB.store.isDemo() && SB.setup && SB.setup.demoIntro);
-    const sheet = SB.ui.sheet({ title: realKitchen ? 'Try the demo' : 'Demo and clock', side: 'right', width: 'min(640px, 96vw)', name: 'demo', onClose: () => offs.splice(0).forEach((f) => f()) });
+    const sheet = SB.ui.sheet({ title: realKitchen ? 'Watch the demo' : 'Demo and clock', side: 'right', width: 'min(640px, 96vw)', name: 'demo', onClose: () => offs.splice(0).forEach((f) => f()) });
     if (realKitchen) { sheet.body.appendChild(SB.setup.demoIntro()); return sheet; }
     const live = simLive();
 
@@ -1724,7 +1743,7 @@
 
     // Reset live data asks first (see doReset).
     const resetBtn = h('button', { type: 'button', class: 'btn btn-danger btn-lg', onClick: () => doReset() }, ico('trash', 22), h('span', null, 'Reset live data'));
-    const resetBox = h('section', { class: 'fs-section dm-reset' }, h('h3', { class: 'fs-h' }, 'Back to real service'), h('p', { class: 'fs-sub' }, 'Reset live data erases every ticket, batch and event on this device, including all demo orders, and puts the clock back to real time. The board and the cabinet start empty. Your settings and menu stay. This cannot be undone.'), resetBtn);
+    const resetBox = h('section', { class: 'fs-section dm-reset' }, h('h3', { class: 'fs-h' }, 'Back to real service'), h('p', { class: 'fs-sub' }, 'Reset live data erases every ticket, batch and event on this device, including all demo orders, and puts the clock back to real time. The board and the cabinet start empty. Your settings, menu and food safety record stay. This cannot be undone.'), resetBtn);
 
     // Restart demo: start over with fresh tickets, the way the app looks on its first day.
     const restartBtn = h('button', { type: 'button', class: 'btn btn-primary btn-lg dm-restart', onClick: () => doRestart() }, ico('refresh', 22), h('span', null, 'Restart demo'));
@@ -1741,8 +1760,8 @@
       // A kitchen with its own dishes loses them too: the demo puts the sample barbecue menu in their place.
       const own = s.catalog === 'own' && (s.menu.length > 0 || s.orders.length > 0 || s.tickets.length > 0);
       const ok = await SB.ui.confirm({
-        title: 'Restart the demo?', confirmLabel: own ? 'Erase my dishes and restart' : 'Restart demo', cancelLabel: 'Keep everything', tone: real || own ? 'danger' : undefined,
-        body: [(own ? 'This erases your dishes, prices and orders and loads the sample barbecue menu in their place. ' : '') + 'This clears ' + s.tickets.length + ' ' + plural(s.tickets.length, 'ticket') + (real ? ' (' + real + ' not from the demo)' : '') + ' and everything logged on this device, then puts three fresh demo tickets on the board. Settings stay.'],
+        title: 'Restart the demo?', confirmLabel: own ? 'Erase my dishes and restart' : 'Restart demo', cancelLabel: 'Keep everything', tone: 'danger',
+        body: [(own ? 'This erases your dishes, prices and orders and loads the sample barbecue menu in their place. ' : '') + 'This clears ' + s.tickets.length + ' ' + plural(s.tickets.length, 'ticket') + (real ? ' (' + real + ' not from the demo)' : '') + ', ' + s.batches.length + ' ' + plural(s.batches.length, 'batch', 'batches') + ' in the cabinet and the event log on this device, then puts three fresh demo tickets on the board. Settings stay.'],
       });
       if (!ok) return;
       if (SB.tour && SB.tour.running && SB.tour.running() && SB.tour.stop) SB.tour.stop();
@@ -1753,12 +1772,13 @@
       closeThen(sheet, () => { if (SB.router && SB.router.go) SB.router.go({ kind: 'floor', zone: 'all' }); });
     }
 
-    // Clears tickets, batches and events on this device after a confirm. Settings and sample history stay.
+    // Clears tickets, orders, batches and events on this device after a confirm. Settings, menu, the food safety record and
+    // sample history stay (A.resetLive in 20-engine.js).
     async function doReset() {
       const s = st(), demo = s.tickets.filter((t) => t.src === 'demo').length;
       const ok = await SB.ui.confirm({
         title: 'Reset live data?', tone: 'danger', confirmLabel: 'Reset live data', cancelLabel: 'Keep everything',
-        body: ['This clears ' + s.tickets.length + ' ' + plural(s.tickets.length, 'ticket') + (demo ? ' (' + demo + ' demo)' : '') + ', ' + s.batches.length + ' ' + plural(s.batches.length, 'batch', 'batches') + ' and the event log, and sets the clock back to real time.', 'Settings and sample history stay. This cannot be undone.'],
+        body: ['This clears ' + s.tickets.length + ' ' + plural(s.tickets.length, 'ticket') + (demo ? ' (' + demo + ' demo)' : '') + ', ' + s.orders.length + ' ' + plural(s.orders.length, 'order') + ' with their payments, ' + s.batches.length + ' ' + plural(s.batches.length, 'batch', 'batches') + ', the 86 list, stock counts and the event log, so the sales figures start again from zero. It also sets the clock back to real time.', 'Settings, the menu, the food safety record and sample history stay. This cannot be undone.'],
       });
       if (!ok) return;
       // With a PIN set, clearing live data asks for it.
@@ -1819,12 +1839,18 @@
     return sheet;
   }
 
+  // The version of this copy of Smokebox, so the owner can tell at a glance whether an update arrived.
+  function versionLine() {
+    const b = g.SB_BUILD;
+    return h('p', { class: 'fs-sub mn-version', dataset: { role: 'version' } }, b && b.version ? 'Smokebox version ' + b.version + ' (build ' + b.id + ')' : 'Smokebox version: not marked (an old or hand-made build)');
+  }
+
   // Help and about.
   // Shortcut list (key, what it does) used when the board does not supply its own.
   // audit:data-start
   const FALLBACK_KEYS = [
-    { key: 'N', label: 'New ticket' }, { key: 'R', label: 'Recall a bumped ticket' }, { key: 'H', label: 'Hold cabinet' }, { key: '8', label: '86 board' },
-    { key: 'D', label: 'Demo' }, { key: '1 to 6', label: 'Station: All, PIT, HOT, FRY, CLD, EXP' }, { key: 'Z', label: 'Undo the last action (10 seconds)' },
+    { key: 'N', label: 'New ticket' }, { key: 'R', label: 'Recall a bumped ticket' }, { key: 'H', label: 'Hold cabinet' }, { key: '8', label: 'Sold out (86 board)' },
+    { key: 'D', label: 'Demo' }, { key: '1 to 6', label: 'Station: All, PIT, HOT, FRY, CLD, EXP' }, { key: 'Z', label: 'Undo the last action' },
     { key: '?', label: 'Help' }, { key: 'Esc', label: 'Close a screen' },
   ];
   // audit:data-end
@@ -1855,17 +1881,17 @@
       h('div', { class: 'fs-row hp-links' }, h('button', { type: 'button', class: 'btn btn-primary', dataset: { act: 'tour' }, onClick: () => closeThen(sheet, runTour) }, ico('play', 20), h('span', null, 'Show me how it works'))),
       helpList([
         helpItem('plus', 'Send a ticket', 'Tap New ticket, tap the items, tap Send to kitchen. Four lines take fewer than ten taps.'),
-        helpItem('check', 'Tap an item to work it', 'Tap an item row. A one-step item is done on that tap. A two-step item starts on the first tap, counts down from its usual cooking time, and finishes on the second.'),
-        helpItem('bell', 'Check it', 'When a dish reaches its usual cooking time, its row flashes Check it (and chimes if Sound is on). Smokebox never marks a dish done for you: look at the food, then tap the row.'),
+        helpItem('check', 'Start and Done', 'Each dish has a button on its row. A one-step dish shows Done: tap it when the dish is ready. A two-step dish shows Start: tap it when cooking starts, it counts down from its usual cooking time, then tap Done.'),
+        helpItem('bell', 'Check it', 'When a dish reaches its usual cooking time, its row flashes Check it (and chimes if Sound is on). Smokebox never marks a dish done for you: look at the food, then tap Done.'),
         helpItem('arrow-right', 'The line under each ticket', 'Says what to do next, such as Tap Start on a dish. You can turn it off in Settings.'),
         helpItem('check-circle', 'All done here', 'Finishes every item your station still has on that ticket.'),
         helpItem('zap', 'Start now', 'Starts a waiting item before its planned time. Waiting items are dimmed and show Start in 2:08, so the slow dishes start first and the whole order finishes together.'),
         helpItem('receipt', 'Bump', 'Sends the ticket out when everything is done. If items are not done, Smokebox asks first.'),
-        helpItem('undo', 'Undo', 'After a bump, done, void, 86 or discard, an Undo button stays for ' + undoS + ' seconds. The Z key does the same.'),
+        helpItem('undo', 'Undo', 'After a bump, done, void, 86 or discard, an Undo button stays for ' + undoS + ' seconds.' + (hasKeyboard() ? ' The Z key does the same.' : '')),
         helpItem('history', 'Recall', 'Brings a bumped ticket back. Open Recall, find the ticket and tap Recall.'),
         helpItem('list', 'The all-day bar', 'Counts what is still to make across every ticket. Tap an item to highlight it on the board.'),
         helpItem('thermometer', 'Hold cabinet', 'Log a temperature when food goes in and at every check. Smokebox warns before a batch runs out of time and locks one that has.'),
-        helpItem('ban', '86 board', 'Marks an item sold out. It also goes 86 by itself when stock runs low or a batch is held back.'),
+        helpItem('ban', 'Sold out (86 board)', 'The Sold out button marks an item sold out. It also goes 86 by itself when stock runs low or a batch is held back.'),
       ]));
   }
 
@@ -1910,9 +1936,12 @@
   // The Keys tab. The shortcuts come from the board, with a built-in list if the board is not loaded.
   function helpKeys() {
     const list = (SB.floor && Array.isArray(SB.floor.shortcuts) && SB.floor.shortcuts.length ? SB.floor.shortcuts : FALLBACK_KEYS);
+    // The undo window is a setting, so the Z line names this kitchen's own number of seconds.
+    const undoS = Math.round((st().settings.undoMs || C.undoMs) / 1000);
+    const label = (k) => (k.key === 'Z' ? k.label + ' (' + undoS + ' seconds)' : k.label);
     return h('div', { class: 'hp-pane' },
       h('p', { class: 'fs-sub' }, 'On the board, these keys work when no screen is open and you are not typing in a field.'),
-      h('ul', { class: 'hp-keys' }, ...list.map((k) => h('li', { class: 'hp-key' }, h('span', { class: 'kbd' }, k.key), h('span', null, k.label)))),
+      h('ul', { class: 'hp-keys' }, ...list.map((k) => h('li', { class: 'hp-key' }, h('span', { class: 'kbd' }, k.key), h('span', null, label(k))))),
       h('section', { class: 'fs-section' }, h('h3', { class: 'fs-h' }, 'Inside New ticket'),
         h('ul', { class: 'hp-keys' },
           h('li', { class: 'hp-key' }, h('span', { class: 'kbd' }, 'Enter'), h('span', null, 'In the search box: add the first match.')),
@@ -1960,20 +1989,23 @@
         demoOn() ? h('button', { type: 'button', class: 'btn', onClick: () => closeThen(sheet, () => SB.sheets.open('specs')) }, ico('book', 20), h('span', null, 'See the specs')) : null,
         // The demo sheet opens after Help closes.
         h('button', { type: 'button', class: 'btn', onClick: () => closeThen(sheet, () => SB.sheets.open('demo')) }, ico('play', 20), h('span', null, 'Demo and clock'))),
-      h('p', { class: 'fs-sub hp-tiny' }, 'Smokebox version ' + C.version + '. Managers: tap Back office at the top of the board, or press Ctrl+Shift+O. To add a dish or change a price, open Back office, then Menu and settings.'));
+      h('p', { class: 'fs-sub hp-tiny' }, 'Smokebox version ' + C.version + '. Managers: tap Back office at the top of the board, or press Ctrl+Shift+O. To add a dish or change a price, open Settings, then Dishes and prices.'));
   }
 
-  // Builds the Help sheet with its five tabs. opts.tab can pick the tab to open on.
+  // True when this device has a mouse or trackpad (a laptop or desktop), so keyboard shortcuts are worth showing.
+  // A touch-only tablet or phone answers false.
+  function hasKeyboard() { try { return !!(g.matchMedia && g.matchMedia('(any-pointer: fine)').matches); } catch (e) { return true; } }
+  // Builds the Help sheet with its tabs (Keys only on a device with a mouse or trackpad). opts.tab can pick the tab to open on.
   function openHelp(opts) {
     opts = opts || {};
     const sheet = SB.ui.sheet({ title: 'Help and about', side: 'right', width: 'min(720px, 96vw)', name: 'help' });
     const defs = [
       { id: 'basics', label: 'Basics', panel: h('div', null, helpBasics(sheet)) },
       { id: 'words', label: 'Words and colors', panel: h('div', null, helpWords()) },
-      { id: 'keys', label: 'Keys', panel: h('div', null, helpKeys()) },
+      hasKeyboard() ? { id: 'keys', label: 'Keys', panel: h('div', null, helpKeys()) } : null,
       { id: 'safety', label: 'Food safety', panel: h('div', null, helpSafety()) },
       { id: 'about', label: 'About', panel: h('div', null, helpAbout(sheet)) },
-    ];
+    ].filter(Boolean);
     const start = defs.some((d) => d.id === opts.tab) ? opts.tab : 'basics';
     const tabs = tabsWithPanels('Help topics', defs, start);
     sheet.body.append(h('div', { class: 'hp' }, tabs.seg, ...defs.map((d) => d.panel)));
@@ -2147,6 +2179,26 @@
       const v = SB.floor.testVoice ? SB.floor.testVoice() : { supported: false };
       text(voiceSay, !v.supported ? 'This tablet cannot speak. Warnings will be tones only.' : v.name ? 'Voice: ' + v.name + (v.local ? ', stored on this tablet.' : ', needs the internet.') : 'Voice: the tablet\'s own default voice.');
     } }, ico('volume', 20), h('span', null, 'Test the voice'));
+    // Voice chooser: every English voice this device has, so the owner can pick the one that sounds best. Saved on this device;
+    // Automatic picks the best one by itself. A choice says a short sample at once.
+    const voiceSel = h('select', { class: 'input mn-voice', dataset: { act: 'voice-pick' }, 'aria-label': 'Voice', disabled: !floorOk });
+    // Fills the voice list; browsers load their voices a moment after the page, so this runs again when they arrive.
+    function fillVoices() {
+      const ss = g.speechSynthesis, all = ss && ss.getVoices ? ss.getVoices() : [];
+      const en = all.filter((v) => /^en/i.test(String(v.lang || '').replace('_', '-')));
+      const cur = U.storage.get('smokebox.v1.voicename', '');
+      U.clear(voiceSel);
+      voiceSel.append(h('option', { value: '' }, 'Automatic (best on this device)'), ...en.map((v) => h('option', { value: v.name }, v.name + (v.localService === false ? ' (needs internet)' : ''))));
+      voiceSel.value = en.some((v) => v.name === cur) ? cur : '';
+    }
+    fillVoices();
+    if (g.speechSynthesis && typeof g.speechSynthesis.addEventListener === 'function') { g.speechSynthesis.addEventListener('voiceschanged', fillVoices); offs.push(() => g.speechSynthesis.removeEventListener('voiceschanged', fillVoices)); }
+    voiceSel.addEventListener('change', () => {
+      U.storage.set('smokebox.v1.voicename', voiceSel.value);
+      const v = SB.floor.testVoice ? SB.floor.testVoice() : { supported: false };
+      text(voiceSay, v.name ? 'Voice: ' + v.name + '.' : 'Voice: the device\'s own default voice.');
+    });
+    const voiceRow = h('label', { class: 'mn-vol' }, h('span', null, 'Voice'), voiceSel);
     const testRow = h('div', { class: 'mn-test' }, testBtn, testSay, voiceBtn, voiceSay);
     const soundHelp = floorOk ? 'On by default, because a missed warning can cost a whole batch. Some browsers only play sound after you have tapped the screen once.' : 'The board is not loaded in this build, so there is no sound setting.';
 
@@ -2181,26 +2233,47 @@
     // The Guide opens only when the guide page is part of this copy of Smokebox.
     const guideLink = typeof SB.guide === 'object' && SB.guide && typeof SB.guide.open === 'function'
       ? h('button', { type: 'button', class: 'btn btn-block mn-link', dataset: { act: 'guide' }, onClick: () => closeThen(sheet, () => SB.guide.open()) }, ico('info', 22), h('span', { class: 'grow' }, 'Guide')) : null;
-    const links = h('div', { class: 'mn-links' }, officeLink, menuLink, tourLink, link('help', 'Help and about', 'help'), guideLink, cookOn() ? link('receipt', 'Thrown-out log', 'discards') : null, cookOn() ? link('thermometer', 'Readings', 'readings') : null, link('sliders', 'Tax, hours and PIN', 'shop'), link('check-circle', 'Tablet checks: screen, sound, home screen', 'ready'), link('receipt', 'Pilot visit checklist', 'pilot'), link('sliders', 'How you serve', 'serve'), link('check-circle', 'Set up this tablet: first steps', 'setup'), demoOn() ? link('book', 'Specs', 'specs') : null, link('play', SB.store.isolated && SB.store.isolated() && !SB.store.isDemo() ? 'Try the demo' : 'Demo and clock', 'demo'));
+    const links = h('div', { class: 'mn-links' }, officeLink, menuLink, tourLink, link('help', 'Help and about', 'help'), guideLink, cookOn() ? link('receipt', 'Thrown-out log', 'discards') : null, cookOn() ? link('thermometer', 'Readings', 'readings') : null, link('sliders', 'Tax, hours and PIN', 'shop'), link('check-circle', 'Device checks: screen, sound, home screen', 'ready'), link('sliders', 'How you serve', 'serve'), link('check-circle', 'Set up this device: first steps', 'setup'), demoOn() ? link('book', 'Specs', 'specs') : null, link('play', SB.store.isolated && SB.store.isolated() && !SB.store.isDemo() ? 'Watch the demo' : 'Demo and clock', 'demo'));
 
+    // The saved-history line: how full this tablet's saved history is, and a way to Close the month once it is getting full.
+    // Nothing shows in the demo or when the store cannot say.
+    const historyBlock = (() => {
+      let fill = null; try { fill = SB.store.historyFill && !(SB.store.isDemo && SB.store.isDemo()) ? SB.store.historyFill() : null; } catch (e) { fill = null; }
+      if (!fill || typeof fill.pct !== 'number') return null;
+      const parts = [];
+      // Closes Settings, then opens the Close the month flow (which asks for the PIN first).
+      const openFlow = () => closeThen(sheet, () => SB.setup && SB.setup.openCloseMonth && SB.setup.openCloseMonth());
+      if (fill.nearFull) parts.push(h('button', { type: 'button', class: 'btn', dataset: { act: 'history-close-month' }, onClick: openFlow }, 'Close the month...'));
+      const words = 'Saved history: ' + Math.round(fill.pct) + '% full.' + (fill.nearFull ? ' Close the month to save older days to files.' : '') + (fill.persisted === false ? ' Your browser may clear this data if the tablet is unused. Installing the app (Tablet checks, step 4) usually helps. Save a backup every day.' : '');
+      return settingBlock('Saved history', words, ...parts);
+    })();
+    // Signed in to the hosted server: which kitchen and account this device is on, and a way to sign this one device out.
+    // Sign this device out: the kitchen and the other devices stay as they are.
+    const signOutBtn = h('button', { type: 'button', class: 'btn btn-block mn-link', dataset: { act: 'sign-out' }, onClick: () => SB.cloud.signOut() }, ico('arrow-right', 22), h('span', { class: 'grow' }, 'Sign this device out'));
+    const cloudBlock = SB.cloud && SB.cloud.on
+      ? settingBlock('Your kitchen', 'This device is signed in to ' + SB.cloud.kitchen.name + ' (' + SB.cloud.email + '). Every device signed in to it shows the same tickets.', signOutBtn)
+      : null;
     sheet.body.append(h('div', { class: 'mn' },
+      cloudBlock,
       // The one-time offer to clear old demo tickets from real reports; null (nothing shown) when there are none.
       SB.setup && SB.setup.leftoversCard ? SB.setup.leftoversCard() : null,
       settingBlock('Look', 'Day is the bright parchment board. Night is charcoal, easier on the eyes in a dim kitchen.', themeSeg),
       settingBlock('Text size', 'Large makes everything 20 percent bigger.', textSeg),
       settingBlock('Ticket size', 'Auto shows full-size tickets while they fit in one row, then switches to compact so a rush stays on one screen.', sizeSeg),
       settingBlock('Next step', 'A line under each ticket that says what to do next, such as Tap Start on a dish.', hintsTog),
-      settingBlock('Sound', soundHelp, soundTog, speechTog, h('label', { class: 'mn-vol' }, h('span', null, 'Loudness on this tablet'), volIn), testRow),
+      settingBlock('Sound', soundHelp, soundTog, speechTog, h('label', { class: 'mn-vol' }, h('span', null, 'Loudness on this tablet'), volIn), voiceRow, testRow),
       settingBlock('Far display', 'For a TV or a tablet read from across the kitchen: a much bigger warning strip and bigger tickets, no "On time" badges so only late tickets stand out, and overdue tickets get a heavy red outline. Try it from where the cook stands.', farTog),
       settingBlock('Voice call-outs', 'A chef calls the line out loud. Light: "Fire the pizza now! Ticket 12!" and "Ticket 12 is up! Ring it out!". Normal: adds "Order up!" for new tickets and one reminder if a dish is not started or a ticket not rung out. Full: keeps reminding until you start the dish or ring out the ticket. At a station tab it only calls that station\'s dishes. It needs sound and spoken warnings on, and old calls are dropped, not read late. Not tried on a real tablet yet.', coTog, levelSeg),
       settingBlock('Wall mode', 'For a wide screen or TV (1700 px and wider) in one window: the kitchen board in the middle, open orders and payments on the left, and a manager glance on the right (money so far, late tickets, the 86 list, when brisket runs out). Below that width nothing changes.', wallTog),
       settingBlock('Station on this tablet', 'The board opens on this station, and again after a reload.', stationSeg),
       clockBlock,
+      historyBlock,
       settingBlock('More', '', links),
       // Start over sits alone at the very bottom, away from the everyday buttons. In the demo it is replaced by the way back.
       SB.store.isDemo && SB.store.isDemo()
         ? settingBlock('The demo', 'You are in the demo, not your kitchen.', h('button', { type: 'button', class: 'btn btn-block mn-link', onClick: () => SB.store.leaveDemo() }, ico('arrow-right', 22), h('span', { class: 'grow' }, 'Back to my kitchen')))
-        : settingBlock('Start over', 'Empty the menu and begin again. A backup is saved for you first.', link('trash', 'Start over with an empty menu', 'startover'))));
+        : settingBlock('Start over', 'Empty the menu and begin again. A backup is saved for you first.', link('trash', 'Start over with an empty menu', 'startover')),
+      versionLine()));
 
     // Keep every control in step when something else changes the look, the station or the clock.
     offs.push(SB.theme.onChange(() => { themeSeg.setValue(SB.theme.get()); textSeg.setValue(SB.theme.textSize()); sizeSeg.setValue(SB.theme.density()); hintsTog.setValue(SB.theme.hints()); }));

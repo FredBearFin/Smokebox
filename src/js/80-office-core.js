@@ -25,7 +25,7 @@
     { id: 'money', title: 'Sales and money', short: 'Money', icon: 'dollar' },
     { id: 'safety', title: 'Safety', short: 'Safety', icon: 'shield-check' },
     { id: 'stock', title: 'Stock and 86', short: 'Stock', icon: 'package' },
-    { id: 'data', title: 'Menu and settings', short: 'Settings', icon: 'sliders' },
+    { id: 'data', title: 'Menu, prices and shop', short: 'Menu & shop', icon: 'sliders' },
   ];
   const PAGE_IDS = PAGES.map((p) => p.id);
   // Turns any page name into one of the seven page ids. A name we do not know gives the Pace page.
@@ -69,26 +69,35 @@
   }
 
   // The plain next-step message for a page with nothing in its range, or null when the page has data (or
-  // is the settings page). f = {anyLive, tickets, batches, records, label}: whether any live ticket
-  // exists at all, and how many tickets, batches and safety records fall in the range.
+  // is the settings page). f = {anyLive, tickets, finished, onBoard, paid, batches, records, label}: whether
+  // any live ticket exists at all, and how many tickets (finished, still on the board, paid), batches and
+  // safety records fall in the range. Each page has its own words and next step.
   function coachText(pageId, f) {
     f = f || {};
     const never = !f.anyLive && !f.batches && !f.records;
     const where = f.label ? ' on ' + f.label : ' in this range';
-    if (pageId === 'pace' || pageId === 'tickets' || pageId === 'stations') {
+    // "3 tickets on the board now" when tickets are waiting, else '' (onBoard may be missing in old callers).
+    const board = isNum(f.onBoard) && f.onBoard > 0 ? f.onBoard + ' ' + (f.onBoard === 1 ? 'ticket is' : 'tickets are') + ' on the board now' : '';
+    const KITCHEN = {
+      pace: { first: 'No speed numbers yet', wait: 'times appear here once they are sent out.', start: 'Take an order on the board and tap Bump when it goes out. How fast your tickets go out shows here.' },
+      tickets: { first: 'No finished tickets yet', wait: 'they are listed here with their times once they are sent out.', start: 'Every ticket you send out is listed here with its times. Take an order on the board and tap Bump when it goes out.' },
+      stations: { first: 'No station times yet', wait: 'each station\'s times appear here once they are sent out.', start: 'Each station\'s speed shows here once its items are done. Take an order on the board and send it out.' },
+    };
+    if (KITCHEN[pageId]) {
+      const k = KITCHEN[pageId];
       // With a finished-ticket count, the page needs finished tickets to say anything; tickets still on the line are not enough.
       if (isNum(f.finished) ? f.finished > 0 : f.tickets > 0) return null;
-      if (isNum(f.finished) && f.tickets > 0) return { title: 'Nothing to show yet', body: 'The tickets on the line are not finished. Send one out and its times appear here.' };
+      if (isNum(f.finished) && f.tickets > 0) return { title: k.first, body: (board || 'The tickets so far are not finished') + '; ' + k.wait };
       return never || !f.anyLive
-        ? { title: 'Nothing to show yet', body: 'Take an order and send it out when it is done, and the times appear here.' }
+        ? { title: k.first, body: k.start }
         : { title: 'No tickets' + where, body: 'Nothing was ordered in this range. Use the arrows or the range buttons to look at a day you were open.' };
     }
     if (pageId === 'money') {
       // the thrown-away ledger on this page needs no sales, so a discard also counts as data here
       if (isNum(f.paid) ? f.paid > 0 || f.discards > 0 : f.tickets > 0 || f.discards > 0) return null;
-      if (isNum(f.paid) && f.tickets > 0) return { title: 'Nothing to show yet', body: 'The orders so far are not paid. Pay an order from Orders and the money shows up here.' };
+      if (isNum(f.paid) && f.tickets > 0) return { title: 'No paid orders yet', body: 'The orders so far are not paid. Tap the Orders button on the board, pay an order, and the money shows up here.' };
       return !f.anyLive
-        ? { title: 'Take your first order', body: 'Sales come from your own orders. Take an order on the kitchen board and pay it from Orders, and the money shows up here.' }
+        ? { title: 'Take your first order', body: 'Sales come from your own orders. Take an order on the board, pay it with the Orders button on the board, and the money shows up here.' }
         : { title: 'No sales' + where, body: 'Nothing was sold in this range. Use the arrows or the range buttons to look at a day you were open.' };
     }
     if (pageId === 'safety') {
@@ -157,23 +166,19 @@
   // by their presence.
   function sig(x) { try { return JSON.stringify(x, (k, v) => (typeof v === 'function' ? 'fn' : v)); } catch (e) { return 'x' + Math.random(); } }
 
-  // Honest one-line banner. info = {sampleDays, sampleTickets, live, demo, sampleOn, sampleLoaded,
-  // sampleWanted, total}.
+  // Honest one-line banner. info = {sampleDays, sampleTickets, live, demo, sampleEnabled, sampleLoaded,
+  // sampleWanted, total}. It only speaks when sample days exist and are switched on (then the Show
+  // buttons are on screen too); otherwise there is nothing to tell apart and the text is empty.
   function bannerText(info) {
     const pl = (n, a, b) => (n === 1 ? a : b || a + 's');
-    const parts = [];
-    // tickets in the range that are not sample: live ones, and the five demo ones a first run starts with
-    const own = [info.live > 0 ? info.live + ' live ' + pl(info.live, 'ticket') : '', info.demo > 0 ? info.demo + ' demo ' + pl(info.demo, 'ticket') : ''].filter(Boolean).join(' and ');
+    if (!info.sampleLoaded || !info.sampleEnabled) return { kind: 'live', text: '' };
+    // the owner's own tickets in the range, and the demo ones a first run starts with
+    const own = [info.live > 0 ? info.live + ' of your ' + pl(info.live, 'ticket') : '', info.demo > 0 ? info.demo + ' demo ' + pl(info.demo, 'ticket') : ''].filter(Boolean).join(' and ');
     if (info.sampleTickets > 0) {
-      parts.push(info.sampleDays + ' sample ' + pl(info.sampleDays, 'day'));
-      let tail = info.live > 0 ? ' plus ' + info.live + ' live ' + pl(info.live, 'ticket') : ' and no live tickets yet';
-      if (info.demo > 0) tail += (info.live > 0 ? ' and ' : ', with ') + info.demo + ' demo ' + pl(info.demo, 'ticket');
-      return { kind: 'sample', text: parts[0] + tail + '. Sample history is generated by the app.' };
+      return { kind: 'sample', text: info.sampleDays + ' sample ' + pl(info.sampleDays, 'day') + ' (made up by the app)' + (own ? ' plus ' + own : '') + '.' };
     }
-    if (!info.sampleLoaded) return { kind: 'live', text: (info.total ? own + ' in this range.' : 'No tickets in this range yet.') + ' No sample history is loaded.' };
-    if (!info.sampleEnabled) return { kind: 'live', text: (info.total ? own + ' in this range.' : 'No tickets in this range yet.') + ' Sample history is switched off in Menu and settings.' };
-    if (!info.sampleWanted) return { kind: 'live', text: 'Live data only: ' + (info.total ? own : 'no tickets') + ' in this range.' };
-    return { kind: 'live', text: (info.total ? own + ' in this range.' : 'No tickets in this range yet.') + ' Sample history is on but none of it falls in this range.' };
+    if (!info.sampleWanted) return { kind: 'live', text: 'Your tickets only: ' + (info.total ? own : 'none') + ' in this range.' };
+    return { kind: 'live', text: (info.total ? own + ' in this range.' : 'No tickets in this range.') + ' No sample days fall in this range.' };
   }
 
   // Delta between two numbers in the compare() shape, for tiles that supply their own previous value.
@@ -206,6 +211,10 @@
   }
   O.droppedRangeWords = droppedRangeWords;
 
+  // A weight in the owner's unit (g and kg, or oz and lb) without trailing zeros: "14 kg", "2.4 kg", "7 oz".
+  // Every back-office page shows weights through this, so a pounds kitchen sees pounds everywhere.
+  O.weightText = (g) => String(U.weightText ? U.weightText(g) : U.fmtG(g)).replace(/(\.\d*?)0+ (kg|lb|oz)$/, '$1 $2').replace(/\. (kg|lb|oz)$/, ' $1');
+
   O.pure = { PAGES, customRange, coachText, dayRange, stepDayKey, pickerKey, splitNumbers, tileParts, sortRows, sig, bannerText, makeDelta, dayStartMs };
 
   if (!doc) return; // Node: the pure helpers are all the tests need
@@ -237,8 +246,9 @@
     // such as $12.40.
     pct: (x, d) => U.fmtPct(x, d == null ? (isNum(x) && Math.abs(x) > 0 && Math.abs(x) < 0.1 ? 1 : 0) : d),
     money: (n, d) => U.fmtMoney(n, d == null ? 2 : d),
-    // g gives grams or kilograms in words. num gives a plain number with the decimals asked for.
-    g: (n) => (U.weightText ? U.weightText(n) : U.fmtG(n)),
+    // g gives a weight in the owner's unit (g and kg, or oz and lb) without trailing zeros: "14 kg",
+    // "2.4 kg", "7 oz". num gives a plain number with the decimals asked for.
+    g: (n) => O.weightText(n),
     num: (n, d) => U.fmtNum(n, d || 0),
     // hour gives a service hour such as 7 pm. clock gives the time of day for a time stamp.
     hour: (hr) => (isNum(hr) ? U.fmtHour(hr) : '-'),
@@ -272,7 +282,7 @@
   const nowMs = () => { try { return SB.store.now(); } catch (e) { return Date.now(); } };
   // The order channels (dine-in, takeout and so on) from settings, or an empty list.
   const channelList = () => (SB.config && SB.config.channels) || [];
-  // True when sample history is switched on in Menu and settings. It counts as on when the simulator is
+  // True when sample history is switched on in Menu, prices and shop. It counts as on when the simulator is
   // missing.
   const sampleFlag = () => { const s = SB.sim; if (s && typeof s.sampleEnabled === 'function') { try { return !!s.sampleEnabled(); } catch (e) { return false; } } return true; };
   // The store's data with or without sample history. If the store fails, an empty dataset keeps pages in
@@ -355,7 +365,7 @@
       // removes it.
       onFilterChange(fn) { rec.listeners.push(fn); return () => { const i = rec.listeners.indexOf(fn); if (i >= 0) rec.listeners.splice(i, 1); }; },
       navigate: (id) => O.navigate(id),
-      // openSheet opens a sheet by name. theme says which office theme (Ember or Paper) is showing.
+      // openSheet opens a sheet by name. theme says which office look ('ember' for Night, 'paper' for Day) is showing.
       openSheet: (name, opts) => (SB.sheets ? SB.sheets.open(name, opts) : null),
       theme: () => (SB.theme ? SB.theme.office() : 'ember'),
       kit: O.kit,
@@ -810,11 +820,12 @@
     function coachFacts() {
       const ds = ctx.dataset(), r = ctx.filters.range, inR = (t) => isNum(t) && t >= r.from && t < r.to;
       let tickets = 0, batches = 0, records = 0, discards = 0, finished = 0, paid = 0;
-      for (const t of ds.tickets || []) if (inR(t.createdAt)) { tickets++; if (t.status !== 'active' && t.status !== 'voided') finished++; }
+      let onBoard = 0;
+      for (const t of ds.tickets || []) if (inR(t.createdAt)) { tickets++; if (t.status === 'active') onBoard++; else if (t.status !== 'voided') finished++; }
       for (const o of ds.orders || []) { if (inR(o.createdAt)) tickets++; if (o.status === 'paid' && inR(o.paidAt)) paid++; }
       for (const b of ds.batches || []) if (b.src !== 'starter' && inR(b.enteredAt)) batches++;
       for (const e of ds.events || []) if (e && (e.type === 'temp_logged' || e.type === 'sanitize_done' || e.type === 'batch_discard') && inR(e.t)) { records++; if (e.type === 'batch_discard') discards++; }
-      return { anyLive: !!(ds.counts && ds.counts.live > 0), tickets, finished, paid, batches, records, discards, label: r.label };
+      return { anyLive: !!(ds.counts && ds.counts.live > 0), tickets, finished, onBoard, paid, batches, records, discards, label: r.label };
     }
     // Shows the "what to do next" message in place of blank tiles and charts when the range has no data.
     function paintCoach() {
@@ -826,7 +837,8 @@
       const key = c.title + '|' + c.body + '|' + canSample;
       if (coachEl.__key === key) return;
       coachEl.__key = key;
-      const kids = [h('h2', { class: 'of-coach-t' }, c.title), h('p', { class: 'of-coach-b' }, c.body)];
+      const pg = PAGES.find((x) => x.id === id);
+      const kids = [h('span', { class: 'of-coach-i', 'aria-hidden': 'true' }, ico(pg ? pg.icon : 'info', 28)), h('h2', { class: 'of-coach-t' }, c.title), h('p', { class: 'of-coach-b' }, c.body)];
       if (canSample) kids.push(h('button', { type: 'button', class: 'btn btn-sm of-coach-sample', onClick: showSampleNumbers }, 'Show sample numbers'),
         h('p', { class: 'of-coach-n' }, 'Sample numbers are generated so you can see what this page looks like. They are labeled sample and never mixed into your own.'));
       coachEl.replaceChildren(...kids);
@@ -981,7 +993,7 @@
 
     const title = h('h1', { class: 'of-title', id: 'of-title', tabindex: '-1' }, 'Speed');
     const themeBtn = h('button', { type: 'button', class: 'btn btn-ghost of-theme' });
-    const backBtn = h('button', { type: 'button', class: 'btn of-back', dataset: { backToLine: '' } }, ico('door', 22), h('span', null, 'Back to the line'));
+    const backBtn = h('button', { type: 'button', class: 'btn of-back', dataset: { backToLine: '' } }, ico('door', 22), h('span', null, 'Back to the board'));
     const top = h('header', { class: 'of-top' }, title, h('div', { class: 'of-top-actions' }, themeBtn, backBtn));
 
     const filters = h('div', { class: 'of-filters', role: 'group', 'aria-label': 'Filters', dataset: { open: 'false' } });
@@ -999,10 +1011,9 @@
     const current = M && M.pageId === p.id;
     if (!r) {
       return h('li', { class: 'of-rail-li' }, h('span', { class: 'of-nav is-soon', role: 'link', 'aria-disabled': 'true', 'aria-label': title + ', coming soon', title: title + ' is coming soon' },
-        ico(icon, 22), h('span', { class: 'of-nav-w' }, h('span', { class: 'of-nav-full' }, title), h('span', { class: 'of-nav-short' }, p.short), h('span', { class: 'of-soon' }, 'Coming soon'))));
+        ico(icon, 22), h('span', { class: 'of-nav-w' }, h('span', { class: 'of-nav-full' }, title), h('span', { class: 'of-nav-short', 'aria-hidden': 'true' }, p.short), h('span', { class: 'of-soon' }, 'Coming soon'))));
     }
     const a = h('a', { class: 'of-nav', href: '#/office' + (p.id === 'pace' ? '' : '/' + p.id), dataset: { page: p.id }, title });
-    a.setAttribute('aria-label', title);
     if (current) a.setAttribute('aria-current', 'page');
     const off = pageIsOff(p.id);
     if (off) { a.classList.add('is-off'); a.title = title + (COUNTER_PAGES[p.id] && counterOn() ? ' (counter service: not measured)' : ' (not tracking cooked-ahead food)'); }
@@ -1017,14 +1028,14 @@
     PAGES.forEach((p) => M.f.railList.appendChild(railItem(p)));
   }
 
-  // Shows the theme button for the theme you would switch to (sun for Paper, moon for Ember).
+  // Shows the Day/Night button for the look you would switch to (sun for Day, moon for Night), the same
+  // words as the board's Settings.
   function paintThemeBtn() {
     if (!M) return;
-    const cur = SB.theme ? SB.theme.office() : 'ember';
-    const next = cur === 'ember' ? 'paper' : 'ember';
+    const dark = (SB.theme ? SB.theme.office() : 'ember') === 'ember';
     const b = M.f.themeBtn; U.clear(b);
-    b.append(ico(cur === 'ember' ? 'sun' : 'moon', 20), h('span', { class: 'of-theme-w' }, cur === 'ember' ? 'Paper' : 'Ember'));
-    b.setAttribute('aria-label', 'Switch to the ' + (next === 'paper' ? 'Paper (light)' : 'Ember (dark)') + ' theme');
+    b.append(ico(dark ? 'sun' : 'moon', 20), h('span', { class: 'of-theme-w' }, dark ? 'Day' : 'Night'));
+    b.setAttribute('aria-label', 'Switch to ' + (dark ? 'Day (light)' : 'Night (dark)'));
   }
 
   // Builds the sticky filter bar: range buttons, two custom date boxes, channel menu, source buttons and
@@ -1033,7 +1044,7 @@
     const F = M.filters, f = M.f, sc = M.scope;
     const summary = h('button', { type: 'button', class: 'of-fsum', 'aria-expanded': 'false', 'aria-controls': 'of-fbody' });
     const body = h('div', { class: 'of-fbody', id: 'of-fbody' });
-    const presets = [{ id: 'today', label: 'Today' }, { id: 'yesterday', label: 'Yesterday' }, { id: 'last7', label: 'Last 7 days' }, { id: 'last14', label: 'Last 14 days' }, { id: 'day', label: 'One day' }, { id: 'custom', label: 'Custom' }];
+    const presets = [{ id: 'today', label: 'Today' }, { id: 'yesterday', label: 'Yesterday' }, { id: 'last7', label: 'Last 7 days' }, { id: 'last14', label: 'Last 14 days' }, { id: 'day', label: 'Pick a day' }, { id: 'custom', label: 'Custom' }];
 
     // The range buttons: Today, Yesterday, Last 7 days, Last 14 days and Custom.
     const rangeSeg = SB.ui.segmented({ options: presets, value: F.range.id, label: 'Date range', onChange: (id) => setRange(id) });
@@ -1052,12 +1063,12 @@
     const chanSel = h('select', { class: 'select of-select', id: 'of-channel', 'aria-label': 'Channel' },
       h('option', { value: 'all' }, 'All channels'), channelList().map((c) => h('option', { value: c.id }, c.name)));
     chanSel.value = F.channel;
-    // The source buttons: Live only, or Live plus sample history.
-    const srcSeg = SB.ui.segmented({ options: [{ id: 'live', label: 'Live only' }, { id: 'all', label: 'Live + sample' }], value: F.source, label: 'Data source', onChange: (id) => setSource(id) });
+    // The Show buttons: your own tickets only, or with the made-up sample days. Shown only while sample days exist.
+    const srcSeg = SB.ui.segmented({ options: [{ id: 'live', label: 'Your tickets only' }, { id: 'all', label: 'With sample days' }], value: F.source, label: 'Show', onChange: (id) => setSource(id) });
     srcSeg.classList.add('of-seg');
     const srcNote = h('span', { class: 'of-fnote', hidden: true });
 
-    // The Day group only shows for Yesterday or One day, so the other filters fit on one row.
+    // The Day group only shows for Yesterday or Pick a day, so the other filters fit on one row.
     // Seven weekday buttons: each jumps to the most recent such day (today counts once something was ordered), so "Friday" is one tap.
     const wdRow = h('div', { class: 'of-wdrow', role: 'group', 'aria-label': 'Jump to a weekday' });
     // Shows the most recent day with this weekday number (0 is Sunday), looking back up to a week.
@@ -1079,7 +1090,7 @@
       dayGroup,
       custom,
       h('div', { class: 'of-fg' }, h('label', { class: 'of-fl', for: 'of-channel' }, 'Channel'), chanSel),
-      h('div', { class: 'of-fg' }, h('span', { class: 'of-fl' }, 'Source'), srcSeg, srcNote));
+      h('div', { class: 'of-fg of-srcg' }, h('span', { class: 'of-fl' }, 'Show'), srcSeg, srcNote));
     const banner = h('p', { class: 'of-banner', role: 'status' }, h('span', { class: 'of-chip', hidden: true }, 'Sample data'), h('span', { class: 'of-banner-t' }));
     f.filters.append(summary, body, banner);
     Object.assign(M, { dayGroup, dayPrev, dayNext, dayIn, dayErr, rangeSeg, srcSeg, chanSel, dFrom, dTo, dErr, custom, banner, summary, srcNote, fbody: body });
@@ -1094,6 +1105,7 @@
     sc.on(dayNext, 'click', () => stepDay(1));
     sc.on(dayIn, 'change', () => pickDay(dayIn.value));
     paintDayPicker();
+    paintSourceNote();
     paintFilterSummary();
   }
 
@@ -1109,7 +1121,7 @@
     M.dayGroup.hidden = !(M.filters.range.id === 'day' || M.filters.range.id === 'yesterday');
   }
   // Shows exactly one service day. Stepping onto today gives the live Today preset so it keeps rolling
-  // forward; any other day (or the One day button, fixed = true) is a fixed 'day' range.
+  // forward; any other day (or the Pick a day button, fixed = true) is a fixed 'day' range.
   function showDay(key, fixed) {
     const dsh = svcHour(), F = M.filters;
     M.custom.hidden = true; M.dErr.hidden = true;
@@ -1171,26 +1183,28 @@
     const F = M.filters;
     if (id === 'all' && !(sampleFlag() && sampleLoaded())) {
       M.srcSeg.setValue('live'); F.source = 'live';
-      if (SB.ui && SB.ui.announce) SB.ui.announce(sampleFlag() ? 'No sample history is loaded.' : 'Sample history is switched off in Menu and settings.');
+      if (SB.ui && SB.ui.announce) SB.ui.announce('There are no sample days to show.');
       paintSourceNote(); return;
     }
-    M.forcedLive = false; F.source = id; filtersChanged('Source: ' + (id === 'all' ? 'live and sample' : 'live only'));
+    M.forcedLive = false; F.source = id; filtersChanged(id === 'all' ? 'your tickets with sample days' : 'your tickets only');
   }
-  // Greys out the sample button and says why when sample history is off or missing, then falls back to
-  // live only.
+  // Hides the Show buttons when there are no sample days to mix in (none made, or switched off), and
+  // falls back to your own tickets only.
   function paintSourceNote() {
     const ok = sampleFlag() && sampleLoaded();
-    const all = M.srcSeg.querySelector('[data-id="all"]');
-    if (all) { all.setAttribute('aria-disabled', ok ? 'false' : 'true'); all.classList.toggle('is-off', !ok); all.title = ok ? '' : (sampleFlag() ? 'No sample history is loaded' : 'Sample history is switched off in Menu and settings'); }
-    M.srcNote.hidden = ok; M.srcNote.textContent = ok ? '' : (sampleFlag() ? 'No sample history loaded' : 'Sample history is off');
+    const grp = M.srcSeg.closest('.of-srcg');
+    if (grp) grp.hidden = !ok;
+    M.srcNote.hidden = true;
     if (!ok && M.filters.source === 'all') { M.filters.source = 'live'; M.forcedLive = true; M.srcSeg.setValue('live'); }
   }
   // The one-line summary of the filters that stands in for the filter bar on a phone.
   function paintFilterSummary() {
     const F = M.filters;
     const chan = F.channel === 'all' ? 'All channels' : ((channelList().find((c) => c.id === F.channel) || {}).name || F.channel);
-    M.summary.replaceChildren(h('span', { class: 'of-fsum-t' }, F.range.label + ', ' + chan + ', ' + (F.source === 'all' ? 'live and sample' : 'live only')), ico('chevron-down', 18, { class: 'of-fsum-i' }));
-    M.summary.setAttribute('aria-label', 'Filters: ' + F.range.label + ', ' + chan + ', ' + (F.source === 'all' ? 'live and sample' : 'live only') + '. Show or hide the filters');
+    // The sample choice is only named while sample days exist.
+    const src = sampleFlag() && sampleLoaded() ? ', ' + (F.source === 'all' ? 'with sample days' : 'your tickets only') : '';
+    M.summary.replaceChildren(h('span', { class: 'of-fsum-t' }, F.range.label + ', ' + chan + src), ico('chevron-down', 18, { class: 'of-fsum-i' }));
+    M.summary.setAttribute('aria-label', 'Filters: ' + F.range.label + ', ' + chan + src + '. Show or hide the filters');
   }
   // After any filter change: update the summary, redraw every card now and tell screen readers what is
   // showing.
@@ -1224,9 +1238,12 @@
     }
     const b = bannerText(info);
     // Pages that add up history say when the range reaches days that were cleared from this tablet (the safety record keeps its own).
-    if (M.pageId !== 'safety' && M.pageId !== 'data') { const aw = O.archivedWords(ds && ds.archivedBefore, F.range.from, svcHour()); if (aw) b.text += ' ' + aw; const dw = O.droppedRangeWords(ds && ds.droppedBefore, F.range.from, svcHour()); if (dw) b.text += ' ' + dw; }
+    if (M.pageId !== 'safety' && M.pageId !== 'data') { const aw = O.archivedWords(ds && ds.archivedBefore, F.range.from, svcHour()); if (aw) b.text += (b.text ? ' ' : '') + aw; const dw = O.droppedRangeWords(ds && ds.droppedBefore, F.range.from, svcHour()); if (dw) b.text += (b.text ? ' ' : '') + dw; }
+    // The Menu, prices and shop page has no range, so it gets no range line.
+    if (M.pageId === 'data') b.text = '';
     const t = M.banner.querySelector('.of-banner-t');
     if (t.textContent !== b.text) t.textContent = b.text;
+    M.banner.hidden = !b.text;
     M.banner.dataset.kind = b.kind;
     M.banner.querySelector('.of-chip').hidden = b.kind !== 'sample';
   }
@@ -1276,8 +1293,8 @@
   }
   // Pages that only make sense when the owner tracks cooked-ahead food (batches, hold cabinet, temperature checks).
   const GATED = {
-    safety: { title: 'Safety records are off', body: 'You are not tracking cooked-ahead food, so there are no batches, temperature checks or hold times to report on. Turn it on under Settings, Dishes and prices (Yes, I cook ahead) if you cook food ahead and hold it hot or cold.' },
-    stock: { title: 'Stock tracking is off', body: 'You are not tracking cooked-ahead food, so this page has no stock to show. Turn it on under Settings, Dishes and prices (Yes, I cook ahead) if you cook food ahead and want to know when it runs out.' },
+    safety: { title: 'Safety records are off', body: 'You are not tracking cooked-ahead food, so there are no batches, temperature checks or hold times to report on. If you cook food ahead and hold it hot or cold, tap Yes, I cook food ahead below.' },
+    stock: { title: 'Stock tracking is off', body: 'You are not tracking cooked-ahead food, so this page has no stock to show. If you cook food ahead and want to know when it runs out, tap Yes, I cook food ahead below.' },
   };
   // True when the cook-ahead module is on; a missing setting counts as on, so old saves and the demo are unchanged.
   function cookAheadOn() {
@@ -1304,7 +1321,7 @@
   function turnOnCookAhead(id) {
     let rep = 'error';
     try { rep = SB.store.dispatch('updateSettings', { patch: { modules: { cookAhead: true } } }); } catch (e) { /* shown below */ }
-    if (rep !== 'ok' && SB.ui && SB.ui.toast) { SB.ui.toast('Could not turn it on. Open Settings, then Dishes and prices, and tap Yes, I cook ahead.', { tone: 'bad' }); return; }
+    if (rep !== 'ok' && SB.ui && SB.ui.toast) { SB.ui.toast('Could not turn it on. On the board, tap Settings, then Dishes and prices, then Yes, I cook ahead.', { tone: 'bad' }); return; }
     if (M) showPage(id, { focus: false });
   }
 
@@ -1419,6 +1436,13 @@
     paintFilterSummary();
   }
 
+  // Switches every office surface to the Paper look while printing (on true), or back to the owner's chosen look (on false).
+  function paperForPrint(on) {
+    const want = on ? 'paper' : (SB.theme && SB.theme.office ? SB.theme.office() : 'ember');
+    doc.querySelectorAll('.office[data-otheme]').forEach((el) => el.setAttribute('data-otheme', want));
+    try { if (SB.charts && SB.charts.refreshTheme) SB.charts.refreshTheme(); } catch (e) { warnOnce('refreshTheme', e); }
+  }
+
   // Opens the office inside el: builds the frame and filters, subscribes to the store, theme and sample
   // switch, then shows the page.
   // WATCH OUT: everything made here (timers, subscriptions, listeners) is tracked so unmount removes all of it.
@@ -1433,11 +1457,15 @@
     buildFilters();
     paintThemeBtn();
     paintRail();
-    scope.on(f.themeBtn, 'click', () => { if (SB.theme) SB.theme.setOffice(SB.theme.office() === 'ember' ? 'paper' : 'ember'); });
+    scope.on(f.themeBtn, 'click', () => { if (SB.theme) SB.theme.toggle(); });
     scope.offs.push(tracked('subs', SB.theme ? SB.theme.onChange((what) => { if (what === 'office') { paintThemeBtn(); try { if (SB.charts && SB.charts.refreshTheme) SB.charts.refreshTheme(); } catch (e) { warnOnce('refreshTheme', e); } } }) : () => {}));
     scope.offs.push(tracked('subs', SB.store && SB.store.subscribe ? SB.store.subscribe(onStoreChange) : () => {}));
     scope.offs.push(tracked('subs', SB.sim && SB.sim.onSampleChange ? SB.sim.onSampleChange(onSampleChange) : () => {}));
     scope.on(doc, 'visibilitychange', () => { if (!doc.hidden && M && M.dirty) schedule(0); });
+    // Browser print (Ctrl+P) of an office page uses the light Paper look, so cards and chart labels stay dark on white paper
+    // (browsers drop the dark backgrounds when printing); the chosen look comes back after.
+    scope.on(g, 'beforeprint', () => paperForPrint(true));
+    scope.on(g, 'afterprint', () => paperForPrint(false));
     scope.on(doc, 'keydown', (e) => {
       if (!M || e.defaultPrevented || e.ctrlKey || e.metaKey || e.altKey) return;
       if (e.key !== '[' && e.key !== ']') return;

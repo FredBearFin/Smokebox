@@ -38,5 +38,10 @@ If the sleep or hidden tests lose a warning in a way the kitchen cannot live wit
 - Take a backup and restore it on a second browser profile.
 - Make a cold item with limits and a batch, then Take out and Put back.
 
+## B3. Only if the pilot runs on an internet server (go.sh), not the single HTML file
+- Turn on signed updates first (decided Oct 23, 2026: deferred during development so a lost key cannot block work). Until then the server installs whatever is on the `deploy` branch every night at 4:30, as administrator, with only a warning in its log.
+- Steps are in `docs/connected-howto.md`, "Signed updates": make the key pair on your own computer, keep the private key off the server and off GitHub (store a second copy somewhere safe), sign every push to `deploy` with `bash tools/sign-deploy.sh`, and install the public key on the server.
+- Then change the updater so it refuses an unsigned build even when no key file is present (today it only warns), and test one signed and one unsigned update on the server before real food.
+
 ## C. Go / no-go
 Go only if every row in A passes or has a written workaround the owner accepts, and B is complete. Then run `docs/pilot-protocol.md`.

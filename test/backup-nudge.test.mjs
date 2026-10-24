@@ -31,3 +31,12 @@ test('a close after midnight still counts at 12:30 am', () => {
 test('bad input is never due and never throws', () => {
   for (const a of [null, undefined, {}, { service: {} }, { service: { closeHour: 'x' }, hasData: true, now: 1 }]) assert.equal(due(a), false);
 });
+test('quiet while a ticket is on the board or an order is open', () => {
+  assert.equal(due({ service: sv, lastBackupAt: null, now: at(21, 30), hasData: true, openWork: 2 }), false);
+  assert.equal(due({ service: sv, lastBackupAt: null, now: at(21, 30), hasData: true, openWork: 0 }), true);
+});
+test('Close the day before closing time starts the nudge early', () => {
+  assert.equal(due({ service: sv, lastBackupAt: null, now: at(19, 30), hasData: true, openWork: 0, closedAt: at(19, 0) }), true);
+  assert.equal(due({ service: sv, lastBackupAt: at(19, 10), now: at(19, 30), hasData: true, openWork: 0, closedAt: at(19, 0) }), false);
+  assert.equal(due({ service: sv, lastBackupAt: null, now: at(19, 30), hasData: true, openWork: 0, closedAt: at(19, 0, -1) }), false);
+});

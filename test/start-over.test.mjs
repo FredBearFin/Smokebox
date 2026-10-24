@@ -73,7 +73,9 @@ test('start over takes a backup first, clears everything, keeps settings, and is
     assert.deepEqual(E.checkInvariants(s, S.now()), []);
     // same as a brand-new blank install (ids keep counting so they are never reused)
     const fresh = E.newState({ now: S.now(), blank: true, settings: s.settings, seq: s.seq });
-    assert.equal(body(s), body(Object.assign({}, fresh, { sanitize: s.sanitize, learned: s.learned })));
+    // except the food safety record, which outlives a start over
+    assert.ok(s.safetyKeep.length > 0 && s.safetyKeep.every((e) => e.type === 'batch_discard' || e.type === 'temp_logged' || e.type === 'sanitize_done' || e.type === 'batch_reheat'));
+    assert.equal(body(s), body(Object.assign({}, fresh, { sanitize: s.sanitize, learned: s.learned, safetyKeep: s.safetyKeep })));
     // the saved copy is the empty kitchen too
     assert.equal(E.validateBackup(b.m.get('smokebox.v1.state')).state.menu.length, 0);
     // the backup restores everything
@@ -229,6 +231,22 @@ test('clearing removes exactly those, keeps every real ticket, order and payment
   assert.equal(E.apply(E.newState({ now: T, starter: true }), 'clearDemoTickets', {}, T).report, 'nothingToDo');
 });
 
+test('clearing one demo ticket by id (the walkthrough cleaning up) removes only that ticket and its own order', () => {
+  const { s, out } = mixedKitchen();
+  const r = E.apply(s, 'clearDemoTickets', { ticketId: out.demoA.ticketId }, T + 700e3);
+  assert.equal(r.report, 'ok');
+  assert.deepEqual([r.info.tickets, r.info.orders], [1, 1]);
+  assert.equal(r.state.tickets.length, s.tickets.length - 1); assert.equal(r.state.orders.length, s.orders.length - 1);
+  assert.ok(!r.state.tickets.some((t) => t.id === out.demoA.ticketId));
+  assert.ok(r.state.tickets.some((t) => t.id === out.demoB.ticketId));
+  assert.deepEqual(E.checkInvariants(r.state, T + 700e3), []);
+  // a real ticket, an unknown id or a bad id is never removed
+  const real = s.tickets.find((t) => t.src === 'live');
+  assert.equal(E.apply(s, 'clearDemoTickets', { ticketId: real.id }, T + 700e3).report, 'nothingToDo');
+  assert.equal(E.apply(s, 'clearDemoTickets', { ticketId: 'nope' }, T + 700e3).report, 'nothingToDo');
+  assert.equal(E.apply(s, 'clearDemoTickets', { ticketId: 5 }, T + 700e3).report, 'badPatch');
+});
+
 test('the store offers the clean-up once, remembers "keep", and does nothing in the demo', () => {
   clock = T;
   const b = backend();
@@ -290,7 +308,7 @@ test('a new empty kitchen gets neutral station and section names; old kitchens, 
     const b = backend(); start(b);
     assert.equal(S.applyStarterNames(), true);
     assert.equal(zoneNames(), 'Kitchen|Prep|Fryer|Cold and drinks|Expo');
-    assert.equal(catNames(), 'Mains|Sides|Snacks|Desserts|Drinks');
+    assert.equal(catNames(), 'Mains|Sides|Snacks|Desserts|Cold food and drinks');
     assert.deepEqual(C.zones.map((z) => z.id), ['pit', 'sides', 'fry', 'cold', 'expo']);                 // ids never change
     assert.equal(C.zoneById.pit.code, 'KIT');
     assert.deepEqual(JSON.parse(S.exportAll()).names, S.STARTER_NAMES);                                   // saved with the kitchen and carried in backups
@@ -316,4 +334,37 @@ test('a new empty kitchen gets neutral station and section names; old kitchens, 
     assert.equal(C.zoneById.pit.name, 'Smoker'); S.destroy();                                            // kept names stay
   } finally { cleanNames(); }
   assert.deepEqual([zoneNames(), catNames()], orig);
+});
+
+test('quick start over: a kitchen with only dishes starts over in one step; any ticket, order or batch needs the careful steps', () => {
+  clock = T;
+  try {
+    // Only dishes: no word, no backup file, and it works.
+    const b = backend(); start(b);
+    assert.equal(S.nothingToLose(), true);                                                              // nothing at all
+    assert.equal(S.dispatch('addMenuItem', { name: 'Pie', zone: 'cold', cat: 'cold', price: 4, prepSec: 30, track: 'one' }), 'ok');
+    assert.equal(S.nothingToLose(), true);                                                              // dishes only
+    const r = S.startOver({ quick: true });
+    assert.equal(r.ok, true, r.report);
+    assert.equal(S.getState().menu.length, 0);
+    assert.ok(r.backup && r.backup.chars > 0);                                                          // a copy is still offered, never forced
+    S.destroy(); cleanNames();
+    // One ticket: quick is refused, nothing changes, and the full flow still works.
+    const b2 = backend(); start(b2);
+    S.dispatch('addMenuItem', { name: 'Pie', zone: 'cold', cat: 'cold', price: 4, prepSec: 30, track: 'one' });
+    S.dispatch('createTicket', { customer: 'Ann', channel: 'dine_in', items: [{ menuId: S.getState().menu[0].id, qty: 1 }] });
+    assert.equal(S.nothingToLose(), false);
+    const before = body(S.getState());
+    const q = S.startOver({ quick: true });
+    assert.deepEqual([q.ok, q.report], [false, 'backupRequired']);
+    assert.equal(body(S.getState()), before);
+    assert.equal(S.startOver({ quick: true, confirm: WORD }).report, 'backupRequired');               // the word alone is not enough
+    assert.equal(S.startOver({ backupSaved: { filename: 'b.json', chars: 1 }, confirm: WORD }).ok, true);
+    S.destroy(); cleanNames();
+    // A busy kitchen has plenty to lose; the demo never starts over.
+    const b3 = backend(); busyKitchen(b3);
+    assert.equal(S.nothingToLose(), false); assert.equal(S.startOver({ quick: true }).ok, false);
+    S.destroy(); cleanNames();
+    start(backend(), 'demo'); assert.equal(S.nothingToLose(), false); assert.equal(S.startOver({ quick: true }).report, 'notInDemo'); S.destroy();
+  } finally { cleanNames(); }
 });

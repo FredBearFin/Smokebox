@@ -51,6 +51,19 @@ test('cold readings say when they are above the limit and that earlier time abov
   assert.equal(Math.round(k.s.batches.find((x) => x.id === id).coldOutMs / MIN), 20);
 });
 
+test('cold reading notes read the event log once per record, not once per reading (Milo 9)', () => {
+  const k = kitchen();
+  const ing = k.go('addIngredient', { name: 'Slaw mix', unit: 'g', tcs: true, hold: 'cold', costPerKg: 5 }).info.id;
+  const b = k.go('addBatch', { ing, tempF: 38, rawG: 2000, cookedG: 2000 }, 5).info;
+  const id = b.id || b.batchId;
+  for (let i = 0; i < 6; i++) k.go('logTemp', { batchId: id, tempF: i % 2 ? 38 : 50, who: 'AB' }, 10);
+  const real = E.allEvents;
+  let calls = 0;
+  E.allEvents = (s) => { calls++; return real(s); };
+  try { rows(k); } finally { E.allEvents = real; }
+  assert.ok(calls <= 2, 'the log was read ' + calls + ' times for 6 cold readings');
+});
+
 test('the month-close entry has a plain label (hand-built entry: the engine event arrives with the Close the month work)', () => {
   const row = IP.rowFor({ id: 'e9', type: 'month_closed', t: T0, before: '2026-09-01', days: 31, tickets: 900 }, { settings: {}, batches: [], ingredients: [] });
   assert.equal(row.kind, 'History saved and cleared');

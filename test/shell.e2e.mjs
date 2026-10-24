@@ -493,9 +493,10 @@ await withPage({ w: 1280, h: 800, file: SHELL_OUT }, async (page, logs) => {
   await page.evaluate(() => SB.shell.ignite());
   let s = await page.evaluate(() => ({ hash: location.hash, idx: SB.router.index(), hidden: document.getElementById('sb-office').hidden, view: document.querySelector('.sb-shell').dataset.view, floorInert: document.getElementById('sb-floor').hasAttribute('inert'), officeInert: document.getElementById('sb-office').hasAttribute('inert'), meta: document.querySelector('meta[name="theme-color"]').getAttribute('content'), cls: document.getElementById('sb-office').className, focus: document.activeElement.id }));
   check('5 taps open the office at #/office, one history entry, floor inert, office live', s.hash === '#/office' && s.idx === 1 && !s.hidden && s.view === 'office' && s.floorInert && !s.officeInert, s);
-  check('theme-color switches to the office palette and focus lands in the office', s.meta === '#181513' && s.focus === 'sb-office', s);
+  check('theme-color switches to the office palette (Day gives the light office) and focus lands in the office', s.meta === '#F0ECE3' && s.focus === 'sb-office', s);
   check('no leftover ignition classes after it finished', !/is-igniting/.test(s.cls) && await page.evaluate(() => !document.querySelector('.ember-ring') && !document.querySelector('.wisp')), s.cls);
-  // office theme switch
+  // office theme switch (the office follows Day/Night: start from Night, then switch)
+  await page.evaluate(() => SB.theme.set('night'));
   await page.locator('#office-theme').click(); await wait(150);
   s = await page.evaluate(() => ({ o: document.getElementById('sb-office').getAttribute('data-otheme'), t: SB.theme.office(), meta: document.querySelector('meta[name="theme-color"]').getAttribute('content'), bg: getComputedStyle(document.getElementById('sb-office')).backgroundColor }));
   check('Ember -> Paper recolours the open office', s.o === 'paper' && s.t === 'paper' && s.meta === '#F0ECE3', s);
@@ -505,13 +506,13 @@ await withPage({ w: 1280, h: 800, file: SHELL_OUT }, async (page, logs) => {
   check('a sheet opened inside the office wears the office palette', osh.office && osh.ot === 'paper' && osh.bg === 'rgb(240, 236, 227)', osh);
   await page.keyboard.press('Escape'); await wait(300);
   check('Esc closes the sheet first and leaves the office open', await page.evaluate(() => SB.shell.inOffice() && SB.sheets.count() === 0));
-  await page.evaluate(() => SB.theme.setOffice('ember'));
+  await page.evaluate(() => SB.theme.set('day'));
   // way out
   await page.locator('#back-to-line').click();
   await page.waitForFunction(() => !SB.shell.inOffice() && document.getElementById('sb-office').hidden, null, { timeout: 3000 });
   await wait(300);
   s = await page.evaluate(() => ({ hash: location.hash, idx: SB.router.index(), state: history.state && history.state.sbIdx, focus: document.activeElement.hasAttribute('data-brand') || !!document.activeElement.closest('[data-brand]'), floorInert: document.getElementById('sb-floor').hasAttribute('inert'), meta: document.querySelector('meta[name="theme-color"]').getAttribute('content'), unm: SB.office.unmounts, mounts: SB.office.mounts }));
-  check('"Back to the line" steps history back (no growth) and returns to the floor', (s.hash === '#/' || s.hash === '') && s.idx === 0 && s.state === 0 && !s.floorInert && s.meta === '#F5F2EB', s);
+  check('"Back to the board" steps history back (no growth) and returns to the floor', (s.hash === '#/' || s.hash === '') && s.idx === 0 && s.state === 0 && !s.floorInert && s.meta === '#F5F2EB', s);
   check('focus returns to the brand mark that opened the office', s.focus, s);
   check('office content is released after closing', s.unm === s.mounts, s);
   // keyboard shortcut and Esc

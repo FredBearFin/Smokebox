@@ -15,6 +15,7 @@ export async function buildBig({ tickets = 3000, days = 90, seed = 7, endDay = n
   const start = new Date(endDay); start.setDate(start.getDate() - (days - 1)); start.setHours(8, 0, 0, 0);
   let now = start.getTime();
   let s = E.newState({ now, blank: true });
+  s.settings.pacing.enabled = false;   // these scenarios start every dish at once; they test reports, not pacing
   // Applies one engine action at a later moment; throws when the engine refuses.
   const go = (type, p, at) => { if (at > now) now = at; const res = E.apply(s, type, p, now); if (res.report !== 'ok') throw new Error(type + ' ' + res.report); s = res.state; return res; };
   go('updateSettings', { patch: { service: { taxRatePct: 7.25 }, modules: { cookAhead: true } } }, now + 1000);

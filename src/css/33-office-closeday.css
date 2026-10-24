@@ -14,7 +14,7 @@
 .cd-table th, .cd-table td { white-space: nowrap; }
 .cd-table th.num, .cd-table td.num { text-align: right; }
 .cd-table tfoot th, .cd-table tfoot td { font-weight: var(--w-semi); border-bottom: 0; }
-.cd-drawer { margin: 0; padding: var(--sp-2) var(--sp-3); border-left: 3px solid var(--accent, currentColor); font-size: var(--fs-3, 16px); color: var(--ink); }
+.cd-drawer { margin: 0; padding: var(--sp-2) var(--sp-3); border-left: 3px solid var(--amber, currentColor); font-size: var(--fs-3, 16px); color: var(--ink); }
 .cd-counts { margin: 0; font-size: var(--fs-2); color: var(--ink3); }
 .cd-radio { display: flex; gap: var(--sp-3); align-items: flex-start; min-height: 44px; padding: 6px 0; cursor: pointer; }
 .cd-radio span { display: grid; }

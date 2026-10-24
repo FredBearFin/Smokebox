@@ -108,16 +108,22 @@
   }
   // Keeps a list of rows in step with a list of items: makes rows for new ids, updates them all, drops rows whose item is
   // gone and puts the rest in order. Rows are reused, never rebuilt, so a button being pressed is never replaced.
-  function reconcile(listEl, rows, items, makeFn, updateFn) {
+  // Builds at most `cap` new rows per call (the rest next time) so a long list does not freeze a slow tablet; returns true when rows are still missing.
+  function reconcile(listEl, rows, items, makeFn, updateFn, cap) {
     const keep = new Set(items.map((it) => it.id));
     rows.forEach((rec, id) => { if (!keep.has(id)) { rec.el.remove(); rows.delete(id); } });
-    items.forEach((it, i) => {
+    let made = 0, pos = 0, more = false;
+    items.forEach((it) => {
       let rec = rows.get(it.id);
-      if (!rec) { rec = makeFn(it); rows.set(it.id, rec); }
+      if (!rec) {
+        if (cap && made >= cap) { more = true; return; }
+        rec = makeFn(it); rows.set(it.id, rec); made++;
+      }
       updateFn(rec, it);
-      const want = listEl.children[i];
+      const want = listEl.children[pos++];
       if (want !== rec.el) listEl.insertBefore(rec.el, want || null);
     });
+    return more;
   }
 
   /* ---------------------------------------------------------------------------------------------
@@ -134,7 +140,10 @@
     built = buildOrders({ body: sheet.body, close: sheet.close, isPage: false }, opts);
     // The end-of-day screen lives in the back office code; the button only shows when it is part of this copy.
     if (SB.office && typeof SB.office.openCloseDay === 'function') {
-      sheet.footer.appendChild(h('button', { type: 'button', class: 'btn', dataset: { act: 'closeday' }, onClick: () => { sheet.close('closeday'); setTimeout(() => SB.office.openCloseDay(), 60); } }, ico('check-circle', 20), h('span', null, 'Close the day')));
+      sheet.footer.classList.add('ox-foot');
+      sheet.footer.append(h('p', { class: 'ox-foot-note' }, 'Service over? Close the day counts the money and offers a backup.'),
+        // Closes Orders, then opens the end-of-day screen from the back office code.
+        h('button', { type: 'button', class: 'btn', dataset: { act: 'closeday' }, onClick: () => { sheet.close('closeday'); setTimeout(() => SB.office.openCloseDay(), 60); } }, ico('check-circle', 20), h('span', null, 'Close the day')));
       sheet.footer.hidden = false;
     }
     return sheet;
@@ -206,8 +215,8 @@
       const total = h('span', { class: 'ox-total num' }), sub = h('span', { class: 'ox-sub num' });
       const add = h('button', { type: 'button', class: 'btn ox-add', dataset: { act: 'add' } }, ico('plus', 20), h('span', null, 'Add items'));
       const quick = h('button', { type: 'button', class: 'btn btn-primary ox-quick', dataset: { act: 'quickpay' } }, ico('dollar', 20), h('span', null, 'Pay'));
-      // Shows how Pay will record the money (Cash, Card or Other); one tap here changes it, so a card is never booked as cash by accident.
-      const how = h('button', { type: 'button', class: 'btn ox-how', dataset: { act: 'method' } }, h('span', { class: 'ox-how-k' }, 'Paid by'), h('span', { class: 'ox-how-v' }, ''), ico('chevron-down', 18));
+      // Shows how Pay will record the money (Pay with Cash, Card or Other); one tap here changes it, so a card is never booked as cash by accident.
+      const how = h('button', { type: 'button', class: 'btn ox-how', dataset: { act: 'method' } }, h('span', { class: 'ox-how-k' }, 'Pay with'), h('span', { class: 'ox-how-v' }, ''), ico('chevron-down', 18));
       const pay = h('button', { type: 'button', class: 'btn ox-take', dataset: { act: 'pay' } }, ico('receipt', 20), h('span', null, 'Tip or discount'));
       const del = h('button', { type: 'button', class: 'btn btn-ghost ox-void', dataset: { act: 'void' }, hidden: true }, ico('trash', 20), h('span', null, 'Void empty order'));
       const el = h('li', { class: 'ox-row', dataset: { order: o.id } },
@@ -224,7 +233,7 @@
       // Tip or discount opens the payment box; Pay marks it paid at once the usual way, with Undo.
       pay.addEventListener('click', () => openPay(rec.o.id));
       quick.addEventListener('click', () => quickPay(rec.o.id));
-      how.addEventListener('click', () => SB.ui.menu(how, C.payMethods.map((pm) => ({ label: pm.name, checked: pm.id === lastMethod, onClick: () => { setMethod(pm.id); update(); } })), { label: 'Paid by' }));
+      how.addEventListener('click', () => SB.ui.menu(how, C.payMethods.map((pm) => ({ label: pm.name, checked: pm.id === lastMethod, onClick: () => { setMethod(pm.id); update(); } })), { label: 'Pay with' }));
       // Void order closes an order that has no food left on it, and says so.
       del.addEventListener('click', () => {
         const r = run('voidOrder', { orderId: rec.o.id, reason: 'nothing ordered' });
@@ -245,14 +254,14 @@
       const live = state.tickets.filter((t) => t.orderId === o.id && t.status !== 'voided');
       const out = live.filter((t) => t.status === 'expedited').length;
       const kitchen = !live.length ? '' : live.length === 1 ? (out ? ' Out of the kitchen.' : ' Still in the kitchen.') : ' ' + out + ' of ' + live.length + ' rounds out of the kitchen.';
-      text(rec.meta, 'Opened ' + ago(now - o.createdAt) + '.' + kitchen);
+      text(rec.meta, 'Opened ' + U.fmtTime(o.createdAt) + ', ' + ago(now - o.createdAt) + '.' + kitchen);
       text(rec.total, money(tot.total));
       text(rec.sub, tot.tax > 0 ? money(tot.subtotal) + ' food + ' + money(tot.tax) + ' tax' : lines.length ? 'before tip' : '');
       rec.pay.disabled = !(tot.subtotal > 0);
       rec.quick.disabled = !(tot.subtotal > 0);
       text(rec.quick.lastChild, 'Pay ' + money(tot.total) + ' ' + methodWord(lastMethod));
       text(rec.how.querySelector('.ox-how-v'), C.payMethodById[lastMethod].name);
-      rec.how.setAttribute('aria-label', 'Paid by ' + methodWord(lastMethod) + '. Press to change how this is paid.');
+      rec.how.setAttribute('aria-label', 'Pay with ' + C.payMethodById[lastMethod].name + '. Press to change how this is paid.');
       setHidden(rec.how, live.length === 0);
       setHidden(rec.quick, live.length === 0);
       setHidden(rec.del, live.length > 0);
@@ -310,14 +319,19 @@
       text(paidDrawer, paid.length ? C.payMethods.map((pm) => pm.name + ' ' + money(by[pm.id] || 0)).join(', ') + '. Cash is what should be in the drawer, besides the starting float.' : '');
       setHidden(paidSum, !paid.length); setHidden(paidDrawer, !paid.length);
     }
+    // The timer that builds the rest of a long list of open orders.
+    let moreT = 0;
     // Keeps both lists in step with the store.
     function update() {
       const state = st(), now = nowMs();
       const sd = U.serviceDate(now, state.settings.service.dayStartHour);
       const open = (state.orders || []).filter((o) => o.status === 'open').sort((a, b) => a.createdAt - b.createdAt);
-      const paid = (state.orders || []).filter((o) => o.status === 'paid' && o.serviceDate === sd).sort((a, b) => b.paidAt - a.paidAt);
+      // Paid today goes by the time of payment, as the day close counts it: a tab opened yesterday and paid today is today's.
+      const paid = (state.orders || []).filter((o) => o.status === 'paid' && U.isNum(o.paidAt) && U.serviceDate(o.paidAt, state.settings.service.dayStartHour) === sd).sort((a, b) => b.paidAt - a.paidAt);
       const totals = E().openOrderTotals(state);
-      reconcile(openList, openRows, open, makeOpenRow, (rec, o) => updateOpenRow(rec, o, state, totals, now));
+      // A long list of open orders fills in over a few frames: the first screenful at once, then 30 more rows per frame.
+      const more = reconcile(openList, openRows, open, makeOpenRow, (rec, o) => updateOpenRow(rec, o, state, totals, now), openRows.size ? 30 : 16);
+      if (more && !moreT) moreT = setTimeout(() => { moreT = 0; if (offs.length) update(); }, 16);
       reconcile(paidList, paidRows, paid.slice(0, 80), makePaidRow, (rec, o) => updatePaidRow(rec, o, state));
       paintPaidSummary(paid);
       tabs.setCount('open', open.length); tabs.setCount('paid', paid.length);
@@ -328,7 +342,7 @@
     update();
     showTab(tabs.getValue());
     // Stops the store and clock listeners once the frame is closed.
-    const teardown = () => offs.splice(0).forEach((f) => f());
+    const teardown = () => { offs.splice(0).forEach((f) => f()); if (moreT) { clearTimeout(moreT); moreT = 0; } };
     return { teardown };
   }
 
@@ -375,8 +389,9 @@
     function chipRow(label, defs, key, base) {
       const row = h('div', { class: 'ox-chips', role: 'group', 'aria-label': label });
       defs.forEach((d) => {
-        // The dollars this chip stands for right now (a share of the base figure, or a fixed amount).
-        const amount = () => (d.roundUp ? roundUpTip(orderTotal()) : d.pct ? r2(base() * d.pct) : d.fixed || 0);
+        // The dollars this chip stands for right now (a share of the base figure, or a fixed amount). A share uses the
+        // same half-cent rule as the New ticket screen (orderMath.pctOfDollars), so 15% shows the same cents on both.
+        const amount = () => (d.roundUp ? roundUpTip(orderTotal()) : d.pct ? SB.orderMath.pctOfDollars(base(), Math.round(d.pct * 100)) : d.fixed || 0);
         const b = SB.ui.chip({
           label: d.label, pressed: false,
           // Writes this chip's amount into the box (or clears it) and repaints the totals.
@@ -476,11 +491,15 @@
     tipInput.addEventListener('input', () => { P.tip = tipInput.value; paint(); });
     cashInput.addEventListener('input', () => { P.cash = cashInput.value; paint(); });
     // Mark paid sends the payment to the engine; a refusal is shown in words and nothing is lost.
+    // WATCH OUT: once paid, a second tap (a double tap while the box closes) does nothing, so it shows no "not open" error.
+    let paidDone = false;
     payBtn.addEventListener('click', () => {
+      if (paidDone) return;
       const r = read();
       if (r.err) { setHidden(err, false); text(err, r.err); r.box.focus(); return; }
       const res = run('payOrder', { orderId, method: P.method, tip: r.t, discount: r.d });
       if (res.report === 'ok') {
+        paidDone = true;
         setMethod(P.method);
         sheet.close('paid');
         const info = res.info || {}, pm = C.payMethodById[P.method];

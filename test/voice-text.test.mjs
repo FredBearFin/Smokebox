@@ -36,7 +36,7 @@ test('phrases: the exact spoken line for each kind', () => {
   assert.equal(D.phrase('summary', { count: 12, first: 5 }), 'Twelve new tickets. First up, ticket five.');
   assert.equal(D.phrase('start', { name: '2 brisket sandwich', num: 12 }), 'Fire two brisket sandwich now! Ticket twelve!');
   assert.equal(D.phrase('ready', { num: 7 }), 'Ticket seven is up! Ring it out!');
-  assert.equal(D.phrase('expire', { who: 'Brisket batch 1', mins: 10, goes86: true }), 'Heads up! Brisket batch one goes eighty-six in ten minutes! Act now!');
+  assert.equal(D.phrase('expire', { who: 'Brisket batch 1', mins: 10, goes86: true }), 'Heads up! Brisket batch one runs out in ten minutes! Act now!');
   assert.equal(D.phrase('expire', { who: 'Slaw', mins: 60 }), 'Heads up! Slaw expires in one hour! Act now!');
   assert.equal(D.phrase('expire', { who: 'Ribs', mins: 90 }), 'Heads up! Ribs expires in one hour thirty minutes! Act now!');
 });

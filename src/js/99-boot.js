@@ -99,10 +99,13 @@
       } catch (e) { box.hidden = false; box.focus(); hint.textContent = 'The download did not work here. Copy the data from the box below, then continue.'; unlock(); }
     });
     show.addEventListener('click', () => { box.hidden = false; box.focus(); box.select(); unlock(); });
-    go.addEventListener('click', () => { if (go.disabled) return; try { SB.store.releaseHold(); } catch (e) { /* ignore */ } wrap.remove(); });
+    // Everything behind this screen is made inert (no taps, no Tab), so no order can be entered while nothing is being saved.
+    const behind = Array.from(doc.body.children).filter((el) => el.tagName !== 'SCRIPT');
+    go.addEventListener('click', () => { if (go.disabled) return; try { SB.store.releaseHold(); } catch (e) { /* ignore */ } behind.forEach((el) => el.removeAttribute('inert')); wrap.remove(); });
     row.append(dl, show, go);
     card.append(h2, p, row, hint, box);
     wrap.appendChild(card);
+    behind.forEach((el) => el.setAttribute('inert', ''));
     doc.body.appendChild(wrap);
     try { dl.focus(); } catch (e) { /* ignore */ }
   }
@@ -136,7 +139,32 @@
       SB.ui.toast('Smokebox could not read some saved records and left out ' + bits.join(', ') + ' while opening. The data as it was has been kept on this device. Ask whoever set up Smokebox to look at it before you close the page for good.', { tone: 'warn', ms: 20000 });
     }
     else if (s.repaired && s.repaired.length) SB.ui.toast('Smokebox updated a few saved settings while opening. Nothing else changed.', { tone: 'info', ms: 10000 });
-    if (s.persistent === false) SB.ui.toast('This browser is not letting Smokebox save. Your board lasts only until you close the page. Open Back office, Menu and settings, then Data, to save a backup file.', { tone: 'warn', ms: 15000 });
+    if (s.persistent === false) SB.ui.toast('This browser is not letting Smokebox save. Your board lasts only until you close the page. Open Back office, Menu, prices and shop, then Data, to save a backup file.', { tone: 'warn', ms: 15000 });
+  }
+
+  // A real kitchen that still holds tickets made by an old in-place demo gets them removed at once: they are fake by
+  // definition, and a board full of day-old demo tickets is the first thing a returning owner would otherwise see.
+  // An owner who already chose "keep" is left alone. Real tickets and the orders that hold them are never touched.
+  function clearOldDemo() {
+    const S = SB.store;
+    if (!S || !S.isolated || !S.isolated() || S.isDemo() || typeof S.demoLeftovers !== 'function') return;
+    const c = S.demoLeftovers();
+    if (!c.offer) return;
+    const r = S.clearDemoLeftovers();
+    if (r.ok && SB.ui && SB.ui.toast) SB.ui.toast('Removed ' + r.info.tickets + ' old demo ' + (r.info.tickets === 1 ? 'ticket' : 'tickets') + ' left from an earlier version. Your own data was not touched.', { tone: 'ok', ms: 8000 });
+  }
+
+  // The demo is a show, not homework: it opens on a fresh busy board and runs by itself (orders arrive, the crew
+  // starts and finishes dishes, food in the cabinet ages toward its warnings). A demo left from an earlier visit, with
+  // tickets hours old, starts over fresh instead of opening on a wall of overdue tickets.
+  function playDemo() {
+    const S = SB.store, sim = SB.sim;
+    if (!S || !S.isDemo || !S.isDemo() || !sim || !sim.live) return;
+    const now = S.now(), active = S.getState().tickets.filter((t) => t.status === 'active');
+    const stale = active.some((t) => now - t.createdAt > 2 * 3600e3);
+    if (stale && typeof sim.restartDemo === 'function') sim.restartDemo();
+    sim.live.crew(true);
+    sim.live.start({ rate: 'normal' });
   }
 
   // Runs the start-up steps in order and remembers which step it is on, so a failure can say where it
@@ -146,10 +174,22 @@
     let stage = 'start';
     try {
       stage = 'store';
-      if (SB.store && typeof SB.store.init === 'function') SB.store.init({ blank: true, mode: SB.util.mode() }); // a brand-new install starts empty; saved data is never changed
+      // Signed in to the hosted server: the kitchen lives there, and this device follows it through the cloud transport (never in the demo).
+      const cloud = SB.cloud && SB.cloud.on && SB.util.mode() !== 'demo';
+      if (cloud) SB.cloud.guardKitchen();
+      if (SB.store && typeof SB.store.init === 'function') SB.store.init(Object.assign({ blank: true, mode: SB.util.mode() }, cloud ? { transport: SB.cloud.transport } : {})); // a brand-new install starts empty; saved data is never changed
       // The demo (its own saved data) opens with its sample tickets the first time.
       // A brand-new empty kitchen gets neutral station and menu-section names (saved with it); old kitchens and the demo keep theirs.
       if (SB.store && SB.store.isBlank && SB.store.isBlank() && SB.store.applyStarterNames) SB.store.applyStarterNames();
+      // Kitchens set up before Oct 24 2026 were made with the timing coach off (there was no switch for it), so every dish was called
+      // at once. Once per kitchen: switch it on, and stop extra portions adding time. The demo keeps its own settings.
+      try {
+        const S = SB.store, P = S.getState().settings.pacing;
+        if (!S.isDemo() && !SB.util.storage.get('smokebox.v1.pacingFix1', false)) {
+          if (P && (P.enabled !== true || P.qtyFactor !== 0)) S.dispatchEx('updateSettings', { patch: { pacing: { enabled: true, qtyFactor: 0 } } }, { source: 'system' });
+          SB.util.storage.set('smokebox.v1.pacingFix1', true);
+        }
+      } catch (e) { console.error('[smokebox] timing switch-on failed', e); }
       if (SB.store && SB.store.isDemo && SB.store.isDemo() && SB.store.status().firstRun && SB.sim && SB.sim.seedFirstRun) SB.sim.seedFirstRun();
       // A first run is a real, empty kitchen: the demo tickets and batches only load when the user asks for the demo.
       stage = 'shell';
@@ -158,16 +198,25 @@
       // A small hook so tests and developers can read the state from the console.
       if (SB.store && typeof SB.store.getState === 'function') SB.dev = { state: () => SB.store.getState() };
       SB.booted = true;
-      storageNotices();
-      watchClock();
+    } catch (e) { showBootError(e, stage); return; }
+    // The app is running from here on: a failure in these extras is logged, never shown as "could not start" over a working board.
+    try { storageNotices(); } catch (e) { console.error('[smokebox] start-up notices failed', e); }
+    try { watchClock(); } catch (e) { console.error('[smokebox] clock watcher failed', e); }
+    try { clearOldDemo(); } catch (e) { console.error('[smokebox] old demo clean-up failed', e); }
+    try { playDemo(); } catch (e) { console.error('[smokebox] demo start failed', e); }
+    try {
       const errs = loadErrors();
       if (errs.length && SB.ui && SB.ui.toast) SB.ui.toast('Some parts did not load (' + errs.map((e) => e.file).join(', ') + '). The rest still works. Reload the page to try again.', { tone: 'warn', ms: 12000 });
-    } catch (e) { showBootError(e, stage); }
+    } catch (e) { console.error('[smokebox] load warning failed', e); }
   }
 
   // Exposed so tests can run the start-up again or show the error card on purpose.
   SB.boot = { run: boot, showError: showBootError, details: detailsText };
   // Start when the page has finished loading; if it already has, start at once.
-  if (doc.readyState === 'loading') doc.addEventListener('DOMContentLoaded', boot, { once: true });
-  else boot();
+  // The Rust kitchen planner starts first (a browser compiles it in the background, in well under a second), so the kitchen
+  // never opens planning without it. If it cannot start, the app still opens and plans the old way.
+  // Starts the planner, then the app, once the page has loaded.
+  const go = () => { const p = SB.planner && SB.planner.start ? SB.planner.start() : Promise.resolve(false); p.then(boot, boot); };
+  if (doc.readyState === 'loading') doc.addEventListener('DOMContentLoaded', go, { once: true });
+  else go();
 })(typeof globalThis !== 'undefined' ? globalThis : window);

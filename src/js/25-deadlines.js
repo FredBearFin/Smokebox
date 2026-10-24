@@ -131,7 +131,7 @@
     const left = state.batches.some((x) => x !== b && x.ing === b.ing && x.status !== 'discard' && x.canServe === true && x.remainingG > 0);
     const amount = U.weightText(b.remainingG) + (U.isNum(b.costPerCookedKg) ? ' (' + U.currencySymbol() + (b.remainingG / 1000 * b.costPerCookedKg).toFixed(0) + ')' : '');
     out.push({ id: 'past:' + b.id + ':' + (U.isNum(b.keepUntil) ? b.keepUntil : 0), epoch: U.isNum(b.keepUntil) ? b.keepUntil : 0, kind: 'past', step: 'last', ing: b.ing, batchId: b.id, label: b.label || name, at: b.enteredAt + E()._internal.holdLimitMs(b, state.settings.safety ? Object.assign({}, C.safety, state.settings.safety) : C.safety), msLeft: 0, rung: 0, rungs: 0, sev: 'bad',
-      consequence: amount + ' is past its quality limit and off the menu' + (left ? '.' : ', so ' + name + ' is 86.'), action: 'Check it, then decide: keep serving or throw it out. Your food-safety plan comes first.', trivial: b.remainingG < TRIVIAL_G, unknown: false });
+      consequence: amount + ' is past its quality limit and off the menu' + (left ? '.' : ', so ' + name + ' is sold out.'), action: 'Check it, then decide: keep serving or throw it out. Your food-safety plan comes first.', trivial: b.remainingG < TRIVIAL_G, unknown: false });
   }
   // The next closing time after now, in ms, from the service hours (a close above 24 means after midnight, so last
   // night's close can still be ahead at 12:30 am). Null once today's close has passed.
@@ -142,7 +142,10 @@
     for (const day of [-1, 0]) {
       const d = new Date(now);
       d.setDate(d.getDate() + day); d.setHours(0, 0, 0, 0);
-      const at = d.getTime() + sv.closeHour * H;
+      // Whole hours go on the wall clock, so a clock-change day still closes at the clock time set; only the part
+      // of an hour is added as milliseconds.
+      const w = Math.floor(sv.closeHour);
+      const at = new Date(d.getFullYear(), d.getMonth(), d.getDate(), w, 0, 0, 0).getTime() + Math.round((sv.closeHour - w) * H);
       if (at > now && (best == null || at < best)) best = at;
     }
     return best;
@@ -153,12 +156,14 @@
   // ingredient can have both: leftoverG (grams in batches still alive at close) and unmetG (demand nobody could
   // serve). Also runOutAt (the first moment demand went unserved), runOutCause ('rest-gap' when a batch is still
   // resting and ready later, gapEndAt; 'limit' when a batch passing its limit ended the supply, limitBatchId and
-  // limitQuality; else 'stock'), and wasteBefore (grams that passed their limit before close).
+  // limitQuality; else 'stock'), wasteBefore (grams that passed their limit before close), wasteById (the same
+  // grams per batch id) and plannedLeftG (the part of leftoverG in planned batches, ids starting 'plan:').
   function sweepToClose(batches, rate, now, closeAt) {
     const bs = batches.map((b) => ({ rem: b.remainingG, ent: b.enteredAt, ready: Math.max(now, b.readyAt || 0), exp: b.expAt, id: b.id, quality: !!b.quality })).sort((x, y) => x.ent - y.ent);
     const marks = new Set([now, closeAt]);
     for (const b of bs) for (const t of [b.ready, b.exp]) if (t > now && t < closeAt) marks.add(t);
     const times = Array.from(marks).sort((x, y) => x - y);
+    const wasteById = Object.create(null);
     let unmet = 0, gapUnmet = 0, runOutAt = null, wasteBefore = 0, cause = null, gapEndAt = null, limitBatchId = null, limitQuality = false, lastLimit = null;
     for (let i = 0; i + 1 < times.length; i++) {
       const a = times[i], z = times[i + 1], dem = rate * (z - a);
@@ -175,10 +180,18 @@
         unmet += need;
         if (cause === 'rest-gap' && z <= gapEndAt) gapUnmet += need;
       }
-      for (const b of bs) if (b.exp <= z && b.rem > 0) { wasteBefore += b.rem; b.rem = 0; if (!lastLimit || b.exp >= lastLimit.exp) lastLimit = { exp: b.exp, id: b.id, quality: b.quality }; }
+      for (const b of bs) if (b.exp <= z && b.rem > 0) { wasteBefore += b.rem; if (b.id != null) wasteById[b.id] = (wasteById[b.id] || 0) + b.rem; b.rem = 0; if (!lastLimit || b.exp >= lastLimit.exp) lastLimit = { exp: b.exp, id: b.id, quality: b.quality }; }
     }
     const alive = bs.reduce((acc, b) => acc + (b.exp > closeAt ? b.rem : 0), 0);
-    return { leftoverG: alive, unmetG: unmet, gapUnmetG: gapUnmet, runOutAt, runOutCause: cause, gapEndAt, limitBatchId, limitQuality, wasteBefore };
+    const plannedLeft = bs.reduce((acc, b) => acc + (b.exp > closeAt && String(b.id).indexOf('plan:') === 0 ? b.rem : 0), 0);
+    return { leftoverG: alive, plannedLeftG: plannedLeft, unmetG: unmet, gapUnmetG: gapUnmet, runOutAt, runOutCause: cause, gapEndAt, limitBatchId, limitQuality, wasteBefore, wasteById };
+  }
+  // Grams of each batch the pace will not sell before that batch's own limit, keyed by batch id. Runs the same
+  // time-stepped sweep as the close check, but past close to the last limit, so a younger batch only sells once the
+  // older ones are gone or expired. Each batch is { id, remainingG, enteredAt, readyAt, expAt }.
+  function batchWaste(batches, rate, now) {
+    const end = batches.reduce((m, b) => Math.max(m, b.expAt), now) + 1;
+    return sweepToClose(batches, rate, now, end).wasteById;
   }
   // Whether a new batch started now would be ready before close: now + cook time + rest time against closing. Returns
   // null when the product has no cook time, else { readyAt, fits }.
@@ -220,9 +233,16 @@
   function closeRows(info, ing, name, now, out) {
     if (!info) return;
     const { closeAt, stock, r } = info;
-    if (r.leftoverG >= Math.max(NOTABLE_G, NOTABLE_SHARE * stock)) {
-      out.push({ id: 'leftover:' + ing.id, kind: 'leftover', ing: ing.id, label: name, at: closeAt, msLeft: closeAt - now, rung: 0, rungs: 0, sev: 'info', leftoverG: r.leftoverG,
-        consequence: 'At the current pace about ' + U.weightText(r.leftoverG) + ' of ' + name + ' will be left at close, not counting what is already on the block.', action: 'Sell it: run a special, tell the front.', unknown: false });
+    // WATCH OUT: grams in a planned batch were never cooked, so they are not food to sell off; they are told apart as
+    // a smaller plan.
+    const planLeft = r.plannedLeftG || 0, realLeft = Math.max(0, r.leftoverG - planLeft);
+    const realNote = realLeft >= Math.max(NOTABLE_G, NOTABLE_SHARE * stock), planNote = planLeft >= NOTABLE_G;
+    if (realNote || planNote) {
+      const consequence = (realNote ? 'At the current pace about ' + U.weightText(realLeft) + ' of ' + name + ' will be left at close, not counting what is already on the block.' : '')
+        + (planNote ? (realNote ? ' ' : '') + 'The planned batch would leave about ' + U.weightText(planLeft) + (realNote ? ' more' : ' of ' + name) + ' at close.' : '');
+      const action = realNote ? 'Sell it: run a special, tell the front.' + (planNote ? ' Plan a smaller batch.' : '') : 'Plan a smaller batch, or none.';
+      out.push({ id: 'leftover:' + ing.id, kind: 'leftover', ing: ing.id, label: name, at: closeAt, msLeft: closeAt - now, rung: 0, rungs: 0, sev: 'info', leftoverG: realLeft, plannedLeftG: planLeft,
+        consequence, action, unknown: false });
     }
     if ((r.runOutCause === 'rest-gap' ? r.gapUnmetG : r.unmetG) < NOTABLE_G || r.runOutAt == null || (r.runOutCause === 'limit' && r.limitQuality)) return;
     let consequence, action, sb = null;
@@ -254,42 +274,38 @@
       const name = ing ? ing.name : ingId;
       const list = byIng[ingId].slice().sort((a, b) => a.enteredAt - b.enteredAt);
       const rungs = rungsFor(ingId, state.settings), rate = sales.rate[ingId];
-      // Only batches that have finished resting can be sold, so the run-out total counts those alone.
-      const isReady = (b) => !(U.isNum(b.restUntil) && b.restUntil > now);
-      let soldBefore = 0, totalLeft = 0;
-      for (const b of list) if (isReady(b)) totalLeft += b.remainingG;
       // The close sweep first: a quality limit that ends the supply is told in that batch's own expiry row.
       const ci = rate !== undefined ? closeInfo(state, ing, list, rate, now, S) : null;
       const lim = ci && ci.r.runOutCause === 'limit' && ci.r.limitQuality && ci.r.unmetG >= NOTABLE_G ? ci.r : null;
       const limSb = lim ? startBy(ing, now, lim.runOutAt, lim.unmetG) : null;
-      list.forEach((b, i) => {
-        // A quality limit is a house rule: the batch passes it and waits for a taste test. A kept batch counts down
-        // to the end of its extension instead.
+      // A quality limit is a house rule: the batch passes it and waits for a taste test. A kept batch counts down
+      // to the end of its extension instead.
+      const expInfo = (b) => {
         const hardAt = b.enteredAt + (U.isNum(S.hardCapH) ? S.hardCapH : S.defaultMaxHoldH) * H, limAt = b.enteredAt + E()._internal.holdLimitMs(b, S);
         const q = b.holdBasis === 'quality' && limAt < hardAt;
-        const exp = q && U.isNum(b.keepUntil) && b.keepUntil > now ? Math.min(b.keepUntil, hardAt) : limAt;
+        return { q, exp: q && U.isNum(b.keepUntil) && b.keepUntil > now ? Math.min(b.keepUntil, hardAt) : limAt };
+      };
+      // WATCH OUT: per-batch waste must time-step like the close sweep. Subtracting older batches' sales over this
+      // batch's whole window overstates waste when an older batch expires first.
+      const wasteBy = rate !== undefined ? batchWaste(list.map((b, i) => ({ id: i, remainingG: b.remainingG, enteredAt: b.enteredAt, readyAt: b.restUntil, expAt: expInfo(b).exp })), rate, now) : null;
+      list.forEach((b, i) => {
+        const { q, exp } = expInfo(b);
         const msLeft = exp - now;
         const rung = rungOf(msLeft, rungs);
         const lastOne = list.length === 1;
-        // How much of this batch the sales pace will clear before it expires, after the older batches took theirs.
-        let sold = 0, waste = null;
-        if (rate !== undefined) {
-          // A batch that is still resting can only sell from the moment it is ready.
-          const sellMs = Math.max(0, exp - Math.max(now, isReady(b) ? now : b.restUntil));
-          sold = Math.max(0, Math.min(b.remainingG, rate * sellMs - soldBefore));
-          waste = b.remainingG - sold;
-          soldBefore += sold;
-        }
+        // How much of this batch the sales pace will not clear before it expires, oldest batch served first. A batch
+        // that is still resting only sells from the moment it is ready.
+        const waste = wasteBy ? (wasteBy[i] || 0) : null;
         // A few hundred grams left is not worth a warning: the row still shows but never sounds.
         const trivial = b.remainingG < TRIVIAL_G || (waste != null && waste < NOTABLE_G && waste < NOTABLE_SHARE * b.remainingG);
         const usd = waste != null && U.isNum(b.costPerCookedKg) ? waste / 1000 * b.costPerCookedKg : null;
         let consequence, action;
-        const amount = U.weightText(b.remainingG) + (U.isNum(b.costPerCookedKg) ? ' (' + U.currencySymbol() + (b.remainingG / 1000 * b.costPerCookedKg).toFixed(0) + ')' : '');
-        const goes86 = lastOne ? ' and ' + name + ' goes 86' : '';
-        const fate = q ? 'pass its quality limit' : 'be thrown out';
+        const amount = U.weightText(b.remainingG) + (U.isNum(b.costPerCookedKg) ? ' (worth ' + U.currencySymbol() + (b.remainingG / 1000 * b.costPerCookedKg).toFixed(0) + ')' : '');
+        const goes86 = lastOne ? ', and then ' + name + ' is sold out' : '';
+        const fate = q ? 'go past its quality limit' : 'be thrown out';
         if (msLeft <= 0) { consequence = 'Expired: ' + amount + ' must be thrown out' + goes86 + '.'; action = 'Discard and log it.'; }
-        else if (waste == null) { consequence = 'Pace unknown (nothing pulled yet): up to ' + amount + ' may ' + (q ? 'pass its quality limit' : 'be thrown out') + goes86 + '.'; action = 'Use it first, and log pulls so the pace can be worked out.'; }
-        else if (waste > 50) { consequence = 'About ' + U.weightText(waste) + ' of ' + U.weightText(b.remainingG) + ' will ' + fate + (usd != null ? ' (' + U.currencySymbol() + usd.toFixed(0) + ')' : '') + goes86 + '.'; action = 'Sell it: run a special, tell the front.'; }
+        else if (waste == null) { consequence = 'Up to ' + amount + ' may ' + fate + ' when the time is up' + goes86 + '.'; action = 'Use it first.'; }
+        else if (waste > 50) { consequence = 'About ' + U.weightText(waste) + ' of ' + U.weightText(b.remainingG) + ' will ' + fate + (usd != null ? ' (worth ' + U.currencySymbol() + usd.toFixed(0) + ')' : '') + goes86 + '.'; action = 'Sell it: run a special, tell the front.'; }
         else { consequence = 'On pace to sell all ' + U.weightText(b.remainingG) + ' in time.'; action = 'Nothing to do.'; }
         // A batch gets a row once a rung is crossed, or earlier when the pace says food will be thrown out within 2 hours.
         const isLim = !!lim && lim.limitBatchId === b.id;
@@ -368,7 +384,7 @@
       const left = state.batches.some((x) => x.ing === b.ing && x.status !== 'discard' && x.remainingG > 0 && x.kind !== 'cooling');
       const usd = U.isNum(b.costPerCookedKg) && b.wasteG > 0 ? ' (' + U.currencySymbol() + (b.wasteG / 1000 * b.costPerCookedKg).toFixed(0) + ')' : '';
       out.push({ id: 'expired:' + b.id + ':0', epoch: 0, kind: 'expired', step: 'last', ing: b.ing, batchId: b.id, label: b.label || name, at: b.discardedAt, msLeft: b.discardedAt - now, rung: 0, rungs: 0, sev: 'bad',
-        consequence: (b.discardReason === 'expired' ? 'Expired and thrown out: ' : 'Past your limit and thrown out: ') + U.weightText(b.wasteG) + usd + (left ? '.' : '. ' + name + ' is 86.'), action: 'Tap to confirm it is logged.', unknown: false });
+        consequence: (b.discardReason === 'expired' ? 'Expired and thrown out: ' : 'Past your limit and thrown out: ') + U.weightText(b.wasteG) + usd + (left ? '.' : '. ' + name + ' is sold out.'), action: 'Tap to confirm it is logged.', unknown: false });
     }
   }
   // Rows for batches that are being kept serving: shown from 15 minutes before the extension ends, or when the last
@@ -387,7 +403,8 @@
   // Rows for tickets and the sanitize timer.
   function otherRows(state, now, out) {
     const C0 = E().views.counts(state, now);
-    if (C0.overdue > 0) out.push({ id: 'late', kind: 'late', label: 'Late tickets', at: now, msLeft: 0, rung: 0, rungs: 0, sev: 'warn',
+    // One late ticket already says so itself (red, "Do this first"); a strip row for it would say the same thing twice.
+    if (C0.overdue > 1) out.push({ id: 'late', kind: 'late', label: 'Late tickets', at: now, msLeft: 0, rung: 0, rungs: 0, sev: 'warn',
       consequence: C0.overdue + ' ' + U.plural(C0.overdue, 'ticket is', 'tickets are') + ' past ' + U.plural(C0.overdue, 'its', 'their') + ' time limit.', action: 'Clear the oldest ticket first.', unknown: false });
     if (U.isNum(C0.sanitizeDueAt) && C0.sanitizeDueAt - now <= 15 * MIN) {
       const late = C0.sanitizeDueAt < now;
@@ -638,16 +655,19 @@
     else if (kind === 'summary') t = d.count + ' new tickets. First up, ticket ' + d.first + '.';
     else if (kind === 'start') t = 'Fire ' + d.name + ' now! Ticket ' + d.num + '!';
     else if (kind === 'start_again') t = 'Still waiting on ' + d.name + '! Fire it now! Ticket ' + d.num + '!';
+    else if (kind === 'step') t = d.name + ': ' + d.say + '! Ticket ' + d.num + '!';
     else if (kind === 'ready') t = 'Ticket ' + d.num + ' is up! Ring it out!';
     else if (kind === 'ready_again') t = 'Ticket ' + d.num + ' is waiting! Ring it out now!';
     else if (kind === 'past') t = d.who + (d.many ? ' are past quality!' : ' is past quality!') + ' Check it now!';
     else if (kind === 'expired') t = d.who + ' expired! Pull it and log it now!';
-    else t = 'Heads up! ' + d.who + (d.goes86 && !d.many ? ' goes 86' : d.many ? ' expire' : ' expires') + ' in ' + (d.approx ? 'about ' : '') + dur(d.mins) + '! Act now!';
+    else t = 'Heads up! ' + d.who + (d.goes86 && !d.many ? ' runs out' : d.many ? ' expire' : ' expires') + ' in ' + (d.approx ? 'about ' : '') + dur(d.mins) + '! Act now!';
     return clipWords(spoken(t), 14);
   }
-  // Picks the best-sounding English voice the device has: the natural, neural or online ones first, then premium, Google
-  // and well-known named voices; null when there is none, so the device default is used.
-  function pickVoice(voices) {
+  // Picks the voice that speaks: the one the owner chose in Settings when this device still has it, else the best-sounding
+  // English voice the device has (natural, neural or online ones first, then premium, Google and well-known named voices);
+  // null when there is none, so the device default is used.
+  function pickVoice(voices, chosen) {
+    if (typeof chosen === 'string' && chosen) { const c = (voices || []).find((v) => v && v.name === chosen); if (c) return c; }
     const NOVELTY = /bad news|bahh|bells|boing|bubbles|cellos|good news|jester|organ|superstar|trinoids|whisper|wobble|zarvox|albert|fred|junior|ralph|kathy|princess|eddy|flo|grandma|grandpa|reed|rocko|sandy|shelley/i;
     const en = (voices || []).filter((v) => v && /^en/i.test(String(v.lang || '').replace('_', '-')) && !NOVELTY.test(String(v.name || '')));
     // How good a voice sounds for a kitchen call, higher is better. Voices stored on the tablet come first (a kitchen may be offline and
@@ -669,8 +689,8 @@
     return best;
   }
   // Which voice would speak right now and whether it lives on the tablet, for the Test the voice line: { name, lang, local } or null.
-  function voiceInfo(voices) {
-    const v = pickVoice(voices);
+  function voiceInfo(voices, chosen) {
+    const v = pickVoice(voices, chosen);
     return v ? { name: String(v.name || 'Default'), lang: String(v.lang || ''), local: v.localService !== false } : null;
   }
   // How much the voice talks, per level. repeatStartSec is the gap between "still waiting" reminders for a dish that is
@@ -715,11 +735,23 @@
       // Dishes that are due and not started, grouped by the second they became due so one ticket makes one call.
       const groups = new Map();
       for (const it of mine) {
-        const due = it.status === 'displayed' || (it.status === 'queued' && it.fireAt <= now);
+        // A due dish whose station is full (the kitchen planner set freeAt) is called when its slot frees up, not before.
+        const due = (it.status === 'displayed' && !(it.freeAt > now)) || (it.status === 'queued' && it.fireAt <= now);
         if (!due || !U.isNum(it.fireAt)) continue;
-        const key = Math.floor(it.fireAt / 1000);
+        const key = Math.floor(Math.max(it.fireAt, U.isNum(it.freeAt) ? it.freeAt : 0) / 1000);
         if (!groups.has(key)) groups.set(key, []);
         groups.get(key).push(it);
+      }
+      // Cook steps: while a dish cooks, each step the owner set for it is called when its share of the cook time has passed.
+      const menuById = new Map((state.menu || []).map((x) => [x.id, x]));
+      for (const it of mine) {
+        if (it.status !== 'cooking' || !U.isNum(it.startedAt) || !(it.prepSec > 0)) continue;
+        const md = menuById.get(it.menuId);
+        if (!md || !Array.isArray(md.steps)) continue;
+        md.steps.forEach((st, i) => {
+          const at = it.startedAt + Math.round(it.prepSec * 10 * st.at);
+          if (now >= at) out.push({ id: 'c:' + t.id + ':' + it.id + ':' + i, kind: 'step', style: 'start', at, text: phrase('step', { name: it.short || it.name, say: st.say, num: t.num }), ticketNum: t.num });
+        });
       }
       for (const [key, its] of groups) {
         const at = key * 1000, name = nameList(its);
@@ -769,7 +801,7 @@
           return { id: 'burst:' + news[0].id, kind: 'new', style: 'summary', at: news[0].at, ticketNum: news[0].ticketNum, text: phrase('summary', { count: news.length, first: news[0].ticketNum }) };
         }
         // Dishes to fire come before a finished ticket, and a finished ticket before a new one; oldest first inside each.
-        const rank = (c) => (c.kind === 'start' ? 0 : c.kind === 'ready' ? 1 : 2);
+        const rank = (c) => (c.kind === 'start' || c.kind === 'step' ? 0 : c.kind === 'ready' ? 1 : 2);
         let bi = 0;
         for (let i = 1; i < q.length; i++) if (rank(q[i]) < rank(q[bi])) bi = i;
         return q.splice(bi, 1)[0];
@@ -785,12 +817,14 @@
   function wallOrders(state, now) {
     const out = { paidCount: 0, open: [], paid: [] };
     if (!state || !U.isNum(now)) return out;
-    const day = U.serviceDate(now, state.settings && state.settings.service ? state.settings.service.dayStartHour : undefined);
+    const dsh = state.settings && state.settings.service ? state.settings.service.dayStartHour : undefined;
+    const day = U.serviceDate(now, dsh);
+    // WATCH OUT: an order counts on the day it was paid, like close-the-day, not the day it was opened (o.serviceDate).
     const totals = E().openOrderTotals(state);
     for (const o of Array.isArray(state.orders) ? state.orders : []) {
       const t = totals.get(o.id);
       if (o.status === 'open') out.open.push({ id: o.id, name: o.customer, rounds: t ? t.rounds : 0, total: t ? t.total : 0, at: o.createdAt });
-      else if (o.status === 'paid' && o.serviceDate === day && o.totals) { out.paidCount++; out.paid.push({ id: o.id, name: o.customer, total: o.totals.total, method: o.method, at: o.paidAt }); }
+      else if (o.status === 'paid' && U.isNum(o.paidAt) && U.serviceDate(o.paidAt, dsh) === day && o.totals) { out.paidCount++; out.paid.push({ id: o.id, name: o.customer, total: o.totals.total, method: o.method, at: o.paidAt }); }
     }
     out.open.sort((a, b) => a.at - b.at);
     out.paid.sort((a, b) => b.at - a.at);
@@ -818,5 +852,5 @@
     return out;
   }
   // Public API: build(state, now) gives the sorted feed; rungOf, rungsFor and soundsAllowed are shared with the sound ladder.
-  SB.deadlines = { spoken, clipWords, delivery, numWords, voiceInfo, build, coldLine, rungOf, rungsFor, salesRate, soundsAllowed, nextOpenAt, pauseNote, closeAtMs, sweepToClose, nextBatchFit, makeLadder, electLeader, makePending, calloutWants, makeCallouts, wallOrders, CHEF_VOICE, phrase, pickVoice, voiceLevel };
+  SB.deadlines = { spoken, clipWords, delivery, numWords, voiceInfo, build, coldLine, rungOf, rungsFor, salesRate, soundsAllowed, nextOpenAt, pauseNote, closeAtMs, sweepToClose, batchWaste, nextBatchFit, makeLadder, electLeader, makePending, calloutWants, makeCallouts, wallOrders, CHEF_VOICE, phrase, pickVoice, voiceLevel };
 })(typeof globalThis !== 'undefined' ? globalThis : window);

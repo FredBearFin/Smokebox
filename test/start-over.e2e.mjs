@@ -10,12 +10,14 @@ await withPage({ w: 1280, h: 800, touch: true }, async (page, logs) => {
   await page.evaluate(() => {
     ['Pulled pork plate', 'Sweet tea'].forEach((n, i) => SB.store.dispatchEx('addMenuItem', { name: n, zone: i ? 'cold' : 'pit', cat: i ? 'cold' : 'meat', price: 10, prepSec: 120, track: 'two' }, { source: 'ui' }));
     SB.store.dispatchEx('updateSettings', { patch: { service: { taxRatePct: 6 } } }, { source: 'ui' });
+    // One real ticket: with something real to lose, Start over keeps its three careful steps.
+    SB.store.dispatchEx('createTicket', { customer: 'Ann', items: [{ menuId: SB.store.getState().menu[0].id, qty: 1 }] }, { source: 'ui' });
   });
   await page.waitForTimeout(500);
   await page.click('.fl-menu'); await page.waitForTimeout(400);
   check('Start over is in the Menu sheet, apart from the everyday links', await page.getByRole('button', { name: /Start over with an empty menu/ }).isVisible());
   await page.getByRole('button', { name: /Start over with an empty menu/ }).click(); await page.waitForTimeout(500);
-  check('step 1 says what goes and what stays, and that there is no undo', /This goes/.test(await page.locator('.so').innerText()) && /no undo/i.test(await page.locator('.so').innerText()));
+  check('step 1 says what goes and what stays, and that it cannot be undone', /This goes/.test(await page.locator('.so').innerText()) && /cannot be undone/i.test(await page.locator('.so').innerText()) && !/sorry/i.test(await page.locator('.so').innerText()));
   check('the keep box starts ticked', await page.locator('#so-keep').isChecked());
   await page.screenshot({ path: SHOT + '/startover-1.png' });
   await page.click('[data-act=so-next1]');
@@ -46,10 +48,13 @@ await withPage({ w: 1280, h: 800, touch: true }, async (page, logs) => {
   // Second time: untick the keep box.
   await page.evaluate(() => { SB.store.dispatchEx('updateSettings', { patch: { service: { taxRatePct: 8 } } }, { source: 'ui' }); SB.store.dispatchEx('addMenuItem', { name: 'Tea', zone: 'cold', cat: 'cold', price: 3, prepSec: 60, track: 'one' }, { source: 'ui' }); });
   await page.waitForTimeout(400);
+  // Second time the kitchen has only a dish: one plain confirm, no backup file and no typed word.
   await page.evaluate(() => SB.sheets.open('startover')); await page.waitForTimeout(400);
-  await page.locator('#so-keep').uncheck(); await page.click('[data-act=so-next1]'); await page.click('[data-act=so-save-backup]'); await page.check('#so-saw'); await page.click('[data-act=so-next2]');
-  await page.fill('.so input.input', WORD); await page.click('[data-act=so-go]'); await page.waitForTimeout(600);
+  check('a kitchen with only dishes gets one step: no backup, no typed word', await page.locator('[data-act=so-quick]').isVisible() && (await page.locator('[data-act=so-next1]').count()) === 0);
+  let downloaded = false; page.once('download', () => { downloaded = true; });
+  await page.locator('#so-keep').uncheck(); await page.click('[data-act=so-quick]'); await page.waitForTimeout(600);
   check('with the box unticked the tax goes back to its start', await page.evaluate(() => SB.store.getState().settings.service.taxRatePct === 0));
+  check('the one step empties the menu without forcing a download', !downloaded && (await page.evaluate(() => SB.store.getState().menu.length)) === 0 && await page.locator('[data-act=so-finish]').isVisible());
   // Old demo tickets in real reports: a small card with a plain count, Clear them and Keep them.
   await page.evaluate(() => { SB.store.dispatchEx('addMenuItem', { name: 'Soup', zone: 'sides', cat: 'side', price: 5, prepSec: 60, track: 'one' }, { source: 'ui' }); const id = SB.store.getState().menu.find((m) => m.name === 'Soup').id; SB.store.dispatchEx('createTicket', { customer: 'Demo', src: 'demo', items: [{ menuId: id, qty: 1 }] }, { source: 'ui' }); });
   await page.waitForTimeout(400);

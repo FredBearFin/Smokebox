@@ -22,6 +22,11 @@ const outFile = path.resolve(root, arg('out', 'dist/smokebox.artifact.html'));
 if (!args.includes('--no-build')) {
   const r = spawnSync(process.execPath, [path.join(root, 'tools/build.mjs'), '--out', path.relative(root, inFile), '--quiet'], { cwd: root, stdio: 'inherit' });
   if (r.status !== 0) process.exit(r.status || 1);
+} else {
+  // WATCH OUT: --no-build trusts the page that is already there; a page older than any source file would ship old code, so it is refused.
+  const newest = ['src/js', 'src/css'].flatMap((d) => (fs.existsSync(path.join(root, d)) ? fs.readdirSync(path.join(root, d)).map((f) => path.join(root, d, f)) : []))
+    .concat(path.join(root, 'src/index.template.html')).filter((f) => fs.existsSync(f)).reduce((m, f) => Math.max(m, fs.statSync(f).mtimeMs), 0);
+  if (!fs.existsSync(inFile) || fs.statSync(inFile).mtimeMs < newest) { console.error(path.relative(root, inFile) + ' is missing or older than the sources; run without --no-build (or build it first).'); process.exit(1); }
 }
 let html = fs.readFileSync(inFile, 'utf8');
 

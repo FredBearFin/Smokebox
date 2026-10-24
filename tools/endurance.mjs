@@ -105,6 +105,9 @@ export async function runEndurance(opts) {
   // Builds the menu and the kitchen type's extras from an empty kitchen.
   function setup(day) {
     dishIds = [];
+    // The simulated cooks start every dish the moment a ticket arrives, so pacing (on in a new kitchen) is switched off: this run
+    // measures storage over weeks, and pacing has its own tests.
+    disp('updateSettings', { patch: { pacing: { enabled: false } } });
     for (let i = 0; i < 15; i++) {
       const rep = disp('addMenuItem', { name: 'Dish ' + (i + 1), zone: zones[i % zones.length], cat: cats[i % cats.length], price: 5 + i * 0.75, prepSec: 90 + 30 * (i % 5), track: 'one', prepGuess: false });
       if (rep !== 'ok') bad(day, 'addMenuItem ' + rep); else dishIds.push(S.lastResult().info.id);

@@ -42,7 +42,7 @@ export const OWNERS = {
   sheets: { name: 'Floor sheets', agent: 'a515d2bea06233e68', files: '71-floor-order.js, 72-floor-sheets.js, 21-floor-sheets.css' },
   officeA: { name: 'Office A', agent: 'ab2a28fc08b3ac410', files: '80-office-core.js, 81-office-pace.js, 30-office.css (frame, Pace, Tickets, Stations)' },
   officeB: { name: 'Office B', agent: 'a5e50a4f63f7caddc', files: '82-office-money.js, 83-office-safety.js, 85-office-stock.js, 31-office-money.css (Sales and money, Safety, Stock and 86)' },
-  officeC: { name: 'Office C', agent: 'a0a7d50f16d6349b1', files: '84-office-data.js, 32-office-data.css (Menu and settings)' },
+  officeC: { name: 'Office C', agent: 'a0a7d50f16d6349b1', files: '84-office-data.js, 32-office-data.css (Menu, prices and shop)' },
   lead: { name: 'Lead (wave-1 files)', agent: 'lead', files: '00-util, 05-icons, 10-config, 20-engine, 30-store, 40-metrics, 50-charts, 60-shell, 99-boot, 00-tokens.css, 10-base.css, 40-charts.css' },
 };
 

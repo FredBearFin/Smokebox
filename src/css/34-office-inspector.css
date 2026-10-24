@@ -18,12 +18,12 @@
   .si-printroot h1 { font-size: 20px; margin: 0 0 8px; }
   .si-note { margin: 6px 0; font-size: 11px; }
   /* Six columns on paper: small type, tight padding and fixed widths so no word is broken in the middle and a row stays short. */
-  .si-printroot .si-table { table-layout: fixed; width: 100%; font-size: 10px; line-height: 1.3; }
+  .si-printroot .si-table { table-layout: fixed; width: 100%; font-size: 11px; line-height: 1.3; }
   .si-printroot .si-table th, .si-printroot .si-table td { padding: 3px 4px; overflow-wrap: break-word; hyphens: manual; }
   .si-printroot .si-table th:nth-child(1) { width: 13%; } .si-printroot .si-table th:nth-child(2) { width: 12%; } .si-printroot .si-table th:nth-child(3) { width: 21%; }
   .si-printroot .si-table th:nth-child(4) { width: 32%; } .si-printroot .si-table th:nth-child(5) { width: 8%; } .si-printroot .si-table th:nth-child(6) { width: 14%; }
   .si-table th, .si-table td { border-bottom: 1px solid #999; color: #000; }
-  .si-table .si-fact, .si-table .si-corr { color: #000; font-size: 9px; }
+  .si-table .si-fact, .si-table .si-corr { color: #000; font-size: 10px; } /* the corrections and facts are what an inspector reads: never smaller than 10 px */
   .si-table thead { display: table-header-group; }
   .si-table tr { break-inside: avoid; page-break-inside: avoid; }
 }

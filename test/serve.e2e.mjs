@@ -33,8 +33,8 @@ await withPage({ w: 1280, h: 800, touch: true }, async (page, logs) => {
   s = await svc(page); check('a new order button is added at the end', JSON.stringify(s.chips).includes('Drive up'), s);
   await page.fill('[aria-label="New order button name"]', 'drive up'); await page.click('[data-act=chip-add]'); await page.waitForTimeout(250);
   check('a repeated button name is refused in plain words', /already a button/.test(await page.locator('.so-serve').innerText()));
-  await page.getByRole('button', { name: 'Move Drive up up' }).click(); await page.waitForTimeout(300);
-  s = await svc(page); check('a button moves up one place', s.chips.indexOf('Drive up') === s.chips.length - 2 || JSON.stringify(s.chips).indexOf('Drive up') < JSON.stringify(s.chips).indexOf('Delivery'), s);
+  check('the buttons now in use show as chips', (await page.locator('.so-chips .so-chip', { hasText: 'Drive up' }).count()) === 1);
+  check('the switch says On or Off in words', /Counter service: On/.test(await page.locator('.so-serve [role=switch]').first().innerText()));
   await page.getByRole('button', { name: 'Remove Drive up' }).click(); await page.waitForTimeout(300);
   s = await svc(page); check('Remove takes it out', !JSON.stringify(s.chips).includes('Drive up'), s);
   await page.click('[data-act=serve-undo]'); await page.waitForTimeout(300);

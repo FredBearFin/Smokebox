@@ -1,6 +1,6 @@
 // Board and ordering round 3 checks (browser, about 40 s). Run: node test/board-round3.e2e.mjs
 // Covers: cook-ahead parts hidden when the module is off and shown when it is on or a batch holds food, the Guide and
-// Thrown-out log menu entries, the "Paid by" switch on one-tap payment, zero badges, welcome button size and the slim
+// Thrown-out log menu entries, the "Pay with" switch on one-tap payment, zero badges, welcome button size and the slim
 // backup bar. Needs dist/smokebox.html.
 import { withPage } from '../tools/pw.mjs';
 
@@ -58,7 +58,7 @@ await withPage({ w: 1280, h: 800 }, async (page) => {
   await page.evaluate(() => SB.sheets.open('orders')); await page.waitForSelector('.ox-row');
   const btn0 = await page.locator('.ox-quick').first().textContent();
   check('Pay button names the method (cash by default)', /cash/i.test(btn0), btn0);
-  check('a Paid by switch sits beside it', (await page.locator('.ox-how').first().textContent()).includes('Cash'));
+  check('a Pay with switch sits beside it', (await page.locator('.ox-how').first().textContent()).includes('Cash'));
   await page.locator('.ox-how').first().click();
   await page.locator('.menu-item').filter({ hasText: 'Card' }).first().click();
   await page.waitForTimeout(400);

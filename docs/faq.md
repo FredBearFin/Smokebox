@@ -42,7 +42,7 @@ The Cabinet shows only when you tell Smokebox you cook food ahead. Tap **Setting
 
 ## Can I try it without risking my data?
 
-Yes. See Trying the demo.
+Yes. See Watch the demo.
 
 ## Can I change a price on an open order?
 

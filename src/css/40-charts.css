@@ -228,6 +228,8 @@
 
 .ch-m { outline: none; }
 .ch-m:focus-visible { outline: 2px solid var(--ch-text); outline-offset: 2px; }
+/* The chart itself when it is a tab stop: the ring uses the chart's own text color, so it shows on the dark chart surface as on the light one. */
+.ch-svg:focus-visible { outline: 3px solid var(--ch-text); outline-offset: 2px; }
 .ch-hot { filter: brightness(1.16); }
 
 /* big numbers use the condensed display face, proportional figures */

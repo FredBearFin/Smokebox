@@ -122,14 +122,14 @@ await withPage({ w: 1024, h: 768, touch: true }, async (page, logs) => {
   await shot(page, '01-question');
   await page.click('.dp-ca [data-act=add-cooked]'); await page.waitForTimeout(500);
   await page.fill('.sheet:has-text("Cooked-ahead food") .dp-name', 'Pot roast');
-  const hrs = page.locator('[aria-label="Hours it may stay"]');
+  const hrs = page.locator('[aria-label="How long may it stay, in hours?"]');
   await hrs.fill('4 hrs'); await page.click('[data-act=save-cooked]'); await page.waitForTimeout(250);
   say('hours "4 hrs" -> ' + JSON.stringify(await words(page)));
   await hrs.fill('13'); await page.click('[data-act=save-cooked]'); await page.waitForTimeout(250);
   say('hours "13" -> ' + JSON.stringify(await words(page)));
-  await hrs.fill('4'); await page.fill('[aria-label="Usual batch size in kilograms"]', '6 kg'); await page.click('[data-act=save-cooked]'); await page.waitForTimeout(250);
+  await hrs.fill('4'); await page.fill('[aria-label="Usual batch size, in kg"]', '6 kg'); await page.click('[data-act=save-cooked]'); await page.waitForTimeout(250);
   say('batch "6 kg" -> ' + JSON.stringify(await words(page)));
-  await page.fill('[aria-label="Usual batch size in kilograms"]', '6');
+  await page.fill('[aria-label="Usual batch size, in kg"]', '6');
   await shot(page, '02-cooked-sheet');
   await page.click('[data-act=save-cooked]'); await page.waitForTimeout(400);
   say('saved with no dish selected -> ' + JSON.stringify(await words(page)).slice(0, 220));

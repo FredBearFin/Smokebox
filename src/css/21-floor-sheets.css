@@ -69,7 +69,7 @@
 .ord-search:focus-within { border-color: var(--amber); outline: var(--bw-focus) solid var(--focus); outline-offset: 2px; }
 .ord-search .icon { flex: none; }
 .ord-search-input { flex: 1 1 auto; min-width: 0; min-height: 48px; padding: 0; font-size: var(--fs-4); color: var(--ink); background: transparent; border: 0; outline: none; }
-.ord-search-input::placeholder { color: var(--ink3); opacity: 1; }
+.ord-search-input::placeholder { color: var(--ink3); color: color-mix(in srgb, var(--ink3) 85%, var(--paper)); opacity: 1; }
 .ord-hint { font-size: var(--fs-2); font-weight: var(--w-semi); color: var(--ink2); padding: 0 var(--sp-1); }
 .ord-cats { display: flex; width: 100%; }
 .ord-cats .seg-opt { flex: 1 1 auto; min-height: 44px; padding: 0 10px; font-size: var(--fs-2); }
@@ -175,7 +175,7 @@
 .ord-editor-free .input { flex: 1 1 0; min-width: 0; min-height: 44px; }
 .ord-editor-free .btn { flex: none; min-width: 64px; white-space: nowrap; }
 .ord-editor-done { justify-self: end; }
-.ord-empty { display: grid; justify-items: center; gap: var(--sp-2); padding: var(--sp-6) var(--sp-3); text-align: center; color: var(--ink3); }
+.ord-empty { display: grid; justify-items: center; gap: var(--sp-2); padding: var(--sp-4) var(--sp-3); text-align: center; color: var(--ink3); }
 .ord-empty-title { font: var(--w-bold) var(--fs-4) / 1.2 var(--font-display); color: var(--ink); }
 .ord-to-menu { display: none; }
 
@@ -213,6 +213,12 @@
 .ord-total-sum { font: var(--w-heavy) var(--fs-6) / 1.05 var(--font-display); }
 .ord-send { flex: 1 1 260px; max-width: 440px; min-height: 60px; font-size: var(--fs-5); }
 .ord-review { display: none; flex: 1 1 200px; }
+
+/* Tablet landscape: a slimmer order pane leaves the menu room for more tiles across. A short screen gets
+   shorter tiles so the second row, prices included, is in view; a wide screen gets wider tiles. */
+@media (min-width: 820px) and (max-width: 1199px) { .ord { grid-template-columns: minmax(0, 1fr) minmax(320px, 380px); --tile-min: 136px; } }
+@media (min-width: 1200px) { .ord { --tile-min: 200px; } }
+@media (max-height: 700px) { .ord-tile { min-height: 76px; } .ord-empty { padding: var(--sp-2) var(--sp-3); } .ord-empty > .icon { display: none; } }
 
 /* narrow: one pane at a time, Menu | Order switch on top, a View order button in the footer */
 @media (max-width: 819px) {
@@ -535,6 +541,9 @@
 .dp-rmsg { flex-basis: 100%; margin: 0; }
 .dp-rmsg:empty { display: none; }
 .dp-h { margin-top: var(--sp-2); }
+/* The count of dishes and the Add a dish jump share the top line. */
+.dp-top { justify-content: space-between; }
+.dp-top > .dp-lead { flex: 1 1 260px; margin: 0; }
 .dp-links { gap: var(--sp-3); }
 .fl-first-dish { min-height: 72px; padding-inline: var(--sp-8, 40px); font-size: var(--fs-5, 1.4rem); }
 
@@ -563,6 +572,13 @@ input.mn-volume { min-height: var(--tap, 44px); width: 100%; }
 .dp-prob:empty { display: none; }
 @media (max-width: 640px) { .dp-prow { grid-template-columns: 44px minmax(0, 1fr) minmax(8ch, 14ch); } .dp-prow select { grid-column: 2 / -1; } }
 .btn-link { background: none; border: 0; text-decoration: underline; min-height: 44px; padding-inline: 0; }
+/* The two help links at the top of Set up this device: plain underlined words with a small ?, no button frame. */
+.setup-helps { gap: var(--sp-2) var(--sp-5); margin-bottom: var(--sp-2); }
+.btn-link.setup-help { box-shadow: none; gap: 6px; }
+/* Import: the hidden file picker's label is the button, and shows the focus ring when the picker inside has focus. */
+.imp-file { cursor: pointer; }
+.imp-file:focus-within { outline: var(--bw-focus) solid var(--focus); outline-offset: 2px; }
+.imp-name { overflow-wrap: anywhere; }
 
 
 /* ===== Round 5: one compact cabinet card =====
@@ -585,6 +601,8 @@ input.mn-volume { min-height: var(--tap, 44px); width: 100%; }
 /* The rarely needed facts stay on the card only when they matter (late readings keep their red). */
 .hc-dl dt:nth-of-type(n+3), .hc-dl dd:nth-of-type(n+3) { display: none; }
 .hc-dl dt:nth-of-type(4), .hc-dl dd:nth-of-type(4) { display: block; }
+/* "Resting until" (5th) and "Kept serving" (6th) show only while they apply: the script unhides them then, and the card must not hide them again. */
+.hc-dl dt:nth-of-type(n+5):not([hidden]), .hc-dl dd:nth-of-type(n+5):not([hidden]) { display: block; }
 .hc-actions { flex-wrap: nowrap; gap: var(--sp-2); align-items: stretch; }
 .hc-actions .btn { flex: 1 1 auto; min-height: var(--tap); }
 .hc-actions .hc-sec { display: none; }
@@ -654,3 +672,16 @@ input.mn-volume { min-height: var(--tap, 44px); width: 100%; }
 .rd .stepper .stepper-input { flex: 1 1 auto; min-width: 0; width: auto; text-align: center; }
 /* Close the month: the counts block and the list of files to save. */
 .cm-counts { display: grid; gap: var(--sp-2); } .cm-files { margin: 0; padding-left: var(--sp-5); display: grid; gap: var(--sp-1); overflow-wrap: anywhere; } .cm-files:empty { display: none; }
+
+/* The per-dish "I count what I made" link sits under its own dish as a quiet option, not as a bold heading between dishes. */
+.dp-countfold { margin: -2px 0 var(--sp-3) calc(2 * 44px + 2 * var(--sp-2)); }
+.dp-countfold > summary { min-height: 36px; font-weight: var(--w-regular, 400); font-size: var(--fs-1); color: var(--ink2); text-decoration: underline; text-underline-offset: 3px; }
+/* A dish's optional cook steps, folded under its row in Dishes and prices. */
+.dp-steps { flex: 1 0 100%; margin-top: var(--sp-1); }
+.dp-steps > summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; font-weight: var(--w-semi); }
+.dp-st-line { display: flex; gap: var(--sp-2); margin-top: var(--sp-2); }
+.dp-st-when { flex: 0 0 11rem; }
+.dp-st-say { flex: 1 1 auto; min-width: 0; }
+/* "At once" (a station's limit) and "Portions in one basket" boxes: a short number box with its label. */
+.dp-capwrap { display: inline-flex; align-items: center; gap: var(--sp-1); }
+.dp-cap { width: 5.5rem; text-align: center; }

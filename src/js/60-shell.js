@@ -143,13 +143,16 @@
   /* ====================================================================================================================
    * Backup nudge: pure decision (works in Node)
    * ================================================================================================================== */
-  // Decides whether to nudge for the daily backup. a = {service, lastBackupAt, snoozeUntil, now, hasData}.
-  // It is due from closing time until 10 hours after, when no backup was made in the 2 hours before closing
-  // or since, and nothing is snoozed. An empty kitchen (no tickets or batches) has nothing to lose.
+  // Decides whether to nudge for the daily backup. a = {service, lastBackupAt, snoozeUntil, now, hasData,
+  // openWork, closedAt}. It is due from closing time (or from Close the day, closedAt, if that came first)
+  // until 10 hours after, when no backup was made in the 2 hours before or since, nothing is snoozed and
+  // service is really over: no ticket on the board and no order still open (openWork 0). An empty kitchen
+  // (no tickets or batches) has nothing to lose.
   // WATCH OUT: closeHour above 24 means after midnight, so last night's close is still checked at 12:30 am.
   function backupDue(a) {
     const H = 3600000, sv = a && a.service;
     if (!a || !sv || typeof sv.closeHour !== 'number' || !a.hasData) return false;
+    if (typeof a.openWork === 'number' && a.openWork > 0) return false;
     if (typeof a.snoozeUntil === 'number' && a.snoozeUntil > a.now) return false;
     let closeAt = null;
     for (const day of [0, -1]) {
@@ -157,6 +160,7 @@
       const at = d.getTime() + sv.closeHour * H;
       if (at <= a.now && (closeAt == null || at > closeAt)) closeAt = at;
     }
+    if (typeof a.closedAt === 'number' && a.closedAt <= a.now && (closeAt == null || a.closedAt > closeAt)) closeAt = a.closedAt;
     if (closeAt == null || a.now - closeAt > 10 * H) return false;
     return !(typeof a.lastBackupAt === 'number' && a.lastBackupAt >= closeAt - 2 * H);
   }
@@ -169,15 +173,14 @@
   const KEY = { theme: 'smokebox.v1.theme', otheme: 'smokebox.v1.otheme', text: 'smokebox.v1.textsize', density: 'smokebox.v1.density', hints: 'smokebox.v1.hints', zone: 'smokebox.v1.zone', role: 'smokebox.v1.role', pinlock: 'smokebox.v1.pinlock', lastBackup: 'smokebox.v1.lastbackup' };
   // Colour of the browser's top bar for each look; each matches that look's background colour.
   const THEME_COLOR = { day: '#F5F2EB', night: '#15181A', ember: '#181513', paper: '#F0ECE3' };
-  // Current choices: floor look, office look (ember dark / paper light), text size. themeSubs = listeners.
-  const cur = { theme: 'day', otheme: 'ember', text: 'normal', density: 'compact', hints: true }; // compact tickets by default: full-size ones were too big for a busy board
+  // Current choices: look (Day or Night, shared by the board and the back office), text size. themeSubs = listeners.
+  const cur = { theme: 'day', text: 'normal', density: 'compact', hints: true }; // compact tickets by default: full-size ones were too big for a busy board
   const themeSubs = [];
   // Reads the saved look and text size from the notebook; only known values are accepted.
   function loadTheme() {
     if (!U || !U.storage) return;
-    const t = U.storage.get(KEY.theme, null), o = U.storage.get(KEY.otheme, null), x = U.storage.get(KEY.text, null);
+    const t = U.storage.get(KEY.theme, null), x = U.storage.get(KEY.text, null);
     if (t === 'day' || t === 'night') cur.theme = t;
-    if (o === 'ember' || o === 'paper') cur.otheme = o;
     if (x === 'normal' || x === 'large') cur.text = x;
     const d = U.storage.get(KEY.density, null);
     if (d === 'auto' || d === 'large' || d === 'compact') cur.density = d;
@@ -192,7 +195,7 @@
     let meta = doc.querySelector('meta[name="theme-color"]');
     if (!meta) { meta = doc.createElement('meta'); meta.setAttribute('name', 'theme-color'); doc.head.appendChild(meta); }
     const inOff = !!(S && S.inOffice && S.inOffice());
-    meta.setAttribute('content', inOff ? THEME_COLOR[cur.otheme] : THEME_COLOR[cur.theme]);
+    meta.setAttribute('content', inOff ? THEME_COLOR[T.office()] : THEME_COLOR[cur.theme]);
   }
   // Puts the choices on the page: Day/Night on the top element, large-text class, office look, top bar.
   function applyTheme() {
@@ -200,7 +203,7 @@
     const r = doc.documentElement;
     r.setAttribute('data-theme', cur.theme);
     r.classList.toggle('text-large', cur.text === 'large');
-    doc.querySelectorAll('.office[data-otheme]').forEach((el) => el.setAttribute('data-otheme', cur.otheme));
+    doc.querySelectorAll('.office[data-otheme]').forEach((el) => el.setAttribute('data-otheme', T.office()));
     updateThemeColor();
   }
   // Loads the saved choices and applies them. Returns a copy of the choices.
@@ -210,18 +213,18 @@
   // Switches the floor to 'day' or 'night': saves, applies, tells listeners. Other values are ignored.
   T.set = function (t) {
     if (t !== 'day' && t !== 'night') return cur.theme;
-    cur.theme = t; if (U) U.storage.set(KEY.theme, t); applyTheme(); emitTheme('theme'); return t;
+    cur.theme = t; if (U) U.storage.set(KEY.theme, t); applyTheme();
+    try { if (SB.charts && typeof SB.charts.refreshTheme === 'function') SB.charts.refreshTheme(); } catch (e) { console.error('[smokebox] charts.refreshTheme failed', e); }
+    emitTheme('theme'); emitTheme('office'); return t;
   };
   // Flips Day to Night, or Night to Day.
   T.toggle = () => T.set(cur.theme === 'day' ? 'night' : 'day');
-  // The current office look, 'ember' (dark) or 'paper' (light).
-  T.office = () => cur.otheme;
-  // Like T.set for the office look; also redraws charts, whose colours are set by code, not CSS.
+  // The back office follows the same Day/Night choice: its light look ('paper') for Day, dark ('ember') for Night.
+  T.office = () => (cur.theme === 'night' ? 'ember' : 'paper');
+  // Sets the shared look from an office look name ('paper' is Day, 'ember' is Night); charts are redrawn by T.set.
   T.setOffice = function (o) {
-    if (o !== 'ember' && o !== 'paper') return cur.otheme;
-    cur.otheme = o; if (U) U.storage.set(KEY.otheme, o); applyTheme();
-    try { if (SB.charts && typeof SB.charts.refreshTheme === 'function') SB.charts.refreshTheme(); } catch (e) { console.error('[smokebox] charts.refreshTheme failed', e); }
-    emitTheme('office'); return o;
+    if (o !== 'ember' && o !== 'paper') return T.office();
+    T.set(o === 'ember' ? 'night' : 'day'); return T.office();
   };
   // The current text size, 'normal' or 'large'.
   T.textSize = () => cur.text;
@@ -260,11 +263,17 @@
   let idx = 0, routerReady = false, pendingBacks = 0, flushTimer = 0, officePushed = false, officeEntry = null;
   const listeners = [], overlayStack = [], queued = [];
 
+  // True once the order page was opened from the board's Front counter button in this session: going back and forth
+  // to #/new after that is a visit, and never pins the tablet to order entry.
+  // The flag also lives in this browser tab's session storage, so reloading the order page during a visit does not pin.
+  const VISIT_KEY = 'smokebox.v1.countervisit';
+  let counterVisit = (() => { try { return g.sessionStorage.getItem(VISIT_KEY) === '1'; } catch (e) { return false; } })();
   // Remembers the last station viewed (memory and notebook) so a pinned tablet reopens on it.
-  // Also pins the device role when a role screen (#/kitchen, #/new) is opened.
+  // Also pins the device role when a role screen (#/kitchen, #/new) is opened, unless it is a Front counter visit.
   const rememberZone = (v) => {
     if (v.kind === 'floor') { lastZone = v.zone; if (U) U.storage.set(KEY.zone, v.zone); }
     const r = roleOfView(v);
+    if (r === 'front' && counterVisit) return;
     if (r && r !== role) { role = r; if (U) U.storage.set(KEY.role, r); }
   };
   // Our history number from the current history entry, or null if it has none. Never throws.
@@ -325,7 +334,9 @@
     if (asked) { role = asked; if (U) U.storage.set(KEY.role, asked); }
     let v = viewFor(g.location.hash);
     const start = startViewFor(role);
-    if (start && (asked || !g.location.hash)) { // a role device opens on its own screen
+    // A role device opens on its own screen. An address that names the office (?role=kitchen#/office) still opens the
+    // office (behind its PIN) instead of silently showing the role screen.
+    if (start && (!g.location.hash || (asked && v.kind !== 'office'))) {
       v = start;
       try { g.history.replaceState({ sbIdx: idx }, '', hashFor(v)); } catch (e) { /* ignore */ }
     } else if (!g.location.hash && lastZone !== 'all') { // a tablet pinned to a station opens on it
@@ -359,10 +370,12 @@
   R.onChange = function (fn) { listeners.push(fn); return () => { const i = listeners.indexOf(fn); if (i >= 0) listeners.splice(i, 1); }; };
   R.hashFor = hashFor; R.viewFor = viewFor;
   // Moves to a view (object or hash text). The same view again does nothing, so history never grows by
-  // repeating yourself. {replace:true} rewrites the current entry instead of adding one.
+  // repeating yourself. {replace:true} rewrites the current entry instead of adding one. {visit:true} opens the
+  // order page without pinning the device role to it (the board's Front counter button).
   // WATCH OUT: listeners hear at once, but the history write may wait behind a Back jump.
   R.go = function (view, o) {
     if (!routerReady) R.init();
+    if (o && o.visit) { counterVisit = true; try { g.sessionStorage.setItem(VISIT_KEY, '1'); } catch (e) { /* this tab only */ } }
     const v = normView(view), hsh = hashFor(v), replace = !!(o && o.replace);
     if (hsh === hashFor(current)) return R.view();
     const prev = current;
@@ -684,7 +697,9 @@
   // focused, not opened twice. An opener that throws is logged and toasted.
   sheets.open = function (name, opts) {
     const fn = reg[name];
-    if (typeof fn !== 'function') { ui.toast('That screen is not part of this build yet.', { tone: 'warn' }); return null; }
+    // When a file failed to load at start-up that is the likely cause, so the message says so and offers the fix.
+    const failedLoad = Array.isArray(g.__sbLoadErrors) && g.__sbLoadErrors.length > 0;
+    if (typeof fn !== 'function') { ui.toast(failedLoad ? 'That screen did not load. Reload the page to try again.' : 'That screen is not part of this build yet.', { tone: 'warn' }); return null; }
     const existing = sheetStack.find((r) => r.name === name && !r.closed);
     if (existing) { try { existing.el.focus({ preventScroll: true }); } catch (e) { /* ignore */ } return existing.api; }
     openingName = name;
@@ -1217,8 +1232,11 @@
       if (S.inOffice()) { e.preventDefault(); S.extinguish(); }
       return;
     }
+    // WATCH OUT: the office key does nothing while a sheet, the PIN keypad or a menu is open. Otherwise it stacked a second
+    // keypad, opened the office under a floor sheet, or closed the office while one of its own sheets was still open.
     if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'O' || e.key === 'o') && st.mounted) {
       e.preventDefault();
+      if (sheetStack.length || menuState) return;
       if (S.inOffice()) S.extinguish(); else S.ignite();
     }
   });
@@ -1502,7 +1520,7 @@
       console.error('[smokebox] office failed to mount', e);
       // Try again clears the flag and builds the office pages from scratch.
       U.clear(el); el.appendChild(ui.errorCard(e, { title: 'The back office could not open', module: 'office (80-*.js to 84-*.js)', onRetry: () => { st.officeContent = false; mountOfficeContent(st.officeSection); } }));
-      el.appendChild(h('div', { class: 'row', style: 'padding:0 16px 16px;justify-content:center' }, h('button', { type: 'button', class: 'btn', dataset: { backToLine: '' } }, ico('door', 20), h('span', null, 'Back to the line'))));
+      el.appendChild(h('div', { class: 'row', style: 'padding:0 16px 16px;justify-content:center' }, h('button', { type: 'button', class: 'btn', dataset: { backToLine: '' } }, ico('door', 20), h('span', null, 'Back to the board'))));
     }
   }
   // Tears the office pages down after closing and empties the layer.
@@ -1629,7 +1647,7 @@
       return openOffice(section);
     });
   };
-  // Back to the line: reverse wipe, then history steps back (or the entry is replaced). False if not open.
+  // Back to the board: reverse wipe, then history steps back (or the entry is replaced). False if not open.
   S.extinguish = function () {
     if (!st.mounted || !st.officeOpen) return Promise.resolve(false);
     const p = closeOffice();
@@ -1647,7 +1665,8 @@
     closeGuidePage();
     if (view.kind === 'office') {
       if (st.officeOpen) { navigateOffice(view.section); return; }
-      guard().then((ok) => { if (ok) openOffice(view.section); else if (R.view().kind === 'office') R.go(R.home(), { replace: true }); });
+      // After the PIN the route is read again: if it moved back to the floor while the keypad was up, the office stays shut.
+      guard().then((ok) => { const now = R.view(); if (ok) { if (now.kind === 'office' && !st.officeOpen) openOffice(now.section); } else if (now.kind === 'office') R.go(R.home(), { replace: true }); });
     } else {
       const zone = view.kind === 'new' ? 'all' : view.zone;
       try { if (SB.floor && typeof SB.floor.setZone === 'function') SB.floor.setZone(zone); else if (st.ph && st.ph.floor) st.ph.floor.setZone(zone); } catch (e) { console.error('[smokebox] floor.setZone failed', e); }
@@ -1668,7 +1687,17 @@
     st.guideOpen = true;
     if (st.officeOpen) closeOffice();
     layers.floor.hidden = true; layers.order.hidden = true; layers.guide.hidden = false;
-    try { SB.guide.mount(layers.guide, { page }); } catch (e) { console.error('[smokebox] guide failed to open', e); }
+    try { SB.guide.mount(layers.guide, { page }); } catch (e) {
+      console.error('[smokebox] guide failed to open', e);
+      // A failed Guide gets an error card and a way back, never an empty screen with the board hidden behind it.
+      try {
+        U.clear(layers.guide);
+        // Back to the board leaves the Guide address, which takes the failed Guide down.
+        const back = h('button', { type: 'button', class: 'btn btn-primary', onClick: () => R.go(R.home(), { replace: true }) }, ico('chevron-left', 20), h('span', null, 'Back to the board'));
+        layers.guide.append(ui.errorCard(e, { title: 'The Guide could not open', module: '78-guide.js' }), back);
+        back.focus({ preventScroll: true });
+      } catch (e2) { R.go(R.home(), { replace: true }); }
+    }
   }
   // Takes the Guide down and shows the board (or the order page) again; does nothing if it was not open.
   function closeGuidePage() {
@@ -1691,7 +1720,16 @@
         layers.order.hidden = false; layers.floor.hidden = true;
         st.orderCleanup = SB.order.mount(layers.order) || null;
       } else if (sheets.open) sheets.open('order');
-    } catch (e) { console.error('[smokebox] order page failed to open', e); }
+    } catch (e) {
+      console.error('[smokebox] order page failed to open', e);
+      // A failed order page falls back to the New ticket sheet over the board, so orders can still be taken.
+      try {
+        if (layers.order) { U.clear(layers.order); layers.order.hidden = true; }
+        if (layers.floor) layers.floor.hidden = false;
+        ui.toast('The order page did not load, so New ticket opens over the board instead. Reload the page to try again.', { tone: 'warn' });
+        if (sheets.open) sheets.open('order');
+      } catch (e2) { /* the toast above or the board is all that is left */ }
+    }
   }
   // Takes the order page down and shows the board again; does nothing if it was not open.
   function closeOrderPage() {
@@ -1708,7 +1746,7 @@
 
   /* ---------- banner: save failure and daily backup nudge ---------- */
   // Banner state: the strip element, the timer, and when the nudge was last put off with "Later".
-  const bn = { el: null, timer: 0, snoozeUntil: 0, clockSnooze: 0, kind: '', sub: null };
+  const bn = { el: null, timer: 0, snoozeUntil: 0, clockSnooze: 0, kind: '', text: '', sub: null };
   // Records that a backup was just made (called by the Data page), so tonight's nudge stays quiet.
   S.noteBackup = function (at) {
     const t = typeof at === 'number' ? at : Date.now();
@@ -1727,7 +1765,10 @@
     if (!store || !store.status || !store.getState) return null;
     const ss = store.status(), s = store.getState();
     // In the demo this strip always shows, above every other message, and always has the Back button.
-    if (store.isDemo && store.isDemo()) return { kind: 'demo', tone: 'warn', text: 'You are trying the demo. Nothing here is your kitchen.', act: 'Back to my kitchen', onAct: () => store.leaveDemo() };
+    if (store.isDemo && store.isDemo()) return { kind: 'demo', tone: 'warn', text: 'Demo: it runs by itself. Watch, or tap a dish to join in.', act: 'Back to my kitchen', onAct: () => store.leaveDemo() };
+    // Signed in to the hosted server and the link has been down for a while: say so calmly; the board keeps working and catches up.
+    const cs = SB.cloud && SB.cloud.on ? SB.cloud.status() : null;
+    if (cs && !cs.connected && cs.downMs > 8000) return { kind: 'cloud', tone: 'warn', text: 'Not connected. Keep working: ' + (cs.waiting ? cs.waiting + ' change' + (cs.waiting === 1 ? '' : 's') + ' will' : 'changes will') + ' send when the internet is back.', act: 'Reload', onAct: () => g.location.reload() };
     if (ss.persistent === false) return { kind: 'save', tone: 'bad', text: 'This browser is not saving your work. If you close this page, today\'s tickets and batches are lost. Allow site data for this page, then back up now.', act: 'Back up now' };
     if (ss.lastSaveOk === false) return { kind: 'save', tone: 'bad', text: 'The last save failed, so recent changes may be lost. Free some space or allow site data for this page, then back up now.', act: 'Back up now' };
     // Off the board (a back-office page), a device clock that jumped far ahead is asked about here: a slim strip, not a box over the page.
@@ -1736,8 +1777,12 @@
       return { kind: 'clock', tone: 'warn', text: 'The clock jumped ahead by about ' + (dd >= 2 ? dd + ' days' : Math.round(ss.clockSuspect.aheadMs / 3600000) + ' hours') + '. Still on the old time.', act: 'Use the new time', onAct: useNewTime, later: true, laterLabel: 'Keep the old time', onLater: keepOldTime };
     }
     if (!s) return null;
-    const due = backupDue({ service: s.settings && s.settings.service, lastBackupAt: S.lastBackupAt(), snoozeUntil: bn.snoozeUntil, now: Date.now(), hasData: s.tickets.length + s.batches.length > 0 });
-    return due ? { kind: 'nudge', tone: 'warn', text: 'Service is over. Save today\'s backup now and keep a copy off this device (email it or use a USB drive).', act: 'Back up now', later: true } : null;
+    // With the hosted server the kitchen is kept there, so the daily "save a backup file" nudge is not needed.
+    if (cs) return null;
+    // Service is over only when nothing is left on the board and no order is still open.
+    const openWork = s.tickets.filter((t) => t && t.status === 'active').length + (s.orders || []).filter((o) => o && o.status === 'open').length;
+    const due = backupDue({ service: s.settings && s.settings.service, lastBackupAt: S.lastBackupAt(), snoozeUntil: bn.snoozeUntil, now: Date.now(), hasData: s.tickets.length + s.batches.length > 0, openWork, closedAt: s.lastClose && s.lastClose.at });
+    return due ? { kind: 'nudge', tone: 'warn', text: 'Day is done: save today\'s backup.', act: 'Back up now', later: true } : null;
   }
   // Shows, updates or removes the strip at the top of the screen so a problem is seen from the kitchen board.
   function paintBanner() {
@@ -1745,9 +1790,10 @@
     let w = null;
     try { w = bannerWanted(); } catch (e) { w = null; }
     if (!w) { if (bn.el) { bn.el.remove(); bn.el = null; bn.kind = ''; st.shell.removeAttribute('data-banner'); } return; }
-    if (bn.el && bn.kind === w.kind) return;
+    // The same kind with new words (the two save messages differ) is drawn again, so the text always matches its cause.
+    if (bn.el && bn.kind === w.kind && bn.text === w.text) return;
     if (bn.el) bn.el.remove();
-    bn.kind = w.kind;
+    bn.kind = w.kind; bn.text = w.text;
     // Opens the Data page of the back office, where the backup button is (it asks for the PIN if one is set).
     const act = h('button', { type: 'button', class: 'btn btn-sm', onClick: () => (w.onAct ? w.onAct() : S.ignite({ section: 'data' })) }, w.act);
     // Puts the nudge off for 45 minutes.
@@ -1802,17 +1848,17 @@
     st.ph.floor = { setZone: (z) => { label.textContent = 'Station: ' + (z === 'all' ? 'All' : z); seg.setValue(z); } };
     st.ph.floor.setZone(R.view().zone || 'all');
   }
-  // Stand-in office used when the office files are missing: page buttons, Ember/Paper switch, way back.
+  // Stand-in office used when the office files are missing: page buttons, Day/Night switch, way back.
   function renderOfficePlaceholder(el, section) {
     U.clear(el);
     const title = h('h2', null, 'Back office placeholder');
     const sec = h('p', { class: 't-muted' });
     // One button per office page; each goes to that page through the router.
     const nav = h('div', { class: 'row' }, SECTIONS.map((s) => h('button', { type: 'button', class: 'btn btn-sm', onClick: () => R.go({ kind: 'office', section: s }) }, s)));
-    // Switches the office between Ember (dark) and Paper (light).
-    const themeBtn = h('button', { type: 'button', class: 'btn btn-sm', onClick: () => T.setOffice(T.office() === 'ember' ? 'paper' : 'ember') }, ico('sun', 18), h('span', null, 'Switch Ember and Paper'));
-    const back = h('button', { type: 'button', class: 'btn btn-primary', dataset: { backToLine: '' } }, ico('door', 22), h('span', null, 'Back to the line'));
-    el.appendChild(h('div', { class: 'ph' }, h('div', { class: 'ph-note' }, title, h('p', { class: 't-muted' }, 'The back office pages did not load. Use Back to the line to leave, then reload the page.'), sec), nav, h('div', { class: 'row' }, themeBtn, back)));
+    // Switches between Day and Night (the board and the back office share the look).
+    const themeBtn = h('button', { type: 'button', class: 'btn btn-sm', onClick: () => T.toggle() }, ico('sun', 18), h('span', null, 'Switch Day and Night'));
+    const back = h('button', { type: 'button', class: 'btn btn-primary', dataset: { backToLine: '' } }, ico('door', 22), h('span', null, 'Back to the board'));
+    el.appendChild(h('div', { class: 'ph' }, h('div', { class: 'ph-note' }, title, h('p', { class: 't-muted' }, 'The back office pages did not load. Use Back to the board to leave, then reload the page.'), sec), nav, h('div', { class: 'row' }, themeBtn, back)));
     // Shows the name of the current office page.
     const setSection = (s) => { sec.textContent = 'Section: ' + s; };
     setSection(section);

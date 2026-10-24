@@ -48,9 +48,11 @@
     // Runs then(who) with the remembered initials (asked once per tablet), then says the result.
     const withWho = (verb, then) => { if (SB.who && SB.who.ask) SB.who.ask(null, verb, then); else then(''); };
     // Tells the cook what happened, in words, and refreshes the recent list.
-    const done = (res, okText) => {
+    // A reading the engine flagged as out of range is saved, but the line says so in the warning color.
+    const done = (res, okText, warnText) => {
       if (res.report !== 'ok') { status.textContent = SB.engine && SB.engine.describe ? (SB.engine.describe(res.report, res.info, SB.store.getState().settings) || 'That was not saved.') : 'That was not saved.'; status.dataset.tone = 'bad'; return; }
-      status.textContent = okText; status.dataset.tone = 'ok'; paintRecent();
+      const warn = res.info && res.info.outOfRange && warnText;
+      status.textContent = warn ? okText + ' ' + warnText : okText; status.dataset.tone = warn ? 'warn' : 'ok'; paintRecent();
     };
     // A text box with the last names as one-tap chips under it.
     function nameField(label, key, placeholder) {
@@ -93,7 +95,8 @@
       const res = run('logEquipmentTemp', Object.assign({ unit, f: U.tempStored(eqTemp.getValue()) }, label ? { label } : {}, who ? { who } : {}));
       if (res.report === 'ok') { rec.unit = unit; remember(rec, 'labels', label); save(rec); eqName.paint(); }
       if (res.report === 'ok') eqGate.reset();
-      done(res, 'Logged ' + (label || (UNITS.find((u) => u.id === unit) || {}).label) + ' at ' + U.tempText(U.tempStored(eqTemp.getValue())) + '.');
+      done(res, 'Logged ' + (label || (UNITS.find((u) => u.id === unit) || {}).label) + ' at ' + U.tempText(U.tempStored(eqTemp.getValue())) + '.',
+        res.info && U.isNum(res.info.maxF) ? 'That is above ' + U.tempText(res.info.maxF) + '. Move the food somewhere colder, fix the unit, and check it again.' : '');
     }) }, ico('thermometer', 22), h('span', null, 'Log reading'));
     const eqGate = needsNumber(eqTemp, eqBtn);
     const secEq = h('section', { class: 'fs-section rd-sec', 'aria-label': 'Fridge, freezer or display case' }, h('h3', { class: 'fs-h' }, 'Fridge, freezer or display case'), unitSeg, eqName.el, h('div', { class: 'hc-fld' }, eqTemp), eqBtn);
@@ -108,7 +111,8 @@
       const f = U.tempStored(thTemp.getValue());
       const res = run('logThermometerCheck', Object.assign({ f, method }, who ? { who } : {}));
       if (res.report === 'ok') thGate.reset();
-      done(res, 'Thermometer check logged: it read ' + U.tempText(f) + ' in ' + (method === 'ice' ? 'ice water' : method === 'boiling' ? 'boiling water' : 'the test') + '.');
+      done(res, 'Thermometer check logged: it read ' + U.tempText(f) + ' in ' + (method === 'ice' ? 'ice water' : method === 'boiling' ? 'boiling water' : 'the test') + '.',
+        res.info && U.isNum(res.info.expectF) ? 'It should read about ' + U.tempText(res.info.expectF) + '. Adjust the thermometer or replace it before you use it.' + (method === 'boiling' ? ' High up, water boils cooler, so a lower reading there can be fine.' : '') : '');
     }) }, ico('check-circle', 22), h('span', null, 'Log check'));
     const thGate = needsNumber(thTemp, thBtn);
     const secTh = h('section', { class: 'fs-section rd-sec', 'aria-label': 'Food thermometer check' }, h('h3', { class: 'fs-h' }, 'Food thermometer check'), methodSeg, h('div', { class: 'hc-fld' }, thTemp), thBtn);

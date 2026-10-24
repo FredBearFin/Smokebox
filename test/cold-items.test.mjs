@@ -311,3 +311,36 @@ test('safety log extras: equipment temperature, thermometer check, sanitizer str
   assert.ok(['equip_temp', 'thermometer_checked', 'sanitize_done', 'batch_discard'].every((t) => log.includes(t)));
   s = ok(act(s, 'correctSafety', { eventId: s.events.find((e) => e.type === 'equip_temp').id, note: 'wrong unit', who: 'AB' }, T + 7 * MIN));
 });
+
+test('an above-cold fridge batch cannot be taken out, and an old save with one on the line still cannot serve', () => {
+  let s = kitchen({ fridgeDays: 3, outHours: 4 });
+  const id = batch(s).id;
+  s = ok(act(s, 'logTemp', { batchId: id, tempF: 50 }, T + 10 * MIN));
+  assert.equal(batch(s).canServe, false);
+  assert.equal(act(s, 'coldTakeOut', { batchId: id }, T + 11 * MIN).report, 'needsChill');
+  // a batch that reached the line with the flag still set (an older build) is held until a cold reading
+  const forced = JSON.parse(JSON.stringify(s));
+  Object.assign(batch(forced), { place: 'line', lineSince: T + 11 * MIN });
+  const g = E.gate(batch(forced), T + 12 * MIN, forced.settings.safety);
+  assert.equal(g.canServe, false); assert.equal(g.action, 'CHILL_NOW');
+  // an earlier above-cold stretch shortens the grace, and the stored deadline agrees with the gate
+  s = ok(act(s, 'logTemp', { batchId: id, tempF: 38 }, T + 70 * MIN));
+  s = ok(act(s, 'logTemp', { batchId: id, tempF: 50 }, T + 80 * MIN));
+  const lim = batch(s).outSince + s.settings.safety.aboveColdGraceH * H - batch(s).coldOutMs;
+  assert.equal(E.gate(batch(s), lim + MIN, s.settings.safety).action, 'DISCARD_LOCKOUT');
+  assert.equal(batch(E.tick(s, lim + MIN).state).status, 'discard');
+});
+
+test('reset live data keeps the food safety record; loading the demo sample starts it clean', () => {
+  let s = kitchen({ fridgeDays: 3 });
+  s = ok(act(s, 'logTemp', { batchId: batch(s).id, tempF: 38 }, T + 10 * MIN));
+  const logged = (x) => x.safetyKeep.concat(E.allEvents(x)).filter((e) => e.type === 'temp_logged').length;
+  assert.ok(logged(s) >= 1);
+  const r = ok(act(s, 'resetLive', { starter: false }, T + H));
+  assert.equal(r.tickets.length, 0); assert.equal(r.batches.length, 0);
+  assert.equal(logged(r), logged(s));
+  assert.deepEqual(E.checkInvariants(r, T + H), []);
+  // a second reset does not copy the record twice
+  assert.equal(logged(ok(act(r, 'resetLive', { starter: false }, T + 2 * H))), logged(s));
+  assert.equal(logged(ok(act(s, 'resetLive', { catalog: 'sample', replaceOwn: true }, T + H))), 0);
+});

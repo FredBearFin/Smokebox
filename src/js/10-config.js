@@ -116,10 +116,10 @@
     { id: 'ribs_full',    name: 'St. Louis ribs, full rack', short: 'Ribs full', zone: 'pit',   cat: 'meat',     price: 29.00, prepSec: 210, track: 'two', bom: [{ ing: 'ribs', qty: 900 }] },
     { id: 'sausage',      name: 'Smoked sausage link',    short: 'Sausage',      zone: 'pit',   cat: 'meat',     price: 6.50,  prepSec: 240, track: 'two', bom: [{ ing: 'sausage', qty: 130 }] },
     { id: 'turkey_half',  name: 'Smoked turkey, 1/2 lb',  short: 'Turkey 1/2',   zone: 'pit',   cat: 'meat',     price: 12.50, prepSec: 110, track: 'two', bom: [{ ing: 'turkey', qty: 227 }] },
-    { id: 'brisket_sand', name: 'Brisket sandwich',       short: 'Brisket sand.', zone: 'pit',  cat: 'sandwich', price: 13.50, prepSec: 170, track: 'two', bom: [{ ing: 'brisket', qty: 140 }, { ing: 'buns', qty: 1 }, { ing: 'pickles', qty: 20 }] },
-    { id: 'pork_sand',    name: 'Pulled pork sandwich',   short: 'Pork sand.',   zone: 'pit',   cat: 'sandwich', price: 11.50, prepSec: 150, track: 'two', bom: [{ ing: 'pork', qty: 150 }, { ing: 'buns', qty: 1 }, { ing: 'pickles', qty: 20 }] },
-    { id: 'mac',          name: 'Smoked mac and cheese',  short: 'Mac',          zone: 'sides', cat: 'side',     price: 5.50,  prepSec: 300, track: 'two', bom: [{ ing: 'mac', qty: 200 }] },
-    { id: 'mac_lg',       name: 'Smoked mac and cheese, large', short: 'Mac large', zone: 'sides', cat: 'side', price: 9.00,  prepSec: 330, track: 'two', bom: [{ ing: 'mac', qty: 400 }] },
+    { id: 'brisket_sand', name: 'Brisket sandwich',       short: 'Brisket sandwich', zone: 'pit', cat: 'sandwich', price: 13.50, prepSec: 170, track: 'two', bom: [{ ing: 'brisket', qty: 140 }, { ing: 'buns', qty: 1 }, { ing: 'pickles', qty: 20 }] },
+    { id: 'pork_sand',    name: 'Pulled pork sandwich',   short: 'Pork sandwich', zone: 'pit',   cat: 'sandwich', price: 11.50, prepSec: 150, track: 'two', bom: [{ ing: 'pork', qty: 150 }, { ing: 'buns', qty: 1 }, { ing: 'pickles', qty: 20 }] },
+    { id: 'mac',          name: 'Smoked mac and cheese',  short: 'Mac and cheese', zone: 'sides', cat: 'side',     price: 5.50,  prepSec: 300, track: 'two', bom: [{ ing: 'mac', qty: 200 }] },
+    { id: 'mac_lg',       name: 'Smoked mac and cheese, large', short: 'Large mac and cheese', zone: 'sides', cat: 'side', price: 9.00,  prepSec: 330, track: 'two', bom: [{ ing: 'mac', qty: 400 }] },
     { id: 'beans',        name: 'Pit beans with burnt ends', short: 'Beans',     zone: 'sides', cat: 'side',     price: 5.00,  prepSec: 240, track: 'two', bom: [{ ing: 'beans', qty: 200 }] },
     { id: 'cornbread',    name: 'Cornbread with honey butter (2)', short: 'Cornbread', zone: 'sides', cat: 'side', price: 4.00, prepSec: 90,  track: 'one', bom: [{ ing: 'cornbread', qty: 2 }] },
     { id: 'fried_pickles', name: 'Fried pickle chips',    short: 'Fried pickles', zone: 'fry',  cat: 'fried',    price: 7.00,  prepSec: 360, track: 'two', bom: [{ ing: 'pickles', qty: 150 }, { ing: 'fry_mix', qty: 60 }] },
@@ -201,6 +201,11 @@
     holdWindowV2: true,     // marks settings made after the hold limit moved from a flat 4 hours to per-product limits
     tempIntervalV2: true,   // marks settings made after the check interval default moved from 30 to 120 minutes
   };
+  // What a fridge, freezer or thermometer-check reading should be. A reading outside is logged anyway (never refused)
+  // and flagged, so a warm cooler or a thermometer that reads wrong shows up in the log. Cold units use the cold-hold
+  // limit above; a freezer should be at 0 F or colder (FDA consumer guidance). A food thermometer should read 32 F in ice
+  // water and 212 F in boiling water, give or take 2 F (boiling water reads lower at high altitude, so check that flag there).
+  C.readingChecks = { freezerMaxF: 0, iceF: 32, boilingF: 212, thermometerTolF: 2 };
   // Minutes before a batch's deadline at which each warning rung fires: a soft chime, then a spoken call, then
   // the loud repeating tone. Per-ingredient lists replace the default; long cooks start earlier so there is
   // time to act. Starter values: the owner can tune them.
@@ -209,7 +214,7 @@
   C.ladderMin = { defaultMin: [60, 30, 10], byIng: { brisket: [120, 60, 30, 10], ribs: [90, 45, 20, 10] } };
   // How old each demo starter batch is, in minutes, when a fresh demo kitchen opens. Spread out on purpose so the
   // batches do not all expire at once and the first run shows the warnings working: brisket is the one nearest
-  // its 4-hour limit. Ingredients not listed start fresh.
+  // its 8-hour limit. Ingredients not listed start fresh.
   C.starterAgeMin = { brisket: 455, pork: 410, slaw: 160, ribs: 150, sausage: 120, potato: 100, turkey: 95, mac: 70, beans: 45, pudding: 20 };
   // The allowed range for each owner-editable safety number, as [lowest, highest]. The legal limits are
   // fixed ends: hot hold never below 135 F, cold hold never above 41 F, reheat never below 165 F. The two
@@ -271,8 +276,9 @@
   // choices are kept in this browser (not in the saved kitchen state) under CUSTOM_KEY and applied right
   // here, while this file loads, so the engine, the board and the office all see the same lists. Ids never
   // change: a rename only changes what people read. A change made in the app takes effect after a reload.
-  // WATCH OUT: a backup file does not carry these names. Restoring on a device without them would drop
-  // tickets that sit on an added station, so copy the names too (Data page) when moving devices.
+  // WATCH OUT: they live outside the kitchen state, so only a backup file carries them to another device (the store
+  // writes them into the backup and puts them in place before a restore checks the tickets). An older backup has none,
+  // and restoring it on a device without the names would drop tickets that sit on an added station.
   const CUSTOM_KEY = 'smokebox.v1.names';
   // Size limits so a typing slip cannot grow the screen without end: names up to 24 letters.
   const CUSTOM_MAX = { zones: 8, categories: 12, channels: 8, name: 24 };

@@ -56,3 +56,16 @@ test('regression: the sell-out clock and the stock page give wall-clock hours on
   const sb = M.stockBurn(Object.assign({}, d, { batches: [batch] }), { ing: 'brisket', day: '2026-03-08' });
   assert.equal(sb.points[0].hour, 12, 'the stock curve starts at hour 12');
 });
+
+test('regression: queue load buckets keep the clock hour on both sides of a clock change in one range', () => {
+  // Lines open at noon on 7 March and at noon on 9 March (New York springs forward on 8 March).
+  const line = (y, m, d) => { const c = new Date(y, m, d, 12, 0).getTime(); return { id: 'q' + d, num: 1, channel: 'dine_in', createdAt: c, status: 'expedited', expeditedAt: c + 10 * MIN,
+    items: [{ id: 'i' + d, menuId: 'x', zone: 'pit', status: 'done', firedAt: c, doneAt: c + 10 * MIN }] }; };
+  // Two-hour buckets: a width that does not divide the one-hour change is where a single offset for the range went wrong.
+  const q = M.queueLoad(ds([line(2026, 2, 7), line(2026, 2, 9)]), { bucketMin: 120 });
+  const busy = q.points.filter((p) => p.total > 0);
+  assert.equal(busy.length, 2);
+  for (const p of busy) { assert.equal(p.hour, 12, 'noon is hour 12 on both days'); assert.equal(new Date(p.t).getHours(), 12); }
+  const f = M.queueLoad(ds([line(2026, 2, 7), line(2026, 2, 9)]), { fold: true, bucketMin: 120 });
+  assert.deepEqual(f.points.filter((p) => p.total > 0).map((p) => p.hour), [12], 'both days fold into the same noon slot');
+});

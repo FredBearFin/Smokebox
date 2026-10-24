@@ -143,7 +143,7 @@ cat > $R/usr/local/bin/smokebox-beta-update <<UPD
 #!/bin/sh
 [ -x $R/usr/local/bin/smokebox-update ] || { echo "smokebox-beta-update: the real updater is missing"; exit 1; }
 export SMOKEBOX_PREFIX=$PREFIX SMOKEBOX_UPDATE_URL=$URL SMOKEBOX_SYSTEMCTL=$R/usr/local/bin/smokebox-beta-systemctl
-export SMOKEBOX_HEALTH_URL=http://127.0.0.1:$PORT/ SMOKEBOX_LOCK=$R/run/lock/smokebox-beta-update.lock SMOKEBOX_SELF_DEST=$R/run/smokebox-beta-update.unused
+export SMOKEBOX_DATA_FILE=$DATA/state.json SMOKEBOX_HEALTH_URL=http://127.0.0.1:$PORT/ SMOKEBOX_LOCK=$R/run/lock/smokebox-beta-update.lock SMOKEBOX_SELF_DEST=$R/run/smokebox-beta-update.unused
 exec $R/usr/local/bin/smokebox-update
 UPD
 chmod 755 $R/usr/local/bin/smokebox-beta-systemctl $R/usr/local/bin/smokebox-beta-update

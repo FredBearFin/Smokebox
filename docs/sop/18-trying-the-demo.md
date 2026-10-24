@@ -1,9 +1,9 @@
-# Trying the demo
+# Watch the demo
 
 See Smokebox with food on it, without touching your own kitchen.
 
-1. On the welcome screen, or in the **Settings**, tap **Try the demo**. Then tap **Try the demo** again to confirm. Tap **Not now** to stay where you are.
-2. The demo opens with sample dishes, three sample tickets and food in the cabinet. A bar at the top says "You are trying the demo". Cook, bump, pay and throw out food as much as you like.
+1. On the welcome screen, or in the **Settings**, tap **Watch the demo**. Then tap **Watch the demo** again to confirm. Tap **Not now** to stay where you are.
+2. The demo opens with sample dishes, three fresh sample tickets and food in the cabinet, and it runs by itself: new orders arrive and a sample crew cooks and bumps them. A bar at the top says "Demo". Watch, or tap any dish to join in. A demo left open for hours starts fresh the next time.
 3. Nothing you do there reaches your own kitchen.
 4. Tap **Back to my kitchen** on the bar to return. Your own dishes and orders are as you left them.
 

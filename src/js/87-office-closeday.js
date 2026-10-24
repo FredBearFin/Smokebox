@@ -100,6 +100,8 @@
   // Opens the Close the day sheet and keeps it current while it is open. Returns the sheet.
   function openCloseDay() {
     if (!SB.ui || !SB.ui.sheet || !stateNow()) return null;
+    // WATCH OUT: declared before the first paint, so a sheet closed during that paint does not touch it too early.
+    let off = null;
     // Stops listening to the store when the sheet closes.
     const onClose = () => { if (off) off(); };
     const sheet = SB.ui.sheet({ title: 'Close the day', side: 'right', width: 'min(640px, 96vw)', name: 'closeday', onClose });
@@ -119,7 +121,7 @@
     // The review: open orders, money, leftovers and the confirm button.
     function paintReview(m) {
       const help = SB.guide && SB.guide.link ? SB.guide.link('closing-the-day', 'closing the day') : null;
-      body.appendChild(h('p', { class: 'cd-lead' }, 'Today is ' + U.fmtDateShort(m.day) + '. ', whatClosingDoes((stateNow().settings.service || {}).dayStartHour), help ? h('span', null, ' ', help) : null));
+      body.appendChild(h('p', { class: 'cd-lead' }, 'Today is ' + U.fmtDateShort(m.day) + '. ', whatClosingDoes((((stateNow() || {}).settings || {}).service || {}).dayStartHour), help ? h('span', null, ' ', help) : null));
       // From 85 percent full the sheet repeats the saved-history warning, because closing the day is when the owner is already looking at the numbers.
       try {
         const BPh = SB.office && SB.office.backupPure, fill = SB.store.historyFill ? SB.store.historyFill() : null;
@@ -142,15 +144,17 @@
       body.appendChild(sec1);
       body.appendChild(moneyTable(m, drawer));
       body.appendChild(countsBlock(m));
+      // The closing button says when it will also throw food out, so that choice is never a surprise.
+      let setGoLabel = () => {};
       // Leftover food, only when cooked-ahead food is tracked and some is left.
       if (cookAheadOn() && m.leftovers.count > 0) {
         const headId = U.uid('cdleft');
         const sec = h('section', { class: 'cd-sec', role: 'radiogroup', 'aria-labelledby': headId }, h('h3', { id: headId }, 'Food still in the cabinet'),
-          h('p', { class: 'cd-note' }, m.leftovers.count + ' ' + U.plural(m.leftovers.count, 'batch', 'batches') + ', ' + U.weightText(m.leftovers.g) + ' in all. What should happen to it?'));
+          h('p', { class: 'cd-note' }, m.leftovers.count + ' ' + U.plural(m.leftovers.count, 'batch', 'batches') + ', ' + (O.weightText || U.weightText)(m.leftovers.g) + ' in all. What should happen to it?'));
         // One radio choice for what to do with the leftover food.
         const mk = (id, label, note) => {
           const input = h('input', { type: 'radio', name: 'cd-left', value: id, checked: leftovers === id });
-          input.addEventListener('change', () => { leftovers = id; });
+          input.addEventListener('change', () => { leftovers = id; setGoLabel(); });
           return h('label', { class: 'cd-radio' }, input, h('span', null, h('strong', null, label), h('small', null, note)));
         };
         sec.append(mk('keep', 'Keep it', 'The food stays in the cabinet and its timers keep running.'),
@@ -160,10 +164,20 @@
       const blocked = blockedLine(m);
       const status = h('p', { class: 'cd-status', role: 'status' }, blocked);
       const go = h('button', { type: 'button', class: 'btn btn-primary btn-lg', disabled: !!m.open.length }, 'Close the day');
+      // True when closing will also throw out the food still in the cabinet.
+      const throwing = () => cookAheadOn() && m.leftovers.count > 0 && leftovers === 'discard';
+      // Names the food on the button when it will be thrown out, else the plain label.
+      setGoLabel = () => { go.textContent = throwing() ? 'Close the day and throw out ' + (O.weightText || U.weightText)(m.leftovers.g) : 'Close the day'; };
+      setGoLabel();
       go.addEventListener('click', () => {
         go.disabled = true;
         let rep = 'error';
-        try { rep = SB.store.dispatch('closeDay', { leftovers: cookAheadOn() && m.leftovers.count > 0 ? leftovers : 'keep' }); } catch (e) { /* shown below */ }
+        const before = (stateNow() || {}).lastClose;
+        try { rep = SB.store.dispatch('closeDay', { leftovers: throwing() ? 'discard' : 'keep' }); } catch (e) {
+          // WATCH OUT: a throw can come after the close was saved (a listener failing), so look before saying nothing changed.
+          const after = (stateNow() || {}).lastClose;
+          if (after && after !== before && after.day === m.day) rep = 'ok';
+        }
         if (rep === 'ok') { rememberStart(drawer.text); closedSummary = m; paint(); return; }
         status.textContent = rep === 'ordersStillOpen' ? 'Another order is still open. Pay or void it, then try again.' : 'The day could not be closed. Nothing was changed.';
         go.disabled = false;
@@ -194,7 +208,7 @@
         h('p', { class: 'cd-note' }, 'Keep a copy of the backup off this device (email it to yourself or use a USB drive).'));
     }
     paint();
-    const off = SB.store.subscribe(() => { if (!closedSummary) paint(); });
+    off = SB.store.subscribe(() => { if (!closedSummary) paint(); });
     return sheet;
   }
 
@@ -258,15 +272,15 @@
   function backupNow(status) {
     let text = null;
     try { text = SB.store.exportAll(); } catch (e) { text = null; }
-    if (text == null) { status.textContent = 'A backup could not be made. Nothing was saved. Open Menu and settings, then Data, to try again.'; return; }
+    if (text == null) { status.textContent = 'A backup could not be made. Nothing was saved. Open Menu, prices and shop, then Data, to try again.'; return; }
     const fname = 'smokebox-backup-' + U.dateKey(Date.now()) + '.json';
     try {
       const url = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
       const a = h('a', { href: url, download: fname }); document.body.appendChild(a); a.click(); a.remove();
       setTimeout(() => URL.revokeObjectURL(url), 4000);
-      status.textContent = 'Download started: ' + fname + '. If nothing arrives, your browser may be blocking downloads: use Menu and settings, then Data, then Copy backup.';
+      status.textContent = 'Download started: ' + fname + '. If nothing arrives, your browser may be blocking downloads: use Menu, prices and shop, then Data, then Copy backup.';
       try { if (SB.shell && SB.shell.noteBackup) SB.shell.noteBackup(); } catch (e) { /* the reminder is optional */ }
-    } catch (e) { status.textContent = 'Your browser blocked the download. Use Menu and settings, then Data, then Copy backup.'; }
+    } catch (e) { status.textContent = 'Your browser blocked the download. Use Menu, prices and shop, then Data, then Copy backup.'; }
   }
 
   // ---- 3. Printing ----
@@ -291,7 +305,7 @@
         ...m.methods.filter((x) => x.count > 0).map((x) => prow('  Paid with ' + x.name.toLowerCase(), x.count + ' ' + U.plural(x.count, 'order') + ', ' + money(x.collected))),
         prow('Cash payments today', money(m.cashExpected) + ' (add your starting cash to count the drawer)'),
         prow('Orders voided', String(m.voidedOrders)), prow('Tickets voided', String(m.voidedTickets)),
-        prow('Food thrown out', (thrown.count || 0) + ' ' + U.plural(thrown.count || 0, 'batch', 'batches') + ', ' + U.weightText(thrown.g || 0) + (thrown.cost > 0 ? ', about ' + money(thrown.cost) + ' (only items with a recorded cost)' : '')))),
+        prow('Food thrown out', (thrown.count || 0) + ' ' + U.plural(thrown.count || 0, 'batch', 'batches') + ', ' + (O.weightText || U.weightText)(thrown.g || 0) + (thrown.cost > 0 ? ', about ' + money(thrown.cost) + ' (only items with a recorded cost)' : '')))),
       h('p', { class: 'cd-pnote' }, 'Printed ' + U.fmtDateShort(U.dateKey(Date.now())) + ' ' + U.fmtTime(Date.now()) + '. Counter: ______   Checked by: ______'));
     document.body.appendChild(root);
     // Removes the print-only block once the print dialog is done (or at once when printing is not available).
