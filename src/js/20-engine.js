@@ -1391,6 +1391,7 @@
       const offsetSec = paced ? dmax - prepSec : 0; /*@I5a*/
       const it = { id: id + '.' + (i + 1), menuId: x.mi.id, name: x.mi.name, short: x.mi.short || x.mi.name, zone: x.mi.zone, qty: x.qty, mods: x.mods,
         track: x.mi.track === 'two' ? 'two' : 'one', price: isNum(x.mi.price) ? x.mi.price : 0, prepSec, offsetSec, fireAt: createdAt + offsetSec * 1000, status: 'queued' };
+      if (isInt(x.mi.perSlot) && x.mi.perSlot > 1) it.perSlot = x.mi.perSlot;
       tx.own.add(it);
       return it;
     });
@@ -2484,6 +2485,9 @@
     office: { theme: { t: 'enum', v: ['ember', 'paper'] }, pinHash: { t: 'pin' }, recoveryHash: { t: 'pin' } },
     alerts: { ladderThresholds: { t: 'ladder' } },
     modules: { cookAhead: { t: 'bool' } },
+    // How many dishes each station can cook at once ({ stationId: 0 to 50 }, 0 or missing = no limit). The kitchen planner
+    // (Rust, 19-planner.js) uses it to plan the whole kitchen; with no limits the plan is the old per-ticket one.
+    capacity: { t: 'capmap' },
   };
   // Checks one list of warning minutes: 1 to 5 whole numbers, strictly falling, each from 5 to 240 (the last warning
   // needs time to act on).
@@ -2543,12 +2547,22 @@
     if (spec.t === 'currency') return U.validCurrency(v) ? null : { report: 'badPatch', key };
     if (spec.t === 'pin') return v === null || (typeof v === 'string' && v.length <= 128) ? null : { report: 'badPatch', key };
     if (spec.t === 'ladder') return checkLadder(v, key);
+    if (spec.t === 'capmap') return checkCapMap(v, key);
     if (spec.t === 'num') {
       if (!isNum(v)) return { report: 'badPatch', key };
       if (v < spec.lo || v > spec.hi || (spec.int && !isInt(v))) return { report: 'outOfBounds', key, min: spec.lo, max: spec.hi };
       return null;
     }
     return { report: 'badPatch', key };
+  }
+  // Checks a station capacity map: an object of known station ids, each a whole number from 0 (no limit) to 50.
+  function checkCapMap(v, key) {
+    if (!isObj(v) || Object.keys(v).length > 40) return { report: 'badPatch', key };
+    for (const k of Object.keys(v)) {
+      if (!safeKey(k) || C.workZones.indexOf(k) < 0) return { report: 'badPatch', key: key + '.' + k };
+      if (!isInt(v[k]) || v[k] < 0 || v[k] > 50) return { report: 'outOfBounds', key: key + '.' + k, min: 0, max: 50 };
+    }
+    return null;
   }
   // Merges channel time limits (warn and breach seconds) from a list or an object keyed by channel id. A
   // channel's warn must stay below its breach. Returns the new list or an error; keys collects the names
@@ -2663,6 +2677,8 @@
     cat: { t: 'enum', vf: () => C.categories.map((c) => c.id) }, track: { t: 'enum', v: ['one', 'two'] },
     // Cook steps the voice says while the dish cooks: up to 3 of { at: percent of the cook time, 0 to 95, say: up to 40 letters }.
     steps: { t: 'steps', clearable: true },
+    // How many portions share one basket or grill spot (1 to 50); missing means one portion per slot.
+    perSlot: Object.assign(R(1, 50, true), { clearable: true }),
   };
   // Checks and cleans a dish's cook steps: a list of 1 to 3 { at, say }, sorted by when they come. Returns the clean list or null.
   function cleanSteps(v) {
@@ -3537,6 +3553,55 @@
       if (now > statusDeadline(b, S)) refreshBatch(tx, i);
     }
   }
+  /** The whole-kitchen plan (Rust, through SB.planner) after every action, when the kitchen has set any station limit.
+   *  Waiting dishes get the start time the planner gives (moved: true when it differs from the ticket's own plan, held: true
+   *  when a full station holds it back), and a due dish at a full station gets freeAt (when a slot frees up). With no limits
+   *  set, dishes the planner moved go back to their own plan. Deterministic: the planner is pure and runs inside the action,
+   *  so a replayed action re-plans the same way on every device and on the server. */
+  function replanInto(tx) {
+    const cap = isObj(tx.get('settings').capacity) ? tx.get('settings').capacity : null;
+    const limited = !!cap && Object.keys(cap).some((k) => cap[k] > 0);
+    // No limits and none just removed: nothing can have been moved, so every action stays as fast as before.
+    if (!limited && tx.get('settings').capacity === (tx.s0.settings && tx.s0.settings.capacity)) return;
+    const tickets = tx.get('tickets');
+    const idx = activeIdx(tickets);
+    const plan = limited && SB.planner && SB.planner.ready() ? SB.planner.plan({
+      now: tx.now,
+      stations: Object.keys(cap).map((id) => ({ id, capacity: cap[id] })),
+      // Rush tickets are served first, then the rest in the order they came in.
+      tickets: idx.filter((ti) => tickets[ti].rush).concat(idx.filter((ti) => !tickets[ti].rush)).map((ti) => {
+        const t = tickets[ti];
+        return { id: t.id, createdAt: t.createdAt, paced: t.pacing !== false && !t.rush, items: t.items.map((it) => ({
+          id: it.id, zone: it.zone, qty: it.qty, prepSec: it.prepSec, status: it.status, fireAt: it.fireAt, startedAt: isNum(it.startedAt) ? it.startedAt : null, perSlot: it.perSlot || 0 })) };
+      }),
+    }) : null;
+    const byId = new Map();
+    if (plan) for (const r of plan.items) byId.set(r.id, r);
+    for (const ti of idx) {
+      const t = tickets[ti];
+      for (let ii = 0; ii < t.items.length; ii++) {
+        const it = t.items[ii], r = byId.get(it.id);
+        if (it.status === 'queued') {
+          const own = t.createdAt + it.offsetSec * 1000;
+          const at = r && isNum(r.fireAt) ? r.fireAt : own, held = !!(r && r.held);
+          if (at === it.fireAt && held === !!it.held && (at !== own) === !!it.moved) continue;
+          const w = tx.item(ti, ii);
+          w.fireAt = at;
+          if (at !== own) w.moved = true; else delete w.moved;
+          if (held) w.held = true; else delete w.held;
+        } else if (it.status === 'displayed') {
+          // freeAt: when a slot frees up for this due dish. Once it can go in, freeAt keeps the moment it became free (the
+          // voice calls it from then on, instead of from a due time that is minutes old).
+          const had = isNum(it.freeAt) ? it.freeAt : null;
+          let free = r && isNum(r.freeAt) ? r.freeAt : null;
+          if (free === null && had !== null) free = Math.min(had, tx.now);
+          if (free === had) continue;
+          const w = tx.item(ti, ii);
+          if (free !== null) w.freeAt = free; else delete w.freeAt;
+        }
+      }
+    }
+  }
   /** A ticket that becomes active again (recall, undo of bump/void) may hold queued items whose plan time passed while it was
    *  off the board: they fire now, the moment the station can see them (found by the fuzz test, see docs/findings.md F-E3). */
   function fireDueInto(tx) {
@@ -3560,6 +3625,7 @@
   // dropped.
   function finalize(tx, isAction) {
     let changedIds = [], prev = null;
+    if (isAction) replanInto(tx);
     if (isAction && (tx.touched.size || tx.pruned)) fireDueInto(tx);
     if (availInputsChanged(tx) || tx.restoreAvail) { const r = refreshAvail(tx); changedIds = r.changedIds; prev = r.prev; }
     if (isAction) {
@@ -3865,7 +3931,8 @@
       const want = it.rushed || !(t.dmaxSec > 0) ? 0 : t.dmaxSec - it.prepSec;
       if (it.offsetSec !== want) add('I5 ' + it.id + ' offsetSec ' + it.offsetSec + ' != ' + want);
       if (!(it.offsetSec >= 0 && it.offsetSec <= (t.dmaxSec || 0))) add('I5 ' + it.id + ' offset outside [0, dmax]');
-      if (it.fireAt !== t.createdAt + it.offsetSec * 1000) add('I5 ' + it.id + ' fireAt != createdAt + offset');
+      // A dish the kitchen planner moved (station limits, a late start) keeps its own plan in offsetSec and starts at fireAt.
+      if (it.moved === true ? !(isNum(it.fireAt) && it.fireAt >= t.createdAt) : it.fireAt !== t.createdAt + it.offsetSec * 1000) add('I5 ' + it.id + ' fireAt != createdAt + offset');
       if (isNum(now) && t.status === 'active' && it.status === 'queued' && it.fireAt <= now) add('I5 ' + it.id + ' due but still queued');
       // I6
       if (C.workZones.indexOf(it.zone) < 0) add('I6 ' + it.id + ' routed to ' + it.zone);
@@ -4099,6 +4166,7 @@
         }
         out.prepConfirmed = out.prepConfirmed === true; out.archived = out.archived === true;
         if (out.steps !== undefined) { const cs = cleanSteps(out.steps); if (cs) out.steps = cs; else { delete out.steps; repaired.push('menu ' + x.id + '.steps dropped'); } }
+        if (out.perSlot !== undefined && !(isInt(out.perSlot) && out.perSlot >= 1 && out.perSlot <= 50)) { delete out.perSlot; repaired.push('menu ' + x.id + '.perSlot dropped'); }
         seenMenu.add(x.id);
         menu.push(out);
       }

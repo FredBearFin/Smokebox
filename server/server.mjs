@@ -21,7 +21,9 @@ if (process.env.SMOKEBOX_TZ) process.env.TZ = process.env.SMOKEBOX_TZ;
 
 // Loads the pure engine files into globalThis.SB the same way test/_load.mjs does, and returns SB.
 async function loadEngine() {
-  for (const n of ['00-util', '10-config', '20-engine']) await import(pathToFileURL(path.join(ROOT, 'src/js', n + '.js')).href);
+  for (const n of ['00-util', '10-config', '18-engine-wasm', '19-planner', '20-engine']) await import(pathToFileURL(path.join(ROOT, 'src/js', n + '.js')).href);
+  // The Rust kitchen planner must run here too, so the server plans the kitchen exactly as the tablets do.
+  if (!globalThis.SB.planner.startSync()) throw new Error('The kitchen planner (WebAssembly) could not start.');
   return globalThis.SB;
 }
 

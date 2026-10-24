@@ -735,9 +735,10 @@
       // Dishes that are due and not started, grouped by the second they became due so one ticket makes one call.
       const groups = new Map();
       for (const it of mine) {
-        const due = it.status === 'displayed' || (it.status === 'queued' && it.fireAt <= now);
+        // A due dish whose station is full (the kitchen planner set freeAt) is called when its slot frees up, not before.
+        const due = (it.status === 'displayed' && !(it.freeAt > now)) || (it.status === 'queued' && it.fireAt <= now);
         if (!due || !U.isNum(it.fireAt)) continue;
-        const key = Math.floor(it.fireAt / 1000);
+        const key = Math.floor(Math.max(it.fireAt, U.isNum(it.freeAt) ? it.freeAt : 0) / 1000);
         if (!groups.has(key)) groups.set(key, []);
         groups.get(key).push(it);
       }

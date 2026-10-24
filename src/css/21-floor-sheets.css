@@ -682,3 +682,6 @@ input.mn-volume { min-height: var(--tap, 44px); width: 100%; }
 .dp-st-line { display: flex; gap: var(--sp-2); margin-top: var(--sp-2); }
 .dp-st-when { flex: 0 0 11rem; }
 .dp-st-say { flex: 1 1 auto; min-width: 0; }
+/* "At once" (a station's limit) and "Portions in one basket" boxes: a short number box with its label. */
+.dp-capwrap { display: inline-flex; align-items: center; gap: var(--sp-1); }
+.dp-cap { width: 5.5rem; text-align: center; }

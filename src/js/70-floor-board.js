@@ -1575,7 +1575,7 @@
   // Icon for each state on read-only rows.
   const STATE_ICON = { displayed: 'zap', cooking: 'flame', done: 'check-circle' };
   // Words for an item still waiting, for example "Start in 2:34".
-  const deckText = (it, now) => (it.fireAt <= now ? 'Starting now' : 'Start in ' + mss(it.fireAt - now));
+  const deckText = (it, now) => (it.fireAt <= now ? 'Starting now' : (it.held ? 'Station full. Start in ' : 'Start in ') + mss(it.fireAt - now));
   // The cook countdown: the time left of the dish's usual time, then how far past it. Only a cue: nothing here
   // ever completes the item, a person still taps it.
   function cookOf(it, now) {
@@ -1648,6 +1648,9 @@
   // Once-a-second update of a row's countdown or cooking time, written only when it changed.
   function tickRow(row, now) {
     const it = row.item;
+    // A due dish waiting for a free slot at a full station: the row is marked (no red flash) until the slot frees.
+    const wait = it.status === 'displayed' && it.freeAt > now ? 'full' : '';
+    if ((row.li.dataset.wait || '') !== wait) { if (wait) row.li.dataset.wait = wait; else delete row.li.dataset.wait; }
     if (row.status === 'queued') {
       const tx = deckText(it, now);
       if (tx !== row.deckTText) { row.deckTText = tx; put(row.deckT, tx); }
@@ -2292,10 +2295,11 @@
       if (ready) return { tone: 'go', text: 'Ticket ' + ready.num + ' is ready. Tap Bump.', ticketId: ready.id, target: 'bump' };
       if (zone === 'expo') return null;
     }
-    const due = [], cooking = [], waiting = [];
+    const due = [], cooking = [], waiting = [], full = [];
     for (const t of act) for (const it of t.items) {
       if (!mine(it)) continue;
-      if (it.status === 'displayed') due.push({ t, it });
+      if (it.status === 'displayed' && it.freeAt > now) full.push({ t, it });
+      else if (it.status === 'displayed') due.push({ t, it });
       else if (it.status === 'cooking') cooking.push({ t, it, left: cookOf(it, now).left });
       else if (it.status === 'queued') waiting.push({ t, it });
     }
@@ -2315,6 +2319,12 @@
       }
       const text = it.track === 'two' ? 'Start ' + nm(it) + ' on ticket ' + t.num + '.' : 'Make ' + nm(it) + ' for ticket ' + t.num + ', then tap Done.';
       return { tone: 'fire', text: text + (due.length > 1 ? ' (' + (due.length - 1) + ' more after)' : ''), ticketId: t.id, itemId: it.id, target: 'item' };
+    }
+    // A due dish whose station is full: say which station and when a slot frees up, so nobody tries to cram it in.
+    full.sort((a, b) => a.it.freeAt - b.it.freeAt);
+    if (full.length) {
+      const { t, it } = full[0], z = zoneById(it.zone);
+      return { tone: 'wait', text: (z ? z.name : 'Station') + ' is full. ' + nm(it) + ' for ticket ' + t.num + ' goes in ' + (it.freeAt - now <= 1000 ? 'now' : 'in ' + mss(it.freeAt - now)) + '.', ticketId: t.id, itemId: it.id, target: 'item' };
     }
     const soon = cooking.filter((x) => x.left != null && x.left <= 15000).sort((a, b) => a.left - b.left)[0];
     if (soon) {

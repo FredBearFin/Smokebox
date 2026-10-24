@@ -341,6 +341,25 @@
       paintStations(); paintTiles();
       return true;
     }
+    // How many dishes this station can cook at once (fryer baskets, burners, grill spots), saved in the kitchen's settings.
+    // Empty means no limit. The kitchen planner then never calls a dish while the station is full, and holds the ticket's
+    // other dishes so they still finish together.
+    function capField(z) {
+      const cur = (SB.store.getState().settings.capacity || {})[z.id];
+      const box = h('input', { class: 'input dp-cap', type: 'text', inputmode: 'numeric', maxlength: 2, value: cur > 0 ? String(cur) : '', placeholder: 'no limit',
+        'aria-label': 'How many can cook at once at ' + z.name, title: 'How many can cook at once here (baskets, burners, spots). Empty: no limit.' });
+      // Saves the new limit for this station, or says what is wrong and puts the old one back.
+      const saveCap = () => {
+        const t = box.value.trim(), n = t === '' ? 0 : Number(t);
+        if (!Number.isInteger(n) || n < 0 || n > 50) { tell(stSt, 'Type a whole number from 1 to 50, or leave it empty for no limit.'); box.value = cur > 0 ? String(cur) : ''; return; }
+        const cap = Object.assign({}, SB.store.getState().settings.capacity || {});
+        if (n > 0) cap[z.id] = n; else delete cap[z.id];
+        const r = send('updateSettings', { patch: { capacity: cap } });
+        tell(stSt, r.ok || r.report === 'nothingToDo' ? (n > 0 ? z.name + ': ' + n + ' at once. The coach plans around it.' : z.name + ': no limit.') : r.words);
+      };
+      box.addEventListener('change', saveCap);
+      return h('label', { class: 'dp-capwrap' }, h('span', { class: 'fs-sub' }, 'At once'), box);
+    }
     // Rebuilds the station rows: a name box, Hide or Show, and an add box at the end.
     function paintStations() {
       U.clear(stList);
@@ -358,14 +377,14 @@
           paintStations(); paintTiles();
           if (SB.floor && SB.floor.applyHiddenTabs) SB.floor.applyHiddenTabs();
         } }, isHid ? 'Use again' : 'Not used');
-        stList.appendChild(h('div', { class: 'dp-strow' }, inp, hideBtn));
+        stList.appendChild(h('div', { class: 'dp-strow' }, inp, capField(z), hideBtn));
       });
       const addIn = h('input', { class: 'input', type: 'text', maxlength: SB.config.customLimits.name, placeholder: 'New station, like Bar', 'aria-label': 'New station name' });
       // Adds a new station with the typed name, after the same checks as a rename.
       stList.appendChild(h('div', { class: 'dp-strow' }, addIn, h('button', { type: 'button', class: 'btn btn-sm', onClick: () => { if (addIn.value.trim()) commitNames((sp) => { sp.add.zones = (sp.add.zones || []).concat([{ name: addIn.value }]); }); } }, ico('plus', 18), h('span', null, 'Add station'))));
     }
     const stFold = h('details', { class: 'dp-fold dp-stfold' }, h('summary', null, ico('chevron-down', 18), h('span', null, 'Change stations')),
-      h('div', { class: 'dp-more' }, h('p', { class: 'fs-sub' }, 'Name the places in your kitchen the way your cooks say them. Tap Not used on any you do not have. If you only have one, you will not be asked.'), stList, stSt, stReload));
+      h('div', { class: 'dp-more' }, h('p', { class: 'fs-sub' }, 'Name the places in your kitchen the way your cooks say them. Tap Not used on any you do not have. If you only have one, you will not be asked. At once: how many dishes the station can cook at the same time (fryer baskets, burners, grill spots); leave it empty for no limit.'), stList, stSt, stReload));
     paintStations(); paintTiles();
     // Change menu sections: rename, mark Not used or add one, using the same saved names the order screen reads.
     const caSt = h('p', { class: 'fs-sub', role: 'status' });
@@ -531,13 +550,24 @@
         tell(msg, r.ok ? (steps.length ? 'Saved. The voice says these while ' + m.name + ' cooks.' : 'Steps removed.') : 'Each step needs 1 to 40 letters.');
       };
       const btn = h('button', { type: 'button', class: 'btn btn-sm', onClick: saveSteps }, ico('check', 18), h('span', null, 'Save steps'));
-      return h('details', { class: 'dp-steps', open: have.length > 0 }, h('summary', null, 'Cook steps (optional)' + (have.length ? ': ' + have.length : '')),
-        h('p', { class: 'fs-sub' }, 'Short things to do while it cooks. The voice says each one at its moment, and the ticket shows it.'), ...lines.map((l) => l.el), h('div', { class: 'fs-row' }, btn, msg));
+      // Portions that cook together in one basket or spot: the planner counts them as one slot at the station.
+      const per = h('input', { class: 'input dp-cap', type: 'text', inputmode: 'numeric', maxlength: 2, value: m.perSlot > 1 ? String(m.perSlot) : '', placeholder: '1', 'aria-label': 'Portions of ' + m.name + ' in one basket or spot' });
+      // Saves how many portions share one basket or spot (empty or 1: one each).
+      const savePer = () => {
+        const t = per.value.trim(), n = t === '' ? 1 : Number(t);
+        if (!Number.isInteger(n) || n < 1 || n > 50) { tell(msg, 'Type a whole number from 1 to 50.'); per.value = m.perSlot > 1 ? String(m.perSlot) : ''; return; }
+        const r = send('updateMenuItem', { id: m.id, patch: { perSlot: n > 1 ? n : null } });
+        tell(msg, r.ok || r.report === 'nothingToDo' ? (n > 1 ? n + ' portions share one basket or spot.' : 'One portion per basket or spot.') : r.words);
+      };
+      per.addEventListener('change', savePer);
+      return h('details', { class: 'dp-steps', open: have.length > 0 }, h('summary', null, 'Cook steps and basket size (optional)' + (have.length ? ': ' + have.length + ' ' + U.plural(have.length, 'step') : '')),
+        h('p', { class: 'fs-sub' }, 'Short things to do while it cooks. The voice says each one at its moment, and the ticket shows it.'), ...lines.map((l) => l.el), h('div', { class: 'fs-row' }, btn, msg),
+        h('label', { class: 'dp-capwrap' }, h('span', { class: 'fs-sub' }, 'Portions in one basket or spot'), per));
     }
     // Rebuilds the list of dishes when it has changed and no box in it is being typed in.
     function paintList() {
       const mine = activeDishes();
-      const sig = mine.map((m) => m.id + '|' + m.name + '|' + m.price + '|' + m.zone + '|' + m.cat + '|' + portionLeft(m) + '|' + JSON.stringify(m.steps || [])).join(';');
+      const sig = mine.map((m) => m.id + '|' + m.name + '|' + m.price + '|' + m.zone + '|' + m.cat + '|' + portionLeft(m) + '|' + JSON.stringify(m.steps || []) + '|' + (m.perSlot || 1)).join(';');
       const typing = listBox.contains(doc.activeElement) && /^(INPUT|SELECT|TEXTAREA)$/.test(doc.activeElement.tagName);
       if (sig === listSig || typing) return;
       listSig = sig;

@@ -213,6 +213,10 @@
   // Exposed so tests can run the start-up again or show the error card on purpose.
   SB.boot = { run: boot, showError: showBootError, details: detailsText };
   // Start when the page has finished loading; if it already has, start at once.
-  if (doc.readyState === 'loading') doc.addEventListener('DOMContentLoaded', boot, { once: true });
-  else boot();
+  // The Rust kitchen planner starts first (a browser compiles it in the background, in well under a second), so the kitchen
+  // never opens planning without it. If it cannot start, the app still opens and plans the old way.
+  // Starts the planner, then the app, once the page has loaded.
+  const go = () => { const p = SB.planner && SB.planner.start ? SB.planner.start() : Promise.resolve(false); p.then(boot, boot); };
+  if (doc.readyState === 'loading') doc.addEventListener('DOMContentLoaded', go, { once: true });
+  else go();
 })(typeof globalThis !== 'undefined' ? globalThis : window);
