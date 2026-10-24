@@ -2659,7 +2659,21 @@
     bom: { t: 'bom' }, zone: { t: 'enum', v: C.workZones }, archived: { t: 'bool' },
     // cat is looked up at call time, so a category added after load is accepted.
     cat: { t: 'enum', vf: () => C.categories.map((c) => c.id) }, track: { t: 'enum', v: ['one', 'two'] },
+    // Cook steps the voice says while the dish cooks: up to 3 of { at: percent of the cook time, 0 to 95, say: up to 40 letters }.
+    steps: { t: 'steps', clearable: true },
   };
+  // Checks and cleans a dish's cook steps: a list of 1 to 3 { at, say }, sorted by when they come. Returns the clean list or null.
+  function cleanSteps(v) {
+    if (!Array.isArray(v) || v.length < 1 || v.length > 3) return null;
+    const out = [];
+    for (const x of v) {
+      if (!isObj(x) || !isInt(x.at) || x.at < 0 || x.at > 95 || typeof x.say !== 'string' || x.say.length > 400) return null;
+      const say = cleanText(x.say);
+      if (!say || say.length > 40) return null;
+      out.push({ at: x.at, say });
+    }
+    return out.sort((a, b) => a.at - b.at);
+  }
   // The most dishes a menu may hold, so a typing slip cannot fill the saved data.
   const MENU_MAX = 150;
   const ING_PATCH = {
@@ -2696,6 +2710,9 @@
         if (typeof v !== 'string' || v.length > 400) { tx.info.key = key; return 'badPatch'; }
         nv = cleanText(v);
         if (!nv || nv.length > spec.max) { tx.info = { key, min: 1, max: spec.max }; return 'outOfBounds'; }
+      } else if (spec.t === 'steps') {
+        nv = cleanSteps(v);
+        if (!nv) { tx.info = { key, min: 1, max: 3 }; return 'badPatch'; }
       } else if (spec.t === 'bom') {
         if (!Array.isArray(v) || v.length > 12) { tx.info.key = key; return 'badPatch'; }
         const seen = new Set();
@@ -4079,6 +4096,7 @@
           repaired.push('menu ' + x.id + '.bom repaired');
         }
         out.prepConfirmed = out.prepConfirmed === true; out.archived = out.archived === true;
+        if (out.steps !== undefined) { const cs = cleanSteps(out.steps); if (cs) out.steps = cs; else { delete out.steps; repaired.push('menu ' + x.id + '.steps dropped'); } }
         seenMenu.add(x.id);
         menu.push(out);
       }

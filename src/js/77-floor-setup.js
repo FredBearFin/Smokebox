@@ -512,10 +512,32 @@
     // The dishes so far: each row is a name box, a price box and Remove. Changes save when the box is left.
     const listBox = h('div', { class: 'dp-list' });
     let listSig = null; // null so the first paint always runs, even for an empty menu
+    // The optional cook steps of one dish: up to 3 lines of "when" and "what to say". While the dish cooks, the voice says each
+    // line at its moment and the dish row shows it. Saved with one button; all lines empty removes the steps.
+    function stepsBox(m) {
+      const WHEN = [[0, 'At the start'], [25, 'A quarter in'], [50, 'Halfway'], [75, 'Three quarters in'], [90, 'Near the end']];
+      const have = Array.isArray(m.steps) ? m.steps : [];
+      const lines = [0, 1, 2].map((i) => {
+        const cur = have[i];
+        const sel = h('select', { class: 'select dp-st-when', 'aria-label': 'When, step ' + (i + 1) + ' of ' + m.name }, WHEN.map(([v, l]) => h('option', { value: String(v), selected: cur ? cur.at === v : v === [0, 50, 90][i] }, l)));
+        const say = h('input', { class: 'input dp-st-say', type: 'text', maxlength: 40, value: cur ? cur.say : '', placeholder: ['Drop the basket', 'Shake the basket', 'Plate it'][i], 'aria-label': 'What to say, step ' + (i + 1) + ' of ' + m.name });
+        return { sel, say, el: h('div', { class: 'dp-st-line' }, sel, say) };
+      });
+      const msg = h('span', { class: 'fs-sub', role: 'status' });
+      // Saves the filled-in lines as this dish's steps (none filled in removes them) and says what happened.
+      const saveSteps = () => {
+        const steps = lines.filter((l) => l.say.value.trim()).map((l) => ({ at: Number(l.sel.value), say: l.say.value.trim() }));
+        const r = send('updateMenuItem', { id: m.id, patch: { steps: steps.length ? steps : null } });
+        tell(msg, r.ok ? (steps.length ? 'Saved. The voice says these while ' + m.name + ' cooks.' : 'Steps removed.') : 'Each step needs 1 to 40 letters.');
+      };
+      const btn = h('button', { type: 'button', class: 'btn btn-sm', onClick: saveSteps }, ico('check', 18), h('span', null, 'Save steps'));
+      return h('details', { class: 'dp-steps', open: have.length > 0 }, h('summary', null, 'Cook steps (optional)' + (have.length ? ': ' + have.length : '')),
+        h('p', { class: 'fs-sub' }, 'Short things to do while it cooks. The voice says each one at its moment, and the ticket shows it.'), ...lines.map((l) => l.el), h('div', { class: 'fs-row' }, btn, msg));
+    }
     // Rebuilds the list of dishes when it has changed and no box in it is being typed in.
     function paintList() {
       const mine = activeDishes();
-      const sig = mine.map((m) => m.id + '|' + m.name + '|' + m.price + '|' + m.zone + '|' + m.cat + '|' + portionLeft(m)).join(';');
+      const sig = mine.map((m) => m.id + '|' + m.name + '|' + m.price + '|' + m.zone + '|' + m.cat + '|' + portionLeft(m) + '|' + JSON.stringify(m.steps || [])).join(';');
       const typing = listBox.contains(doc.activeElement) && /^(INPUT|SELECT|TEXTAREA)$/.test(doc.activeElement.tagName);
       if (sig === listSig || typing) return;
       listSig = sig;
@@ -554,7 +576,7 @@
         // Saves the new category for this dish and says so.
         catSelRow.addEventListener('change', () => { const r = send('updateMenuItem', { id: m.id, patch: { cat: catSelRow.value } }); tell(msg, r.ok ? 'Moved to ' + (SB.config.categoryById[catSelRow.value] || {}).name + '.' : r.words); });
         const z = SB.config.zoneById[m.zone];
-        listBox.appendChild(h('div', { class: 'dp-row' }, moveBox, n, pr, catSelRow, h('span', { class: 'chip dp-zone' }, z ? z.name : m.zone), ex.indexOf(m.id) >= 0 ? h('span', { class: 'chip dp-ex', 'data-tone': 'warn' }, 'Example') : null, rm, msg, portionsRow(m)));
+        listBox.appendChild(h('div', { class: 'dp-row' }, moveBox, n, pr, catSelRow, h('span', { class: 'chip dp-zone' }, z ? z.name : m.zone), ex.indexOf(m.id) >= 0 ? h('span', { class: 'chip dp-ex', 'data-tone': 'warn' }, 'Example') : null, rm, msg, portionsRow(m), m.track === 'two' ? stepsBox(m) : null));
       });
     }
     paintList(); paintGone();

@@ -1584,11 +1584,22 @@
     const left = it.prepSec * 1000 - el;
     return left > 0 ? { check: false, left, time: mss(left) } : { check: true, left, time: '+' + mss(-left) };
   }
+  // The cook step a dish is on now (the latest one whose share of the cook time has passed), as its words, or '' when it has none.
+  function stepNow(it, now) {
+    if (it.startedAt == null || !(it.prepSec > 0)) return '';
+    const md = store().getState().menu.find((x) => x.id === it.menuId);
+    if (!md || !Array.isArray(md.steps)) return '';
+    const pct = ((now - it.startedAt) / (it.prepSec * 1000)) * 100;
+    let say = '';
+    for (const st of md.steps) if (pct >= st.at) say = st.say;
+    return say;
+  }
   // Writes a tappable cooking row: the countdown under the name and the flash flag. A change to "Check it" is
   // spoken once and, when sound is on, chimes (only when live, so a reload stays quiet).
   function paintCook(row, it, now, live) {
     const ck = cookOf(it, now);
-    const txt = ck.check ? 'Check it ' + ck.time : ck.left == null ? 'Cooking ' + ck.time : ck.time + ' left';
+    const stp = stepNow(it, now);
+    const txt = (stp && !ck.check ? stp + ' · ' : '') + (ck.check ? 'Check it ' + ck.time : ck.left == null ? 'Cooking ' + ck.time : ck.time + ' left');
     if (row.cookTT && txt !== row.timeText) { row.timeText = txt; put(row.cookTT, txt); setHidden(row.cookT, false); }
     if (row.chk === ck.check) return;
     const was = row.chk;

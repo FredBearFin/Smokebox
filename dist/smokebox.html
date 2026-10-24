@@ -2948,6 +2948,12 @@ input.mn-volume { min-height: var(--tap, 44px); width: 100%; }
 /* The per-dish "I count what I made" link sits under its own dish as a quiet option, not as a bold heading between dishes. */
 .dp-countfold { margin: -2px 0 var(--sp-3) calc(2 * 44px + 2 * var(--sp-2)); }
 .dp-countfold > summary { min-height: 36px; font-weight: var(--w-regular, 400); font-size: var(--fs-1); color: var(--ink2); text-decoration: underline; text-underline-offset: 3px; }
+/* A dish's optional cook steps, folded under its row in Dishes and prices. */
+.dp-steps { flex: 1 0 100%; margin-top: var(--sp-1); }
+.dp-steps > summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; font-weight: var(--w-semi); }
+.dp-st-line { display: flex; gap: var(--sp-2); margin-top: var(--sp-2); }
+.dp-st-when { flex: 0 0 11rem; }
+.dp-st-say { flex: 1 1 auto; min-width: 0; }
 
 /* ===== 22-floor-tour.css ===== */
 /*
@@ -4548,7 +4554,7 @@ a.of-nav:active { background: var(--press); }
 <div id="app" aria-live="off"></div>
 <noscript><p style="margin:16px;font:17px/1.4 system-ui,sans-serif">Smokebox needs JavaScript to run. Turn it on for this page and reload.</p></noscript>
 <script>
-window.SB_BUILD = { version: "0.2.0", id: "c14122e" };
+window.SB_BUILD = { version: "0.2.0", id: "8ddf0cc" };
 
 /* ===== 00-util.js ===== */
 ;try{
@@ -8870,7 +8876,21 @@ window.SB_BUILD = { version: "0.2.0", id: "c14122e" };
     bom: { t: 'bom' }, zone: { t: 'enum', v: C.workZones }, archived: { t: 'bool' },
     // cat is looked up at call time, so a category added after load is accepted.
     cat: { t: 'enum', vf: () => C.categories.map((c) => c.id) }, track: { t: 'enum', v: ['one', 'two'] },
+    // Cook steps the voice says while the dish cooks: up to 3 of { at: percent of the cook time, 0 to 95, say: up to 40 letters }.
+    steps: { t: 'steps', clearable: true },
   };
+  // Checks and cleans a dish's cook steps: a list of 1 to 3 { at, say }, sorted by when they come. Returns the clean list or null.
+  function cleanSteps(v) {
+    if (!Array.isArray(v) || v.length < 1 || v.length > 3) return null;
+    const out = [];
+    for (const x of v) {
+      if (!isObj(x) || !isInt(x.at) || x.at < 0 || x.at > 95 || typeof x.say !== 'string' || x.say.length > 400) return null;
+      const say = cleanText(x.say);
+      if (!say || say.length > 40) return null;
+      out.push({ at: x.at, say });
+    }
+    return out.sort((a, b) => a.at - b.at);
+  }
   // The most dishes a menu may hold, so a typing slip cannot fill the saved data.
   const MENU_MAX = 150;
   const ING_PATCH = {
@@ -8907,6 +8927,9 @@ window.SB_BUILD = { version: "0.2.0", id: "c14122e" };
         if (typeof v !== 'string' || v.length > 400) { tx.info.key = key; return 'badPatch'; }
         nv = cleanText(v);
         if (!nv || nv.length > spec.max) { tx.info = { key, min: 1, max: spec.max }; return 'outOfBounds'; }
+      } else if (spec.t === 'steps') {
+        nv = cleanSteps(v);
+        if (!nv) { tx.info = { key, min: 1, max: 3 }; return 'badPatch'; }
       } else if (spec.t === 'bom') {
         if (!Array.isArray(v) || v.length > 12) { tx.info.key = key; return 'badPatch'; }
         const seen = new Set();
@@ -10290,6 +10313,7 @@ window.SB_BUILD = { version: "0.2.0", id: "c14122e" };
           repaired.push('menu ' + x.id + '.bom repaired');
         }
         out.prepConfirmed = out.prepConfirmed === true; out.archived = out.archived === true;
+        if (out.steps !== undefined) { const cs = cleanSteps(out.steps); if (cs) out.steps = cs; else { delete out.steps; repaired.push('menu ' + x.id + '.steps dropped'); } }
         seenMenu.add(x.id);
         menu.push(out);
       }
@@ -11288,6 +11312,7 @@ window.SB_BUILD = { version: "0.2.0", id: "c14122e" };
     else if (kind === 'summary') t = d.count + ' new tickets. First up, ticket ' + d.first + '.';
     else if (kind === 'start') t = 'Fire ' + d.name + ' now! Ticket ' + d.num + '!';
     else if (kind === 'start_again') t = 'Still waiting on ' + d.name + '! Fire it now! Ticket ' + d.num + '!';
+    else if (kind === 'step') t = d.name + ': ' + d.say + '! Ticket ' + d.num + '!';
     else if (kind === 'ready') t = 'Ticket ' + d.num + ' is up! Ring it out!';
     else if (kind === 'ready_again') t = 'Ticket ' + d.num + ' is waiting! Ring it out now!';
     else if (kind === 'past') t = d.who + (d.many ? ' are past quality!' : ' is past quality!') + ' Check it now!';
@@ -11373,6 +11398,17 @@ window.SB_BUILD = { version: "0.2.0", id: "c14122e" };
         if (!groups.has(key)) groups.set(key, []);
         groups.get(key).push(it);
       }
+      // Cook steps: while a dish cooks, each step the owner set for it is called when its share of the cook time has passed.
+      const menuById = new Map((state.menu || []).map((x) => [x.id, x]));
+      for (const it of mine) {
+        if (it.status !== 'cooking' || !U.isNum(it.startedAt) || !(it.prepSec > 0)) continue;
+        const md = menuById.get(it.menuId);
+        if (!md || !Array.isArray(md.steps)) continue;
+        md.steps.forEach((st, i) => {
+          const at = it.startedAt + Math.round(it.prepSec * 10 * st.at);
+          if (now >= at) out.push({ id: 'c:' + t.id + ':' + it.id + ':' + i, kind: 'step', style: 'start', at, text: phrase('step', { name: it.short || it.name, say: st.say, num: t.num }), ticketNum: t.num });
+        });
+      }
       for (const [key, its] of groups) {
         const at = key * 1000, name = nameList(its);
         out.push({ id: 's:' + t.id + ':' + key, kind: 'start', style: 'start', at, text: phrase('start', { name, num: t.num }), ticketNum: t.num });
@@ -11421,7 +11457,7 @@ window.SB_BUILD = { version: "0.2.0", id: "c14122e" };
           return { id: 'burst:' + news[0].id, kind: 'new', style: 'summary', at: news[0].at, ticketNum: news[0].ticketNum, text: phrase('summary', { count: news.length, first: news[0].ticketNum }) };
         }
         // Dishes to fire come before a finished ticket, and a finished ticket before a new one; oldest first inside each.
-        const rank = (c) => (c.kind === 'start' ? 0 : c.kind === 'ready' ? 1 : 2);
+        const rank = (c) => (c.kind === 'start' || c.kind === 'step' ? 0 : c.kind === 'ready' ? 1 : 2);
         let bi = 0;
         for (let i = 1; i < q.length; i++) if (rank(q[i]) < rank(q[bi])) bi = i;
         return q.splice(bi, 1)[0];
@@ -22976,11 +23012,22 @@ window.SB_BUILD = { version: "0.2.0", id: "c14122e" };
     const left = it.prepSec * 1000 - el;
     return left > 0 ? { check: false, left, time: mss(left) } : { check: true, left, time: '+' + mss(-left) };
   }
+  // The cook step a dish is on now (the latest one whose share of the cook time has passed), as its words, or '' when it has none.
+  function stepNow(it, now) {
+    if (it.startedAt == null || !(it.prepSec > 0)) return '';
+    const md = store().getState().menu.find((x) => x.id === it.menuId);
+    if (!md || !Array.isArray(md.steps)) return '';
+    const pct = ((now - it.startedAt) / (it.prepSec * 1000)) * 100;
+    let say = '';
+    for (const st of md.steps) if (pct >= st.at) say = st.say;
+    return say;
+  }
   // Writes a tappable cooking row: the countdown under the name and the flash flag. A change to "Check it" is
   // spoken once and, when sound is on, chimes (only when live, so a reload stays quiet).
   function paintCook(row, it, now, live) {
     const ck = cookOf(it, now);
-    const txt = ck.check ? 'Check it ' + ck.time : ck.left == null ? 'Cooking ' + ck.time : ck.time + ' left';
+    const stp = stepNow(it, now);
+    const txt = (stp && !ck.check ? stp + ' · ' : '') + (ck.check ? 'Check it ' + ck.time : ck.left == null ? 'Cooking ' + ck.time : ck.time + ' left');
     if (row.cookTT && txt !== row.timeText) { row.timeText = txt; put(row.cookTT, txt); setHidden(row.cookT, false); }
     if (row.chk === ck.check) return;
     const was = row.chk;
@@ -29397,10 +29444,32 @@ window.SB_BUILD = { version: "0.2.0", id: "c14122e" };
     // The dishes so far: each row is a name box, a price box and Remove. Changes save when the box is left.
     const listBox = h('div', { class: 'dp-list' });
     let listSig = null; // null so the first paint always runs, even for an empty menu
+    // The optional cook steps of one dish: up to 3 lines of "when" and "what to say". While the dish cooks, the voice says each
+    // line at its moment and the dish row shows it. Saved with one button; all lines empty removes the steps.
+    function stepsBox(m) {
+      const WHEN = [[0, 'At the start'], [25, 'A quarter in'], [50, 'Halfway'], [75, 'Three quarters in'], [90, 'Near the end']];
+      const have = Array.isArray(m.steps) ? m.steps : [];
+      const lines = [0, 1, 2].map((i) => {
+        const cur = have[i];
+        const sel = h('select', { class: 'select dp-st-when', 'aria-label': 'When, step ' + (i + 1) + ' of ' + m.name }, WHEN.map(([v, l]) => h('option', { value: String(v), selected: cur ? cur.at === v : v === [0, 50, 90][i] }, l)));
+        const say = h('input', { class: 'input dp-st-say', type: 'text', maxlength: 40, value: cur ? cur.say : '', placeholder: ['Drop the basket', 'Shake the basket', 'Plate it'][i], 'aria-label': 'What to say, step ' + (i + 1) + ' of ' + m.name });
+        return { sel, say, el: h('div', { class: 'dp-st-line' }, sel, say) };
+      });
+      const msg = h('span', { class: 'fs-sub', role: 'status' });
+      // Saves the filled-in lines as this dish's steps (none filled in removes them) and says what happened.
+      const saveSteps = () => {
+        const steps = lines.filter((l) => l.say.value.trim()).map((l) => ({ at: Number(l.sel.value), say: l.say.value.trim() }));
+        const r = send('updateMenuItem', { id: m.id, patch: { steps: steps.length ? steps : null } });
+        tell(msg, r.ok ? (steps.length ? 'Saved. The voice says these while ' + m.name + ' cooks.' : 'Steps removed.') : 'Each step needs 1 to 40 letters.');
+      };
+      const btn = h('button', { type: 'button', class: 'btn btn-sm', onClick: saveSteps }, ico('check', 18), h('span', null, 'Save steps'));
+      return h('details', { class: 'dp-steps', open: have.length > 0 }, h('summary', null, 'Cook steps (optional)' + (have.length ? ': ' + have.length : '')),
+        h('p', { class: 'fs-sub' }, 'Short things to do while it cooks. The voice says each one at its moment, and the ticket shows it.'), ...lines.map((l) => l.el), h('div', { class: 'fs-row' }, btn, msg));
+    }
     // Rebuilds the list of dishes when it has changed and no box in it is being typed in.
     function paintList() {
       const mine = activeDishes();
-      const sig = mine.map((m) => m.id + '|' + m.name + '|' + m.price + '|' + m.zone + '|' + m.cat + '|' + portionLeft(m)).join(';');
+      const sig = mine.map((m) => m.id + '|' + m.name + '|' + m.price + '|' + m.zone + '|' + m.cat + '|' + portionLeft(m) + '|' + JSON.stringify(m.steps || [])).join(';');
       const typing = listBox.contains(doc.activeElement) && /^(INPUT|SELECT|TEXTAREA)$/.test(doc.activeElement.tagName);
       if (sig === listSig || typing) return;
       listSig = sig;
@@ -29439,7 +29508,7 @@ window.SB_BUILD = { version: "0.2.0", id: "c14122e" };
         // Saves the new category for this dish and says so.
         catSelRow.addEventListener('change', () => { const r = send('updateMenuItem', { id: m.id, patch: { cat: catSelRow.value } }); tell(msg, r.ok ? 'Moved to ' + (SB.config.categoryById[catSelRow.value] || {}).name + '.' : r.words); });
         const z = SB.config.zoneById[m.zone];
-        listBox.appendChild(h('div', { class: 'dp-row' }, moveBox, n, pr, catSelRow, h('span', { class: 'chip dp-zone' }, z ? z.name : m.zone), ex.indexOf(m.id) >= 0 ? h('span', { class: 'chip dp-ex', 'data-tone': 'warn' }, 'Example') : null, rm, msg, portionsRow(m)));
+        listBox.appendChild(h('div', { class: 'dp-row' }, moveBox, n, pr, catSelRow, h('span', { class: 'chip dp-zone' }, z ? z.name : m.zone), ex.indexOf(m.id) >= 0 ? h('span', { class: 'chip dp-ex', 'data-tone': 'warn' }, 'Example') : null, rm, msg, portionsRow(m), m.track === 'two' ? stepsBox(m) : null));
       });
     }
     paintList(); paintGone();

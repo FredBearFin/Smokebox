@@ -655,6 +655,7 @@
     else if (kind === 'summary') t = d.count + ' new tickets. First up, ticket ' + d.first + '.';
     else if (kind === 'start') t = 'Fire ' + d.name + ' now! Ticket ' + d.num + '!';
     else if (kind === 'start_again') t = 'Still waiting on ' + d.name + '! Fire it now! Ticket ' + d.num + '!';
+    else if (kind === 'step') t = d.name + ': ' + d.say + '! Ticket ' + d.num + '!';
     else if (kind === 'ready') t = 'Ticket ' + d.num + ' is up! Ring it out!';
     else if (kind === 'ready_again') t = 'Ticket ' + d.num + ' is waiting! Ring it out now!';
     else if (kind === 'past') t = d.who + (d.many ? ' are past quality!' : ' is past quality!') + ' Check it now!';
@@ -740,6 +741,17 @@
         if (!groups.has(key)) groups.set(key, []);
         groups.get(key).push(it);
       }
+      // Cook steps: while a dish cooks, each step the owner set for it is called when its share of the cook time has passed.
+      const menuById = new Map((state.menu || []).map((x) => [x.id, x]));
+      for (const it of mine) {
+        if (it.status !== 'cooking' || !U.isNum(it.startedAt) || !(it.prepSec > 0)) continue;
+        const md = menuById.get(it.menuId);
+        if (!md || !Array.isArray(md.steps)) continue;
+        md.steps.forEach((st, i) => {
+          const at = it.startedAt + Math.round(it.prepSec * 10 * st.at);
+          if (now >= at) out.push({ id: 'c:' + t.id + ':' + it.id + ':' + i, kind: 'step', style: 'start', at, text: phrase('step', { name: it.short || it.name, say: st.say, num: t.num }), ticketNum: t.num });
+        });
+      }
       for (const [key, its] of groups) {
         const at = key * 1000, name = nameList(its);
         out.push({ id: 's:' + t.id + ':' + key, kind: 'start', style: 'start', at, text: phrase('start', { name, num: t.num }), ticketNum: t.num });
@@ -788,7 +800,7 @@
           return { id: 'burst:' + news[0].id, kind: 'new', style: 'summary', at: news[0].at, ticketNum: news[0].ticketNum, text: phrase('summary', { count: news.length, first: news[0].ticketNum }) };
         }
         // Dishes to fire come before a finished ticket, and a finished ticket before a new one; oldest first inside each.
-        const rank = (c) => (c.kind === 'start' ? 0 : c.kind === 'ready' ? 1 : 2);
+        const rank = (c) => (c.kind === 'start' || c.kind === 'step' ? 0 : c.kind === 'ready' ? 1 : 2);
         let bi = 0;
         for (let i = 1; i < q.length; i++) if (rank(q[i]) < rank(q[bi])) bi = i;
         return q.splice(bi, 1)[0];

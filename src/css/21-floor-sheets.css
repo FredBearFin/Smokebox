@@ -676,3 +676,9 @@ input.mn-volume { min-height: var(--tap, 44px); width: 100%; }
 /* The per-dish "I count what I made" link sits under its own dish as a quiet option, not as a bold heading between dishes. */
 .dp-countfold { margin: -2px 0 var(--sp-3) calc(2 * 44px + 2 * var(--sp-2)); }
 .dp-countfold > summary { min-height: 36px; font-weight: var(--w-regular, 400); font-size: var(--fs-1); color: var(--ink2); text-decoration: underline; text-underline-offset: 3px; }
+/* A dish's optional cook steps, folded under its row in Dishes and prices. */
+.dp-steps { flex: 1 0 100%; margin-top: var(--sp-1); }
+.dp-steps > summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; font-weight: var(--w-semi); }
+.dp-st-line { display: flex; gap: var(--sp-2); margin-top: var(--sp-2); }
+.dp-st-when { flex: 0 0 11rem; }
+.dp-st-say { flex: 1 1 auto; min-width: 0; }
