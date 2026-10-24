@@ -1421,7 +1421,7 @@
       if (row && row.kind !== kind) { const nrow = buildRow(rec, it, kind); row.li.replaceWith(nrow.li); rec.rows.set(it.id, nrow); row = nrow; patchRow(rec, row, it, now); }
       else if (!row) { row = buildRow(rec, it, kind); rec.rows.set(it.id, row); patchRow(rec, row, it, now); }
       else if (row.item !== it) patchRow(rec, row, it, now);
-      if (it.status === 'queued' || it.status === 'cooking') rec.timed.push(row);
+      if (it.status === 'queued' || it.status === 'cooking' || (it.status === 'displayed' && isFinite(it.freeAt))) rec.timed.push(row); // a due dish at a full station also ticks, to show when its slot frees
       nodes.push(row.li);
     }
     for (const [id, row] of Array.from(rec.rows)) if (!keep.has(id)) { row.li.remove(); rec.rows.delete(id); }

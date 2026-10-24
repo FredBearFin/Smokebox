@@ -2270,9 +2270,9 @@ html[data-cabinet="on"] .sb-shell[data-view="floor"] .toast-host { bottom: auto;
 .slip-note-do { display: block; margin-top: 2px; font-weight: var(--w-heavy); }
 /* A due dish whose station is full (the kitchen planner says when a slot frees): no red flash, a calm dashed edge instead.
    The coach bar says which station is full and when the dish can go in. */
-.fl-row[data-wait="full"] > .slip-item, .fl-row[data-wait="full"] .fl-act { animation: none; }
-.fl-row[data-wait="full"] > .slip-item { background: var(--sub); box-shadow: inset calc(8px * var(--fl-k)) 0 0 var(--line); }
-.fl-row[data-wait="full"] .fl-act { color: var(--ink2); background: var(--paper); border-style: dashed; border-color: var(--line); box-shadow: none; }
+.fl-row[data-kind="btn"][data-state="displayed"][data-wait="full"] > .slip-item, .fl-row[data-kind="btn"][data-state="displayed"][data-wait="full"] .fl-act { animation: none; }
+.fl-row[data-kind="btn"][data-state="displayed"][data-wait="full"] > .slip-item { background: var(--sub); box-shadow: inset calc(8px * var(--fl-k)) 0 0 var(--line); }
+.fl-row[data-kind="btn"][data-state="displayed"][data-wait="full"] .fl-act { color: var(--ink2); background: var(--paper); border-style: dashed; border-color: var(--line); box-shadow: none; }
 
 /* ===== 21-floor-sheets.css ===== */
 /*
@@ -4562,7 +4562,7 @@ a.of-nav:active { background: var(--press); }
 <div id="app" aria-live="off"></div>
 <noscript><p style="margin:16px;font:17px/1.4 system-ui,sans-serif">Smokebox needs JavaScript to run. Turn it on for this page and reload.</p></noscript>
 <script>
-window.SB_BUILD = { version: "0.2.0", id: "b5344b6" };
+window.SB_BUILD = { version: "0.2.0", id: "6f885a6" };
 
 /* ===== 00-util.js ===== */
 ;try{
@@ -9875,7 +9875,7 @@ window.SB_BUILD = { version: "0.2.0", id: "b5344b6" };
     const cap = isObj(tx.get('settings').capacity) ? tx.get('settings').capacity : null;
     const limited = !!cap && Object.keys(cap).some((k) => cap[k] > 0);
     // No limits and none just removed: nothing can have been moved, so every action stays as fast as before.
-    if (!limited && cap === (tx.s0.settings && tx.s0.settings.capacity)) return;
+    if (!limited && tx.get('settings').capacity === (tx.s0.settings && tx.s0.settings.capacity)) return;
     const tickets = tx.get('tickets');
     const idx = activeIdx(tickets);
     const plan = limited && SB.planner && SB.planner.ready() ? SB.planner.plan({
@@ -23016,7 +23016,7 @@ window.SB_BUILD = { version: "0.2.0", id: "b5344b6" };
       if (row && row.kind !== kind) { const nrow = buildRow(rec, it, kind); row.li.replaceWith(nrow.li); rec.rows.set(it.id, nrow); row = nrow; patchRow(rec, row, it, now); }
       else if (!row) { row = buildRow(rec, it, kind); rec.rows.set(it.id, row); patchRow(rec, row, it, now); }
       else if (row.item !== it) patchRow(rec, row, it, now);
-      if (it.status === 'queued' || it.status === 'cooking') rec.timed.push(row);
+      if (it.status === 'queued' || it.status === 'cooking' || (it.status === 'displayed' && isFinite(it.freeAt))) rec.timed.push(row); // a due dish at a full station also ticks, to show when its slot frees
       nodes.push(row.li);
     }
     for (const [id, row] of Array.from(rec.rows)) if (!keep.has(id)) { row.li.remove(); rec.rows.delete(id); }

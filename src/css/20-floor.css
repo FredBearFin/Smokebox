@@ -969,6 +969,6 @@ html[data-cabinet="on"] .sb-shell[data-view="floor"] .toast-host { bottom: auto;
 .slip-note-do { display: block; margin-top: 2px; font-weight: var(--w-heavy); }
 /* A due dish whose station is full (the kitchen planner says when a slot frees): no red flash, a calm dashed edge instead.
    The coach bar says which station is full and when the dish can go in. */
-.fl-row[data-wait="full"] > .slip-item, .fl-row[data-wait="full"] .fl-act { animation: none; }
-.fl-row[data-wait="full"] > .slip-item { background: var(--sub); box-shadow: inset calc(8px * var(--fl-k)) 0 0 var(--line); }
-.fl-row[data-wait="full"] .fl-act { color: var(--ink2); background: var(--paper); border-style: dashed; border-color: var(--line); box-shadow: none; }
+.fl-row[data-kind="btn"][data-state="displayed"][data-wait="full"] > .slip-item, .fl-row[data-kind="btn"][data-state="displayed"][data-wait="full"] .fl-act { animation: none; }
+.fl-row[data-kind="btn"][data-state="displayed"][data-wait="full"] > .slip-item { background: var(--sub); box-shadow: inset calc(8px * var(--fl-k)) 0 0 var(--line); }
+.fl-row[data-kind="btn"][data-state="displayed"][data-wait="full"] .fl-act { color: var(--ink2); background: var(--paper); border-style: dashed; border-color: var(--line); box-shadow: none; }
