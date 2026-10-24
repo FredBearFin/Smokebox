@@ -954,7 +954,7 @@
   }
   // A copy of the save status plus the current speed: persistent, lastSaveOk, lastSaveAt, corrupt, firstRun,
   // trimmed, repaired, speed.
-  function status() { return Object.assign({}, st, { speed: clk.speed }); }
+  function status() { return Object.assign({}, st, { speed: clk.speed, outbox: outbox.length }); }
 
   // Tells the formatting helpers which units the saved settings ask for (degrees F or C, kg or lb).
   function syncUnits() { try { if (state && state.settings) { U.setUnits(state.settings.ui); U.setCurrency(state.settings.ui && state.settings.ui.currency); } } catch (e) { /* formatting keeps its old choice */ } }

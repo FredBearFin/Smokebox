@@ -2247,7 +2247,14 @@
       const words = 'Saved history: ' + Math.round(fill.pct) + '% full.' + (fill.nearFull ? ' Close the month to save older days to files.' : '') + (fill.persisted === false ? ' Your browser may clear this data if the tablet is unused. Installing the app (Tablet checks, step 4) usually helps. Save a backup every day.' : '');
       return settingBlock('Saved history', words, ...parts);
     })();
+    // Signed in to the hosted server: which kitchen and account this device is on, and a way to sign this one device out.
+    // Sign this device out: the kitchen and the other devices stay as they are.
+    const signOutBtn = h('button', { type: 'button', class: 'btn btn-block mn-link', dataset: { act: 'sign-out' }, onClick: () => SB.cloud.signOut() }, ico('arrow-right', 22), h('span', { class: 'grow' }, 'Sign this device out'));
+    const cloudBlock = SB.cloud && SB.cloud.on
+      ? settingBlock('Your kitchen', 'This device is signed in to ' + SB.cloud.kitchen.name + ' (' + SB.cloud.email + '). Every device signed in to it shows the same tickets.', signOutBtn)
+      : null;
     sheet.body.append(h('div', { class: 'mn' },
+      cloudBlock,
       // The one-time offer to clear old demo tickets from real reports; null (nothing shown) when there are none.
       SB.setup && SB.setup.leftoversCard ? SB.setup.leftoversCard() : null,
       settingBlock('Look', 'Day is the bright parchment board. Night is charcoal, easier on the eyes in a dim kitchen.', themeSeg),

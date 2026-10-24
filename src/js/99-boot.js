@@ -174,7 +174,10 @@
     let stage = 'start';
     try {
       stage = 'store';
-      if (SB.store && typeof SB.store.init === 'function') SB.store.init({ blank: true, mode: SB.util.mode() }); // a brand-new install starts empty; saved data is never changed
+      // Signed in to the hosted server: the kitchen lives there, and this device follows it through the cloud transport (never in the demo).
+      const cloud = SB.cloud && SB.cloud.on && SB.util.mode() !== 'demo';
+      if (cloud) SB.cloud.guardKitchen();
+      if (SB.store && typeof SB.store.init === 'function') SB.store.init(Object.assign({ blank: true, mode: SB.util.mode() }, cloud ? { transport: SB.cloud.transport } : {})); // a brand-new install starts empty; saved data is never changed
       // The demo (its own saved data) opens with its sample tickets the first time.
       // A brand-new empty kitchen gets neutral station and menu-section names (saved with it); old kitchens and the demo keep theirs.
       if (SB.store && SB.store.isBlank && SB.store.isBlank() && SB.store.applyStarterNames) SB.store.applyStarterNames();

@@ -44,7 +44,7 @@ test('the key mapper: kitchen data moves in the demo, device settings and foreig
   for (const k of U.sharedKeys) assert.equal(U.storageKey(k, 'demo'), k);
   for (const k of U.sharedKeys.concat(U.dataKeys)) assert.equal(U.storageKey(k, 'real'), k);
   assert.equal(U.storageKey('other.key', 'demo'), 'other.key');
-  assert.equal(U.sharedKeys.length, 17);
+  assert.equal(U.sharedKeys.length, 19);
   assert.equal(U.sharedKeys.filter((k) => U.dataKeys.includes(k)).length, 0);
 });
 
