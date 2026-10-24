@@ -420,6 +420,14 @@ button.slip-item.fl-item { cursor: pointer; }
 @keyframes fl-check-tile { 0%, 100% { transform: none; } 50% { transform: scale(1.06); } }
 @media (prefers-reduced-motion: reduce) { .fl-row[data-cook="check"] > .slip-item, .fl-row[data-cook="check"] .fl-act[data-act="cook"] { animation: none; } }
 
+/* "Fire it now": a dish whose start time has come and nobody has started it. It is the dish the voice is calling, so the
+   row flashes red and its tile turns solid red until someone taps it; a cook who cannot read the words still sees which
+   dish to make. (Owner, Oct 2026: "what needs to be fired flashing red".) */
+.fl-row[data-kind="btn"][data-state="displayed"] > .slip-item { box-shadow: inset calc(8px * var(--fl-k)) 0 0 var(--crimson); animation: fl-fire-row 0.9s ease-in-out infinite; }
+.fl-row[data-kind="btn"][data-state="displayed"] .fl-act { color: var(--paper); background: var(--crimson); border-color: var(--crimson); box-shadow: 0 calc(3px * var(--fl-k)) 0 var(--ink); animation: fl-check-tile 0.9s ease-in-out infinite; }
+@keyframes fl-fire-row { 0%, 100% { background-color: var(--tint-bad); } 50% { background-color: var(--paper); } }
+@media (prefers-reduced-motion: reduce) { .fl-row[data-kind="btn"][data-state="displayed"] > .slip-item, .fl-row[data-kind="btn"][data-state="displayed"] .fl-act { animation: none; } .fl-row[data-kind="btn"][data-state="displayed"] > .slip-item { background: var(--tint-bad); } }
+
 /* The "do this next" line under a ticket's header. */
 .fl-main[data-hints="off"] .slip-next { display: none; }
 .slip-next { display: flex; align-items: flex-start; gap: var(--sp-2); margin: var(--sp-2) var(--sp-3) 0; padding: var(--sp-2) var(--sp-3); font-size: var(--fs-3); font-weight: var(--w-bold); line-height: 1.25; color: var(--ink); background: var(--slip-sub); border-radius: var(--r-chip); }
@@ -511,6 +519,26 @@ button.slip-item.fl-item { cursor: pointer; }
 .fl-main[data-density="compact"] .fl-slip .slip-foot { padding: calc(6px * var(--fl-k)) var(--sp-2); gap: var(--sp-2); }
 .fl-main[data-density="compact"] .fl-slip .slip-foot > .btn { min-height: var(--tap); }
 .fl-main[data-density="compact"] .fl-slip .slip-foot > .fl-more { width: var(--tap); min-width: var(--tap); }
+
+/* Tight tickets (owner, Oct 2026: "it runs out of space very quickly"). A compact ticket aims for one 44 px row per dish:
+   the "do this next" line is dropped (the voice says it and the called dish flashes), a waiting dish's Start now tile
+   becomes a square icon tile, the station chip is smaller, and the head is two short lines. */
+.fl-main[data-density="compact"] .slip-next { display: none; }
+.fl-main[data-density="compact"] .fl-slip .slip-head { padding-top: 2px; }
+.fl-main[data-density="compact"] .fl-slip .slip-num { font-size: calc(24px * var(--fl-k) * var(--fl-tl) * var(--fl-esc, 1)); }
+.fl-main[data-density="compact"] .fl-slip .slip-timer { font-size: calc(22px * var(--fl-k) * var(--fl-tl) * var(--fl-esc, 1)); }
+.fl-main[data-density="compact"] .fl-slip .slip-meta { font-size: var(--fs-1); margin-top: 0; }
+.fl-main[data-density="compact"] .fl-slip .slip-meta .icon { width: 14px; height: 14px; }
+.fl-main[data-density="compact"] .fl-row .slip-item { min-height: 44px; padding-block: 2px; row-gap: 0; }
+.fl-main[data-density="compact"] .fl-row .slip-name { line-height: 1.15; }
+.fl-main[data-density="compact"] .fl-sub { font-size: var(--fs-1); line-height: 1.1; }
+.fl-main[data-density="compact"] .fl-sub .icon { width: 13px; height: 13px; }
+.fl-main[data-density="compact"] .fl-sub .chip { min-height: 0; padding: 0 4px; font-size: var(--fs-1); line-height: 1.3; }
+.fl-main[data-density="compact"] .fl-fire { width: 44px; min-width: 44px; min-height: 44px; padding: 0; justify-content: center; }
+.fl-main[data-density="compact"] .fl-fire > span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.fl-main[data-density="compact"] .fl-act { min-height: 44px; min-width: calc(56px * var(--fl-k)); }
+.fl-main[data-density="compact"] .fl-slip .slip-foot { padding: 4px var(--sp-2); }
+.fl-main[data-density="compact"] .fl-slip .slip-foot > .btn { min-height: 44px; }
 
 /* The all-day strip pinned under the slips: a fold button, the total, and a scrolling row of dish chips. */
 .fl-dock {
@@ -892,4 +920,13 @@ html[data-cabinet="on"] .sb-shell[data-view="floor"] .toast-host { bottom: auto;
   .fl-dock-toggle, .fl-dchip, .fl-dock-more, .fl-full, .fl-dock-clear { min-height: 44px; }
   .fl-dock-list { max-height: calc(44px + 9px * var(--fl-k)); }
   .fl-main, .fl-main[data-density="compact"] { padding-top: var(--sp-2); }
+  /* Tighter still (owner, Oct 2026: the bars took half of an 8-inch tablet): less padding around the 44 px buttons. */
+  .fl-head { padding-top: 4px; padding-bottom: 4px; row-gap: 4px; }
+  .fl-tabs { padding-top: 2px; }
+  .fl-strip-sound, .fl-strip-pause { min-height: 34px; }
+  .fl-strip-when { font-size: calc(22px * var(--fl-k) * var(--fl-far)); }
+}
+@media (max-height: 700px) {
+  .sb-banner { min-height: 34px; padding-block: 0; }
+  .sb-banner .btn { min-height: 30px; }
 }
