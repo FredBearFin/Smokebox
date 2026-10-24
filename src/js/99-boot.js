@@ -181,6 +181,15 @@
       // The demo (its own saved data) opens with its sample tickets the first time.
       // A brand-new empty kitchen gets neutral station and menu-section names (saved with it); old kitchens and the demo keep theirs.
       if (SB.store && SB.store.isBlank && SB.store.isBlank() && SB.store.applyStarterNames) SB.store.applyStarterNames();
+      // Kitchens set up before Oct 24 2026 were made with the timing coach off (there was no switch for it), so every dish was called
+      // at once. Once per kitchen: switch it on, and stop extra portions adding time. The demo keeps its own settings.
+      try {
+        const S = SB.store, P = S.getState().settings.pacing;
+        if (!S.isDemo() && !SB.util.storage.get('smokebox.v1.pacingFix1', false)) {
+          if (P && (P.enabled !== true || P.qtyFactor !== 0)) S.dispatchEx('updateSettings', { patch: { pacing: { enabled: true, qtyFactor: 0 } } }, { source: 'system' });
+          SB.util.storage.set('smokebox.v1.pacingFix1', true);
+        }
+      } catch (e) { console.error('[smokebox] timing switch-on failed', e); }
       if (SB.store && SB.store.isDemo && SB.store.isDemo() && SB.store.status().firstRun && SB.sim && SB.sim.seedFirstRun) SB.sim.seedFirstRun();
       // A first run is a real, empty kitchen: the demo tickets and batches only load when the user asks for the demo.
       stage = 'shell';

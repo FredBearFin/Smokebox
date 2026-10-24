@@ -4554,7 +4554,7 @@ a.of-nav:active { background: var(--press); }
 <div id="app" aria-live="off"></div>
 <noscript><p style="margin:16px;font:17px/1.4 system-ui,sans-serif">Smokebox needs JavaScript to run. Turn it on for this page and reload.</p></noscript>
 <script>
-window.SB_BUILD = { version: "0.2.0", id: "8ddf0cc" };
+window.SB_BUILD = { version: "0.2.0", id: "6479d80" };
 
 /* ===== 00-util.js ===== */
 ;try{
@@ -5072,7 +5072,7 @@ window.SB_BUILD = { version: "0.2.0", id: "8ddf0cc" };
   const SHARED_KEYS = ['theme', 'otheme', 'textsize', 'density', 'hints', 'zone', 'role', 'sound', 'volume', 'speech', 'voicelevel', 'voicename', 'cloudKitchen', 'deviceId', 'callouts', 'far', 'wall', 'dock', 'countervisit'].map((k) => 'smokebox.v1.' + k);
   // The kitchen-data keys, listed so a test can prove every key in the code is classified. A key that is in neither list
   // is treated as kitchen data (the safe side).
-  const DATA_KEYS = ['state', 'sid', 'writer', 'histtrim', 'histnotice', 'sleepSnap', 'outbox', 'corrupt', 'names', 'sample', 'welcome', 'lastbackup', 'dlog', 'alertlog', 'lastbatch', 'initials', 'pinlock', 'paymethod',
+  const DATA_KEYS = ['state', 'pacingFix1', 'sid', 'writer', 'histtrim', 'histnotice', 'sleepSnap', 'outbox', 'corrupt', 'names', 'sample', 'welcome', 'lastbackup', 'dlog', 'alertlog', 'lastbatch', 'initials', 'pinlock', 'paymethod',
     'setup.draft', 'setup.examples', 'setup.hiddenStations', 'setup.lastZone', 'setup.hiddenCategories', 'setup.lastCategory', 'setup.cookAheadSkipped', 'setup.serveSkipped', 'setup.serveAnswer', 'readings', 'lastproduct', 'lastgood', 'lastgood2', 'corruptat', 'dropped', 'droppedat', 'corrupt.prev', 'corruptat.prev', 'dropped.prev', 'droppedat.prev', 'orderdraft', 'office.startCash', 'pinrecovery', 'demoLeftoversKept'].map((k) => 'smokebox.v1.' + k);
   const MODE_KEY = 'smokebox.mode'; // sessionStorage: this tab is in the demo (per tab, gone when the tab closes)
   // Which kitchen this tab shows, decided once at load: a ?demo address or the tab's own saved choice means the demo.
@@ -6587,6 +6587,8 @@ window.SB_BUILD = { version: "0.2.0", id: "8ddf0cc" };
     const S = defaultSettings();
     // Pacing stays on: holding back the quick dishes so a ticket finishes together is the point of the board, and the voice
     // calls each dish at its own start time only when pacing gives it one. Prep times start as guesses and learn from real cooks.
+    // Extra portions of a dish cook side by side (one basket, one grill), so they add no time in a new kitchen.
+    S.pacing.qtyFactor = 0;
     S.modules = { cookAhead: false };
     // No made-up customer buttons (Walk-up, Pickup, Table 1 to 6) in a new kitchen: the owner adds their own in How you serve.
     S.service.chips = [];
@@ -39589,6 +39591,15 @@ window.SB_BUILD = { version: "0.2.0", id: "8ddf0cc" };
       // The demo (its own saved data) opens with its sample tickets the first time.
       // A brand-new empty kitchen gets neutral station and menu-section names (saved with it); old kitchens and the demo keep theirs.
       if (SB.store && SB.store.isBlank && SB.store.isBlank() && SB.store.applyStarterNames) SB.store.applyStarterNames();
+      // Kitchens set up before Oct 24 2026 were made with the timing coach off (there was no switch for it), so every dish was called
+      // at once. Once per kitchen: switch it on, and stop extra portions adding time. The demo keeps its own settings.
+      try {
+        const S = SB.store, P = S.getState().settings.pacing;
+        if (!S.isDemo() && !SB.util.storage.get('smokebox.v1.pacingFix1', false)) {
+          if (P && (P.enabled !== true || P.qtyFactor !== 0)) S.dispatchEx('updateSettings', { patch: { pacing: { enabled: true, qtyFactor: 0 } } }, { source: 'system' });
+          SB.util.storage.set('smokebox.v1.pacingFix1', true);
+        }
+      } catch (e) { console.error('[smokebox] timing switch-on failed', e); }
       if (SB.store && SB.store.isDemo && SB.store.isDemo() && SB.store.status().firstRun && SB.sim && SB.sim.seedFirstRun) SB.sim.seedFirstRun();
       // A first run is a real, empty kitchen: the demo tickets and batches only load when the user asks for the demo.
       stage = 'shell';
