@@ -42,19 +42,34 @@ These are not in Kokoro:
   - a voice-cloning engine trained from a short recording of a real speaker, with their permission;
   - a paid voice service that offers that accent.
 
-## Decided scope (owner, 2026-10-24)
+## Decided scope (owner, 2026-10-24, updated the same day)
 
-- Three languages: **English, Spanish and French.** No others for now.
+- **The screen stays in English.** Instead of translating it, it gets an accessibility pass so a cook who cannot read well can still follow it (see "Clear without reading" below).
+- **Call-outs are spoken in English, Spanish or French.** No other languages for now.
+- **Voices:**
+  - English: 6 voices, 3 men and 3 women.
+  - Spanish: 1 man and 1 woman.
+  - French: 1 man and 1 woman. Kokoro has only one French voice (ff_siwis, a woman), and one French voice is acceptable to the owner.
 - Spanish reaches the many Spanish-speaking kitchen workers in the US.
 - French reaches African and Haitian workers.
   - Note: many Haitian workers use Haitian Creole day to day. French reaches some of them, not all.
   - Kokoro has no Creole voice. If kitchens ask for it, it is a later decision.
 
+## Clear without reading
+
+The board must say what to do without anyone reading a word. Start with:
+
+- **The dish the voice just called flashes red on its ticket** until someone starts it.
+  - Voice and screen point at the same thing.
+- One clear action per dish: a big button whose color and icon say what it does (start, done).
+- Station tabs and dishes marked with icons and colors, not only words.
+- The coach keeps telling the cook what to do next, out loud.
+- The audit checks every board screen at tablet size, asking at each step: "could a cook who cannot read do this?"
+
 ## Work, in order
 
 1. **First (planned now):** English Kokoro call-outs in the hosted version, with the owner choosing the voice under Settings.
-2. Move every piece of screen text and every call-out phrase into one table per language.
-   - The phrases live in `25-deadlines.js` `phrase()`; the screen text is spread across the UI files.
-3. A language setting per device, plus a voice per language.
+2. The "clear without reading" pass, starting with the flashing called dish.
+3. Call-out phrases (`25-deadlines.js` `phrase()`) in one table per language, plus a call-out language and a voice per device. The screen text stays English.
 4. Spanish first: a native speaker checks the kitchen wording ("marchar" and the like).
 5. French, with the same native-speaker check.
