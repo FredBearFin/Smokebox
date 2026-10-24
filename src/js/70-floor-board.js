@@ -1360,7 +1360,10 @@
     const progI = h('i');
     const prog = h('div', { class: 'slip-progress', role: 'progressbar', 'aria-label': 'Progress', 'aria-valuemin': 0, 'aria-valuemax': 100 }, progI);
     const head = h('div', { class: 'slip-head' }, h('div', { class: 'slip-id' }, h('div', { class: 'fl-numrow' }, num, stampSlot), who, meta), h('div', { class: 'slip-time' }, timer, badge.el), prog);
-    const note = t.note ? h('div', { class: 'slip-note', role: 'note' }, ico('alert', 22), h('span', null, h('span', { class: 'visually-hidden' }, 'Note: '), t.note)) : null;
+    // A note that mentions an allergy gets the shield and one plain safety step under it.
+    const allergic = !!t.note && modKind(t.note) === 'allergy';
+    const note = t.note ? h('div', { class: 'slip-note', role: 'note', dataset: { kind: allergic ? 'allergy' : 'note' } }, ico(allergic ? 'shield' : 'alert', 22),
+      h('span', null, h('span', { class: 'visually-hidden' }, allergic ? 'Allergy note: ' : 'Note: '), t.note, allergic ? h('span', { class: 'slip-note-do' }, 'Change gloves and wipe the board before you make this.') : null)) : null;
     const list = h('ul', { class: 'fl-items' });
     const nextT = h('span', { class: 'sn-t' });
     const next = h('div', { class: 'slip-next', hidden: true, dataset: { tone: 'wait' } }, ico('arrow-right', 18), nextT);
@@ -1504,6 +1507,18 @@
     return it.status === 'done' ? 'ro' : 'btn';
   }
 
+  // Special requests are typed freely, so a few words decide the picture a cook sees before reading: an allergy (shield), leave
+  // something off (no sign), extra (plus) or a swap (arrow). Anything else stays a plain chip. Returns the kind or null.
+  function modKind(text) {
+    const t = String(text || '').toLowerCase().trim();
+    if (/allerg|gluten|celiac|coeliac|peanut|tree nut|\bnuts?\b|dairy|lactose|shellfish|sesame|\begg\b/.test(t)) return 'allergy';
+    if (/^(no|without|hold|plain|skip)\b/.test(t)) return 'no';
+    if (/^(add|extra|double|plus)\b|^\+/.test(t)) return 'extra';
+    if (/^(sub|swap|substitute)\b|\binstead\b|\bon (the )?side\b|->|→/.test(t)) return 'swap';
+    return null;
+  }
+  // The icon for each kind of special request.
+  const MOD_ICON = { allergy: 'shield', no: 'ban', extra: 'plus', swap: 'arrow-right' };
   // A small station chip (icon and code) for rows where the station is not obvious.
   function zoneChip(zoneId) {
     const z = zoneById(zoneId);
@@ -1527,7 +1542,7 @@
       sub.appendChild(h('span', { class: 'fl-deck' }, ico('clock', 16), row.deckT));
     }
     if (rec.mode !== 'station') sub.appendChild(zoneChip(it.zone));
-    (it.mods || []).forEach((mod) => sub.appendChild(SB.ui.chip({ mod: true, label: mod })));
+    (it.mods || []).forEach((mod) => { const k = modKind(mod); const c = SB.ui.chip({ mod: true, label: mod, icon: k ? MOD_ICON[k] : null }); if (k) c.dataset.kind = k; sub.appendChild(c); });
     if (kind === 'btn') {
       // A two-step dish shows its countdown in the line under the name, like a waiting dish does.
       if (it.track === 'two') {

@@ -959,3 +959,11 @@ html[data-cabinet="on"] .sb-shell[data-view="floor"] .toast-host { bottom: auto;
 .fl-row { position: relative; }
 .fl-row > .btn.fl-undo { position: absolute; top: 2px; right: 2px; bottom: 2px; z-index: 3; min-height: 44px; padding: 0 var(--sp-3); gap: 6px; opacity: 1; font-weight: var(--w-heavy);
   --b-bg: var(--ink); --b-fg: var(--paper); --b-edge: var(--ink); color: var(--paper); background: var(--ink); border-color: var(--ink); }
+/* Special requests carry a picture and a colour, so a cook sees the kind before reading the words. */
+.chip-mod[data-kind="allergy"] { color: var(--paper); background: var(--crimson); border-color: var(--crimson); }
+.chip-mod[data-kind="no"] { color: var(--crimson); border-color: var(--crimson); }
+.chip-mod[data-kind="extra"] { color: var(--sage-ink); border-color: var(--sage); }
+.chip-mod[data-kind="swap"] { color: var(--amber-ink); border-color: var(--amber); }
+.slip-note[data-kind="allergy"] { color: var(--crimson); border-color: var(--crimson); }
+.slip-note[data-kind="allergy"] .icon { color: var(--crimson); }
+.slip-note-do { display: block; margin-top: 2px; font-weight: var(--w-heavy); }

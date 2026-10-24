@@ -2260,6 +2260,14 @@ html[data-cabinet="on"] .sb-shell[data-view="floor"] .toast-host { bottom: auto;
 .fl-row { position: relative; }
 .fl-row > .btn.fl-undo { position: absolute; top: 2px; right: 2px; bottom: 2px; z-index: 3; min-height: 44px; padding: 0 var(--sp-3); gap: 6px; opacity: 1; font-weight: var(--w-heavy);
   --b-bg: var(--ink); --b-fg: var(--paper); --b-edge: var(--ink); color: var(--paper); background: var(--ink); border-color: var(--ink); }
+/* Special requests carry a picture and a colour, so a cook sees the kind before reading the words. */
+.chip-mod[data-kind="allergy"] { color: var(--paper); background: var(--crimson); border-color: var(--crimson); }
+.chip-mod[data-kind="no"] { color: var(--crimson); border-color: var(--crimson); }
+.chip-mod[data-kind="extra"] { color: var(--sage-ink); border-color: var(--sage); }
+.chip-mod[data-kind="swap"] { color: var(--amber-ink); border-color: var(--amber); }
+.slip-note[data-kind="allergy"] { color: var(--crimson); border-color: var(--crimson); }
+.slip-note[data-kind="allergy"] .icon { color: var(--crimson); }
+.slip-note-do { display: block; margin-top: 2px; font-weight: var(--w-heavy); }
 
 /* ===== 21-floor-sheets.css ===== */
 /*
@@ -4540,7 +4548,7 @@ a.of-nav:active { background: var(--press); }
 <div id="app" aria-live="off"></div>
 <noscript><p style="margin:16px;font:17px/1.4 system-ui,sans-serif">Smokebox needs JavaScript to run. Turn it on for this page and reload.</p></noscript>
 <script>
-window.SB_BUILD = { version: "0.2.0", id: "4883cb8" };
+window.SB_BUILD = { version: "0.2.0", id: "c14122e" };
 
 /* ===== 00-util.js ===== */
 ;try{
@@ -22744,7 +22752,10 @@ window.SB_BUILD = { version: "0.2.0", id: "4883cb8" };
     const progI = h('i');
     const prog = h('div', { class: 'slip-progress', role: 'progressbar', 'aria-label': 'Progress', 'aria-valuemin': 0, 'aria-valuemax': 100 }, progI);
     const head = h('div', { class: 'slip-head' }, h('div', { class: 'slip-id' }, h('div', { class: 'fl-numrow' }, num, stampSlot), who, meta), h('div', { class: 'slip-time' }, timer, badge.el), prog);
-    const note = t.note ? h('div', { class: 'slip-note', role: 'note' }, ico('alert', 22), h('span', null, h('span', { class: 'visually-hidden' }, 'Note: '), t.note)) : null;
+    // A note that mentions an allergy gets the shield and one plain safety step under it.
+    const allergic = !!t.note && modKind(t.note) === 'allergy';
+    const note = t.note ? h('div', { class: 'slip-note', role: 'note', dataset: { kind: allergic ? 'allergy' : 'note' } }, ico(allergic ? 'shield' : 'alert', 22),
+      h('span', null, h('span', { class: 'visually-hidden' }, allergic ? 'Allergy note: ' : 'Note: '), t.note, allergic ? h('span', { class: 'slip-note-do' }, 'Change gloves and wipe the board before you make this.') : null)) : null;
     const list = h('ul', { class: 'fl-items' });
     const nextT = h('span', { class: 'sn-t' });
     const next = h('div', { class: 'slip-next', hidden: true, dataset: { tone: 'wait' } }, ico('arrow-right', 18), nextT);
@@ -22888,6 +22899,18 @@ window.SB_BUILD = { version: "0.2.0", id: "4883cb8" };
     return it.status === 'done' ? 'ro' : 'btn';
   }
 
+  // Special requests are typed freely, so a few words decide the picture a cook sees before reading: an allergy (shield), leave
+  // something off (no sign), extra (plus) or a swap (arrow). Anything else stays a plain chip. Returns the kind or null.
+  function modKind(text) {
+    const t = String(text || '').toLowerCase().trim();
+    if (/allerg|gluten|celiac|coeliac|peanut|tree nut|\bnuts?\b|dairy|lactose|shellfish|sesame|\begg\b/.test(t)) return 'allergy';
+    if (/^(no|without|hold|plain|skip)\b/.test(t)) return 'no';
+    if (/^(add|extra|double|plus)\b|^\+/.test(t)) return 'extra';
+    if (/^(sub|swap|substitute)\b|\binstead\b|\bon (the )?side\b|->|→/.test(t)) return 'swap';
+    return null;
+  }
+  // The icon for each kind of special request.
+  const MOD_ICON = { allergy: 'shield', no: 'ban', extra: 'plus', swap: 'arrow-right' };
   // A small station chip (icon and code) for rows where the station is not obvious.
   function zoneChip(zoneId) {
     const z = zoneById(zoneId);
@@ -22911,7 +22934,7 @@ window.SB_BUILD = { version: "0.2.0", id: "4883cb8" };
       sub.appendChild(h('span', { class: 'fl-deck' }, ico('clock', 16), row.deckT));
     }
     if (rec.mode !== 'station') sub.appendChild(zoneChip(it.zone));
-    (it.mods || []).forEach((mod) => sub.appendChild(SB.ui.chip({ mod: true, label: mod })));
+    (it.mods || []).forEach((mod) => { const k = modKind(mod); const c = SB.ui.chip({ mod: true, label: mod, icon: k ? MOD_ICON[k] : null }); if (k) c.dataset.kind = k; sub.appendChild(c); });
     if (kind === 'btn') {
       // A two-step dish shows its countdown in the line under the name, like a waiting dish does.
       if (it.track === 'two') {
