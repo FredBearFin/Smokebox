@@ -42,7 +42,7 @@ a.of-nav:active { background: var(--press); }
 .of-soon { font-size: var(--fs-1); font-weight: var(--w-regular); color: var(--ink3); }
 .of-nav.is-soon .icon { opacity: 0.7; }
 
-/* The page title row with the theme button and Back to the line. */
+/* The page title row with the theme button and Back to the board. */
 .of-top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--sp-3) var(--sp-4); padding: var(--sp-5) var(--of-gut) var(--sp-3); max-width: 1480px; margin: 0 auto; width: 100%; }
 .of-title { margin: 0; font: var(--w-semi) var(--fs-6)/1.05 var(--font-display); letter-spacing: 0.005em; color: var(--ink); min-width: 0; overflow-wrap: anywhere; }
 .of-title:focus { outline: none; } /* a heading, not a control: it takes focus after a page change so screen readers start there, with no ring */
@@ -72,6 +72,7 @@ a.of-nav:active { background: var(--press); }
 .of-fnote { font-size: var(--fs-1); color: var(--ink3); }
 .of-banner { display: flex; align-items: center; gap: var(--sp-2); margin: 0 auto; padding: var(--sp-1) var(--of-gut) var(--sp-3); font-size: var(--fs-2); line-height: 1.35; color: var(--ink2); }
 .of-banner-t { min-width: 0; }
+.of-banner[hidden] { display: none; }
 .of-chip {
   flex: none; display: inline-flex; align-items: center; min-height: 22px; padding: 0 var(--sp-2); font-size: var(--fs-1); font-weight: var(--w-semi); line-height: 1;
   color: var(--amber-ink); border: 1px solid var(--amber); border-radius: var(--r-pill); white-space: nowrap;
@@ -84,7 +85,10 @@ a.of-nav:active { background: var(--press); }
 
 /* the headline is the typographic anchor: one plain sentence, numbers in the heavy weight */
 /* The "what to do next" message shown instead of blank tiles and charts when a range has no data. */
-.of-coach { max-width: 40em; padding: var(--sp-5) var(--sp-6); margin: 0 0 var(--sp-6); border: 1px dashed var(--line2, var(--line)); border-radius: var(--r-3, 12px); background: var(--ch-surface, transparent); }
+/* The empty-page message: a centered card with the page's icon, sitting in the middle of the page, not in a corner. */
+.of-coach { display: grid; justify-items: center; text-align: center; max-width: 34em; padding: var(--sp-6) var(--sp-6) var(--sp-5); margin: clamp(var(--sp-4), 8vh, var(--sp-8)) auto var(--sp-6); border: 1px solid var(--line-soft, var(--line)); border-radius: var(--r-3, 12px); background: var(--ch-surface, transparent); }
+.of-coach[hidden] { display: none; }
+.of-coach-i { display: inline-flex; align-items: center; justify-content: center; width: 56px; height: 56px; margin-bottom: var(--sp-3); border-radius: 50%; color: var(--amber-ink, var(--ink2)); background: var(--sub, transparent); }
 .of-coach-t { margin: 0 0 var(--sp-2); font: var(--w-semi) var(--fs-5, 22px)/1.2 var(--font-display); color: var(--ink); }
 .of-coach-b { margin: 0; font-size: var(--fs-3, 16px); line-height: 1.5; color: var(--ink2); }
 .of-coach-sample { margin-top: var(--sp-4); }
@@ -103,7 +107,7 @@ a.of-nav:active { background: var(--press); }
 .of-tiles[data-n="5"] { grid-template-columns: repeat(5, minmax(0, 1fr)); }
 .of-tile { display: flex; flex-direction: column; gap: 2px; min-width: 0; padding: var(--sp-4) var(--sp-4) var(--sp-4) var(--sp-5); margin-top: -1px; border-top: 1px solid var(--line-soft); border-left: 1px solid var(--line-soft); }
 .of-tile-label { display: flex; align-items: flex-end; font-size: var(--fs-2); font-weight: var(--w-medium); color: var(--ink2); line-height: 1.25; min-height: 2.5em; }
-.of-tile-val { display: flex; align-items: baseline; flex-wrap: wrap; gap: 0 1px; margin-top: 2px; font: var(--w-semi) clamp(36px, 3.5vw, 54px)/1 var(--font-display); font-variant-numeric: tabular-nums; color: var(--ink); letter-spacing: 0; min-height: 1em; }
+.of-tile-val { display: flex; align-items: baseline; flex-wrap: wrap; gap: 0 1px; margin-top: 2px; font: var(--w-semi) clamp(36px, 3.5vw, 54px)/1 var(--font-display); font-variant-numeric: tabular-nums; color: var(--ink); letter-spacing: 0; min-height: 1em; overflow-wrap: anywhere; }
 .of-u, .of-uw { font-size: 0.46em; font-weight: var(--w-medium); color: var(--ink2); margin-left: 1px; letter-spacing: 0.01em; }
 .of-uw { margin-left: 6px; }
 .of-cur { font-size: 0.62em; font-weight: var(--w-medium); color: var(--ink2); margin-right: 2px; align-self: flex-start; padding-top: 0.12em; }
@@ -155,6 +159,8 @@ a.of-nav:active { background: var(--press); }
 
 /* The boxes for no data yet and for a part that failed to draw. */
 .of-empty { display: grid; justify-items: center; align-content: center; gap: var(--sp-2); min-height: 150px; padding: var(--sp-6) var(--sp-4); text-align: center; color: var(--ink2); border: 1px dashed var(--line-soft); border-radius: var(--r-panel); }
+/* A switched-off page (no cook-ahead tracking, counter service) gets the same centered card as an empty page. */
+.of[data-gated="true"] .of-slot > .of-empty { max-width: 34em; margin: clamp(var(--sp-4), 8vh, var(--sp-8)) auto var(--sp-6); border-style: solid; background: var(--ch-surface, transparent); }
 .of-empty .icon { color: var(--ink3); }
 .of-empty-t { margin: 0; font: var(--w-semi) var(--fs-3)/1.25 var(--font-body); color: var(--ink); }
 .of-empty-b { margin: 0; max-width: 46ch; font-size: var(--fs-2); line-height: 1.4; color: var(--ink2); }
@@ -231,7 +237,9 @@ a.of-nav:active { background: var(--press); }
   .of { --of-rail: 88px; --of-gut: var(--sp-5); }
   .of-rail { padding: var(--sp-4) var(--sp-2); }
   .of-rail-brand { justify-content: center; padding: 0 0 var(--sp-4); }
-  .of-rail-name, .of-nav-full, .of-soon { display: none; }
+  .of-rail-name, .of-soon { display: none; }
+  /* The full page name stays in the link for screen readers (clipped, not hidden) while the short name is drawn. */
+  .of-nav-full { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
   .of-nav-short { display: block; }
   .of-nav { flex-direction: column; justify-content: center; gap: 4px; min-height: 58px; padding: var(--sp-2) 2px; text-align: center; font-size: 12px; }
   .of-nav-w { justify-items: center; }
@@ -318,11 +326,11 @@ a.of-nav:active { background: var(--press); }
 @media (pointer: coarse), (max-width: 719px) {
   .of .of-seg .seg-opt, .of .of-card-actions .btn, .of .of-card-actions .ch-tbtn,
   .of .of-top-actions .btn, .of .of-sortbtn, .of .of-tpager .btn { min-height: 44px; }
-  .of .of-theme { width: 44px; }
+  .of .of-theme { min-width: 44px; }
 }
 /* Ticket numbers in the table are links; the padding grows the hit area without moving the rows. */
 .of-rowbtn { padding-block: 5px; margin-block: -5px; }
-/* Reset buttons in Menu and settings match the other big buttons. */
+/* Reset buttons in Menu, prices and shop match the other big buttons. */
 .of .btn-danger { min-height: 44px; }
 
 /* The at-a-glance panel (SB.office.glance): five cards in two columns on a phone, one row on a wide screen. */
@@ -374,3 +382,18 @@ a.of-nav:active { background: var(--press); }
 .of-how summary { cursor: pointer; display: inline-block; padding: 6px 0; min-height: 32px; color: var(--ink2); text-decoration: underline; text-underline-offset: 3px; }
 .of-how p { margin: var(--sp-1) 0 0; line-height: 1.5; }
 .of-page[data-coach="on"] > .of-how { display: none; }
+
+/* Browser print (Ctrl+P) of an office page: the whole page column on white paper, without the rail, and no card split across two
+   pages. The script switches to the Paper look while printing, so text stays dark. The dedicated print pages (safety record, close
+   day, pilot report) hide all of this with their own rule. */
+@media print {
+  body:has(.layer-office:not([hidden])):not(:has(.layer-guide:not([hidden]))) .sb-shell { position: static !important; overflow: visible !important; background: #fff !important; }
+  body:has(.layer-office:not([hidden])):not(:has(.layer-guide:not([hidden]))) .sb-shell > :not(.layer-office) { display: none !important; }
+  .layer-office { position: static !important; display: block !important; overflow: visible !important; background: #fff !important; }
+  .layer-office[hidden] { display: none !important; }
+  .of { display: block; background: #fff; color: #000; }
+  .of-rail { display: none; }
+  .of-col { overflow: visible; height: auto; }
+  .of-main { max-width: none; padding: 0; }
+  .of-card, .ch { break-inside: avoid; }
+}

@@ -76,6 +76,19 @@ test('the packer is lossless on 50 random kitchens, including key order, and a r
   }
 });
 
+test('packText gives exactly the text of the packed tree, on 50 random kitchens, first and from its memory, and after a change', () => {
+  for (let seed = 1; seed <= 50; seed++) {
+    const { s } = kitchen(seed);
+    const a = U.makePacker(), b = U.makePacker();
+    const want = JSON.stringify(a.pack(s));
+    assert.equal(b.packText(s), want, 'seed ' + seed);
+    assert.equal(b.packText(s), want, 'again from memory, seed ' + seed);
+    const s2 = Object.assign({}, s, { tickets: s.tickets.map((x, i) => (i === 1 ? Object.assign({}, x, { note: 'changed' }) : x)) });
+    assert.equal(b.packText(s2), JSON.stringify(a.pack(s2)), 'after a change, seed ' + seed);
+    assert.equal(text(U.makePacker().unpack(JSON.parse(b.packText(s2)))), text(s2));
+  }
+});
+
 test('the packer keeps odd data exactly: the marker character, empty objects and arrays, nested arrays, __proto__ keys, long and unicode strings', () => {
   const odd = JSON.parse('{"a":"\\u0001x","b":"\\u0001\\u0001","c":{},"d":[],"e":[[],[1,[2,[]]],{"__proto__":{"z":1}}],"status":"\\u0001","name":"' + 'n'.repeat(80) + '","type":"caf\\u00e9 \\ud83d\\ude00","n":-0.5,"big":1792497632000,"z":null,"t":true}');
   const pk = U.makePacker();

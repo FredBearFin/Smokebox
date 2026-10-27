@@ -98,3 +98,22 @@ test('#7: a healthy client that keeps reading is never dropped', async () => {
     assert.equal(hub.clientCount(), 1); assert.ok(got > 0);
   } finally { ctrl.abort(); await hub.close(); }
 });
+
+test('an action the hub cannot write to its log is refused (503), changes nothing, and can be sent again once the disk works', async () => {
+  const file = fileIn();
+  const wal = path.join(path.dirname(file), 'no-such-folder', 'state.json.wal');
+  const hub = await createHub({ dataFile: file, walFile: wal, tickMs: 600000, saveMs: 10, starter: true });
+  const port = await hub.listen(0);
+  try {
+    const seq0 = hub.snapshot().seq, tickets0 = hub.snapshot().state.tickets.length;
+    const res = await fetch('http://127.0.0.1:' + port + '/action', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(ticket(1)) });
+    assert.equal(res.status, 503);
+    assert.match((await res.json()).info.error, /could not save/);
+    assert.equal(hub.snapshot().seq, seq0, 'no change was counted or sent to screens');
+    assert.equal(hub.snapshot().state.tickets.length, tickets0, 'the ticket was not made');
+    fs.mkdirSync(path.dirname(wal));
+    const again = await act(port, ticket(1));
+    assert.equal(again.report, 'ok'); assert.ok(!again.duplicate, 'the refused opId was not remembered');
+    assert.equal(hub.snapshot().state.tickets.length, tickets0 + 1);
+  } finally { await hub.close(); }
+});

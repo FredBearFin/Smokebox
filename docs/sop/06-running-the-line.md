@@ -30,4 +30,8 @@ If a dish is not done, Bump asks first. Bumped by mistake? **Undo** brings it ba
 
 ## When something runs out
 
-Tap **86 board**, find the dish and mark it sold out. Smokebox also does this by itself when a dish's food runs low.
+Tap **Sold out** at the top (the 86 board), find the dish and mark it sold out. Smokebox also does this by itself when a dish's food runs low.
+
+## Full screen and the front counter
+
+On a tablet, tap **Full screen** at the bottom right to hide the browser's bars. **Front counter** at the top opens the order page on the whole screen; its **Board** link brings you back here.

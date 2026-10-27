@@ -1,4 +1,4 @@
-// Quick browser check (about 15 s) of the demo UI: a normal tab has no demo bar and offers Try the demo; entering the demo shows
+// Quick browser check (about 15 s) of the demo UI: a normal tab has no demo bar and offers Watch the demo; entering the demo shows
 // a permanent bar with a Back button on every screen; leaving brings back the real kitchen untouched and erases the demo.
 import { withPage } from '../tools/pw.mjs';
 let bad = 0;
@@ -7,13 +7,13 @@ const SHOT = process.env.SHOTDIR || '/tmp';
 await withPage({ w: 1280, h: 800, touch: true }, async (page, logs) => {
   await page.waitForFunction(() => window.SB && SB.booted === true);
   check('a normal tab is the real kitchen with no demo bar', await page.evaluate(() => SB.store.mode() === 'real' && !document.querySelector('.sb-banner[data-kind=demo]')));
-  check('first run offers Try the demo', await page.locator('.fl-start-demo:has-text("Try the demo")').isVisible());
+  check('first run offers Watch the demo', await page.locator('.fl-start-demo:has-text("Watch the demo")').isVisible());
   await page.evaluate(() => SB.store.dispatchEx('addMenuItem', { name: 'My own dish', zone: 'pit', cat: 'meat', price: 9, prepSec: 120, track: 'two' }, { source: 'ui' }));
   await page.waitForTimeout(600);
   await page.evaluate(() => SB.store.flush());
   // Menu sheet and Demo sheet in a real kitchen.
   await page.evaluate(() => SB.sheets.open('demo')); await page.waitForTimeout(300);
-  check('the Demo sheet in a real kitchen only explains and offers Try the demo', await page.locator('[data-act=try-demo]').isVisible() && !(await page.locator('.dm-restart').count()));
+  check('the Demo sheet in a real kitchen only explains and offers Watch the demo', await page.locator('[data-act=try-demo]').isVisible() && !(await page.locator('.dm-restart').count()));
   await page.screenshot({ path: SHOT + '/demo-intro.png' });
   await page.click('[data-act=try-demo]');
   await page.waitForFunction(() => window.SB && SB.booted === true && SB.store.isDemo(), null, { timeout: 15000 });

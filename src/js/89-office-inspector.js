@@ -60,6 +60,22 @@
     return 'Changed ' + (SETTING_NAME[last] || (key || 'a setting')) + ' from ' + settingValue(last, from) + ' to ' + settingValue(last, to);
   }
 
+  // Temperature readings grouped by batch, in log order, worked out once per state (the engine never changes a state in place), so a long
+  // record does not replay the whole log for every cold reading row.
+  const tempCache = new WeakMap();
+  function tempsByBatch(state) {
+    let m = tempCache.get(state);
+    if (m) return m;
+    m = new Map();
+    for (const x of SB.engine.allEvents(state)) {
+      if (!x || x.type !== 'temp_logged') continue;
+      if (!m.has(x.batchId)) m.set(x.batchId, []);
+      m.get(x.batchId).push(x);
+    }
+    tempCache.set(state, m);
+    return m;
+  }
+
   // For a cold-food reading: whether it was above the cold limit and how much time above the limit the batch has used up so far.
   // The engine adds up the time across separate stretches (an in-range reading does not wipe it), so this replays the batch's
   // readings in order the same way. Returns '' when the batch is not cold food or the limit is unknown.
@@ -68,8 +84,8 @@
     const lim = state.settings && state.settings.safety ? state.settings.safety.coldHoldF : null;
     if (!b || b.kind !== 'cold' || !isNum(lim) || !isNum(e.f) || !SB.engine || !SB.engine.allEvents) return '';
     let since = null, used = 0;
-    for (const x of SB.engine.allEvents(state)) {
-      if (x.type !== 'temp_logged' || x.batchId !== e.batchId || x.reverted || !isNum(x.f) || !isNum(x.t) || x.t > e.t) continue;
+    for (const x of tempsByBatch(state).get(e.batchId) || []) {
+      if (x.reverted || !isNum(x.f) || !isNum(x.t) || x.t > e.t) continue;
       if (x.f > lim) { if (since == null) since = x.t; } else if (since != null) { used += x.t - since; since = null; }
       if (x === e || x.id === e.id) break;
     }
@@ -84,13 +100,13 @@
     switch (e.type) {
       case 'temp_logged': return (isNum(e.f) ? U.tempText(e.f) : '') + (lateWords(e) ? ', ' + lateWords(e) : '');
       case 'batch_reheat': return isNum(e.f) ? 'Reached ' + U.tempText(e.f) : '';
-      case 'batch_discard': return (isNum(e.g) ? U.weightText(e.g) : '') + (REASON[e.reason] ? ', ' + REASON[e.reason].toLowerCase() : '') + (isNum(e.cost) && e.cost > 0 ? ', about ' + U.fmtMoney(e.cost, 2) : '') + (e.note ? ', ' + e.note : '');
+      case 'batch_discard': return (isNum(e.g) ? (O.weightText || U.weightText)(e.g) : '') + (REASON[e.reason] ? ', ' + REASON[e.reason].toLowerCase() : '') + (isNum(e.cost) && e.cost > 0 ? ', about ' + U.fmtMoney(e.cost, 2) : '') + (e.note ? ', ' + e.note : '');
       case 'safety_setting_changed': return changeLine(e);
       case 'month_closed': return 'Saved ' + (isNum(e.days) ? e.days + ' ' + (e.days === 1 ? 'day' : 'days') : 'old days') + ' before ' + (e.before ? U.fmtDateShort(e.before) : 'a set date') + ' to a backup and cleared them from this tablet' + (isNum(e.tickets) ? ' (' + e.tickets + ' tickets, ' + (isNum(e.orders) ? e.orders : 0) + ' orders)' : '');
-      case 'equip_temp': return (UNIT[e.unit] || 'Equipment') + (e.label ? ' (' + e.label + ')' : '') + (isNum(e.f) ? ', ' + U.tempText(e.f) : '');
-      case 'thermometer_checked': return (isNum(e.f) ? 'Read ' + U.tempText(e.f) : '') + (METHOD[e.method] ? ' in ' + METHOD[e.method] : '');
+      case 'equip_temp': return (UNIT[e.unit] || 'Equipment') + (e.label ? ' (' + e.label + ')' : '') + (isNum(e.f) ? ', ' + U.tempText(e.f) : '') + (e.outOfRange && isNum(e.maxF) ? ', above ' + U.tempText(e.maxF) : '');
+      case 'thermometer_checked': return (isNum(e.f) ? 'Read ' + U.tempText(e.f) : '') + (METHOD[e.method] ? ' in ' + METHOD[e.method] : '') + (e.outOfRange && isNum(e.expectF) ? ', should read ' + U.tempText(e.expectF) : '');
       case 'batch_out': case 'batch_back': return isNum(e.outMs) ? spanWords(e.outMs) + ' out of the fridge so far' : '';
-      case 'cooling_started': return isNum(e.g) ? U.weightText(e.g) : '';
+      case 'cooling_started': return isNum(e.g) ? (O.weightText || U.weightText)(e.g) : '';
       case 'sanitize_done': return [lateWords(e), isNum(e.ppm) ? 'strip ' + e.ppm + ' ppm' : '', e.product || '', e.where ? 'at ' + e.where : ''].filter(Boolean).join(', ');
       case 'quality_extend': return isNum(e.until) ? 'Until ' + U.fmtTime(e.until) : '';
       default: return e.note || '';

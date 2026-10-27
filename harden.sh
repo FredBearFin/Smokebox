@@ -28,6 +28,8 @@ apt-get install -y fail2ban unattended-upgrades >/dev/null
 mkdir -p "$LOGDIR"
 if id caddy >/dev/null 2>&1; then chown caddy:caddy "$LOGDIR"; fi
 chmod 750 "$LOGDIR"
+# The beta's tablet links carry their codes in the address (?code=...), so the "code" part is taken out of every logged address before it is
+# written: the log must not keep a copy of them. (Caddy already leaves passwords and cookies out of its log.)
 cat > "$SNIPPET" <<'CADDY'
 (smokebox_log) {
 	log {
@@ -36,7 +38,14 @@ cat > "$SNIPPET" <<'CADDY'
 			roll_size 10MiB
 			roll_keep 3
 		}
-		format json
+		format filter {
+			wrap json
+			fields {
+				request>uri query {
+					delete code
+				}
+			}
+		}
 	}
 }
 CADDY
@@ -75,7 +84,11 @@ for f in "$CADDYFILE" "$BETACADDY"; do
   [ -f "$f" ] || continue
   if ! grep -q 'import smokebox_log' "$f"; then add_import "$f"; cat "$f.new" > "$f"; rm -f "$f.new"; fi
 done
-grep -qF "import ${SNIPPET#"$R"}" "$CADDYFILE" || printf '\n%s\nimport %s\n' "$MARK" "${SNIPPET#"$R"}" >> "$CADDYFILE"
+# WATCH OUT: the snippet file is imported at the TOP. Caddy reads the file in order, so a site block that says "import smokebox_log" before the
+# snippet is defined is refused ("File to import not found"), and every run would quietly roll itself back.
+if ! grep -qF "import ${SNIPPET#"$R"}" "$CADDYFILE"; then
+  { printf '%s\nimport %s\n\n' "$MARK" "${SNIPPET#"$R"}"; cat "$CADDYFILE"; } > "$CADDYFILE.new"; cat "$CADDYFILE.new" > "$CADDYFILE"; rm -f "$CADDYFILE.new"
+fi
 undo_caddy() {
   cp -p "$BACKUP" "$CADDYFILE"; [ ! -f "$BETACADDY.before-harden" ] || cp -p "$BETACADDY.before-harden" "$BETACADDY"
   rm -f "$SNIPPET" "$FILTER" "$JAIL"

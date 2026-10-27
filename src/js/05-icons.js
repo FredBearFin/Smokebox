@@ -100,6 +100,7 @@
     timer: '<circle cx="12" cy="13.5" r="7.5"/><path d="M12 13.5V9.5M9.5 3h5M12 3v3M18.5 6.5l1.2-1.2"/>',
     flag: '<path d="M5 21V4"/><path d="M5 4.5h11l-1.6 3.5 1.6 3.5H5"/>',
     ban: '<circle cx="12" cy="12" r="9"/><path d="M5.6 5.6l12.8 12.8"/>',
+    maximize: '<path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5"/>',
     zap: '<path d="M13 2.5L5 13.5h6l-1 8 8-11h-6z"/>',
     layers: '<path d="M12 3l9 5-9 5-9-5z"/><path d="M3 12.5l9 5 9-5M3 16.5l9 5 9-5"/>',
     menu: '<path d="M4 6h16M4 12h16M4 18h16"/>',

@@ -4,7 +4,7 @@ Print this card and keep it by the tablet.
 
 - [ ] Tablet plugged in, and set to never sleep
 - [ ] Volume up. Smokebox open on the kitchen board
-- [ ] Tap the warning bar once, or use Test the sound under Tablet checks: screen, sound, home screen
+- [ ] Tap the warning bar once, or use Test the sound under Device checks: screen, sound, home screen
 - [ ] Check the 86 board: what is out today?
 - [ ] Counted dishes: how many did you make today?
 - [ ] Hand sink works and is stocked. Anyone unwell? Tell the manager

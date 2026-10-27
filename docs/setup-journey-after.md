@@ -269,3 +269,42 @@ Not checked: a real tablet; showing the "made on" date or the limits anywhere ot
 - "Pilot visit checklist" sheet (Settings): seven steps with minutes, total 14, tick boxes and a Print this card button. Same content as `docs/pilot-visit-checklist.md`.
 - Journey run F (modeled): 6 taps, 2 screens read, about 0.3 min for the app side. The rest of the 14 minutes is talking with the owner and the menu import, not modeled.
 - Not checked: any real tablet, real speaker, iPad Safari behavior of the wake lock, or an actual visit. The 14 minutes is a plan.
+
+
+## First-month owner journey (test/owner-journey.e2e.mjs)
+
+One scripted run of the real UI in Chromium on a blank install, with a simulated clock (the page's Date moved by an offset; timers real). 185 checks, run twice, all green; about 5 minutes. Every phase is checked against the engine (checkInvariants) and an independent ledger the script keeps in cents from its own price table (8% tax, discounts and tips as typed). Taps are counted by the script (one per click; typed fields counted apart; "store" means a store call instead of a screen, and there were none). Headless Chromium on a mouse, not a person: no thinking time, no mis-taps.
+
+| Phase | Taps | Typed fields |
+|---|---|---|
+| day 0: first run, dishes | 7 | 6 |
+| day 0: import a menu, change a price | 10 | 1 |
+| day 0: how you serve, cook-ahead, tablet checks, PIN | 36 | 12 |
+| day 1: first service | 49 | 4 |
+| day 2: discount | 53 | 5 |
+| day 3: void, thrown-out batch | 44 | 3 |
+| day 4: reopen, refused reopen | 36 | 4 |
+| day 5: service, backup | 51 | 5 |
+| day 6: service | 54 | 6 |
+| day 7: service | 55 | 6 |
+| day 8: restore from the day-5 backup, undo | 21 | 0 |
+| day 8: service | 49 | 5 |
+| day 9: service | 50 | 5 |
+| day 10: service | 49 | 5 |
+| day 44: service | 48 | 5 |
+| day 45: service | 50 | 5 |
+| day 46: Close the month | 21 | 1 |
+| Start over: PIN, backup, blank first screen | 15 | 1 |
+| Total | 698 | 79 |
+
+What it covers: day 0 (three dishes typed, one CSV import, a price change, an order button, two cooked-ahead items, tablet checks, tax, a PIN with its recovery code); days 1-10 (orders, board taps, cash and card, a discount, a void of a ticket and then the empty order, a reopen on the same day and a refused reopen after the day closed, closing each evening with starting cash, a dish thrown out by hand and leftovers thrown out at close, a temperature reading, a cold batch taken out of the fridge and put back, the day-5 backup, the day-8 restore with Undo this restore); days 44-45 of service, then day 46 Close the month (PIN keypad, counts, five files, CLOSE, Undo offered), the seven office pages, and Start over (PIN, backup, ERASE) ending on the blank first screen.
+
+What the journey found:
+- The clock guard works as designed: a step under 36 hours is accepted; the script never needed the clock question.
+- Close the month on day 46 moved out exactly the 28 orders of the ten service days (27 paid plus the voided one) and left days 44 and 45 matching the ledger to the cent, with the engine invariants holding after it.
+- Office pages open without NaN, undefined or null after the month is closed; Sales and money for the last 7 days shows 6 orders and $106 of food, the same as the ledger for days 44-45.
+- (A3) No office page says that history before 2026-11-13 was closed (`archivedBefore` is set and nothing reads it in this build); and there is no button for Close the month on the Data page here (A3's card is on night/a3-month). The script opens the sheet by its name.
+- (A2, mine, left) The cooked-ahead form's boxes have accessible names that differ from their visible labels ("Hours it may be out of the fridge" against "How many hours may it be out of the fridge?", and the same for the days, hours and kilograms boxes): WCAG 2.5.3 Label in Name. axe does not flag it; speech-control users would say the visible words. Changing it means updating setup-wizard, cold-items, guide-walk and first-time-owners, so it was left.
+- (script, not the app) A few cheap pitfalls worth knowing: the order screen and the pay box start on the way the last order was paid, so a tap is needed only when it differs (this is by design and saves taps); the cabinet "Who is this?" box appears once per tablet; Playwright's own fake clock froze the page's drawing between steps, so the script moves the page's Date directly.
+
+Not checked: a real person, a real tablet or touch use, sound and voice, printing, the hub and follower screens, more than one tablet, a real clock over 46 days, taxes other than 8%, order edits and add-a-round, delivery and drive-thru channels.

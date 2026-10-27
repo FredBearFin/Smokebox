@@ -159,6 +159,18 @@ test('exportMenu writes a file the importer reads back exactly', () => {
   assert.equal(back.rows.length, sample.length);
   assert.deepEqual(back.rows.map((x) => [x.name, x.price, x.station, x.category]), sample.map((m) => [m.name, m.price, m.zone, m.cat]));
   assert.equal(M.exportMenu(null), 'Name,Price,Station,Category\r\n');
+  // a name starting with a carriage return or a tab is guarded like = + - @ (the same rule as SB.csv)
+  assert.ok(M.exportMenu([{ name: '\r=cmd', price: 1, zone: 'pit', cat: 'meat' }]).includes("\"'\r=cmd\""));
+});
+
+test('a cents file of cheap dishes (every price a whole number of 100 or more) asks about cents instead of reading $450.00', () => {
+  const r = M.parse('Name,Price\nPulled pork,899\nSlaw,450\nTea,300\n');
+  assert.equal(r.summary.priceUnit, 'dollars');
+  assert.equal(r.summary.maybeCents, true);
+  assert.ok(r.summary.notes.some((n) => /none is under \$100/.test(n) && /cents/.test(n)), r.summary.notes.join(' | '));
+  assert.equal(M.parse('Name,Price\nPulled pork,9\nSlaw,4\nTea,3\n').summary.maybeCents, false, 'ordinary whole-dollar prices are not questioned');
+  assert.equal(M.parse('Name,Price\nWhole brisket,120\n').summary.maybeCents, false, 'one large catering price alone is not enough to ask');
+  assert.equal(M.parse('Name,Price\nPulled pork,899\nSlaw,4.50\n').summary.maybeCents, false, 'a price with cents written out means the file is in dollars');
 });
 
 test('parse never throws on junk', () => {

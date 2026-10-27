@@ -102,9 +102,6 @@
   // orderId is the open order this round is added to (null starts a new one); pay is how it is paid when sent
   // ('' leaves it open); tip is the tip text as typed.
   const D = { lines: [], customer: '', channel: 'dine_in', note: '', rush: false, orderId: null, pay: '', tip: '', allergy: '' };
-  // How the last order was paid when it was sent ('' = left open). A counter that takes cash all day starts the next
-  // order on cash, one tap fewer; Pay later is still one tap away.
-  let payDefault = '';
   let seq = 0;
   let lastSent = null; // { num, channel, items } of the last order sent from this sheet
   let live = null;     // the open view, or null
@@ -117,7 +114,18 @@
   // A separate copy of the order, kept so Undo can put it back.
   const copyDraft = () => JSON.parse(JSON.stringify(D));
   function restoreDraft(snap) { D.lines = snap.lines; D.customer = snap.customer; D.channel = snap.channel; D.note = snap.note; D.rush = snap.rush; D.orderId = snap.orderId; D.pay = snap.pay; D.tip = snap.tip; D.allergy = snap.allergy || ''; saveDraftNow(); }
-  function resetDraft() { clearStoredDraft(); D.lines = []; D.customer = ''; D.channel = 'dine_in'; D.note = ''; D.rush = false; D.orderId = null; D.pay = payDefault; D.tip = ''; D.allergy = ''; }
+  // The order type a quick name implies: Pickup or Takeout means takeout, Drive means drive-thru, Table or Dine means dine-in.
+  // Null when the name says nothing about it.
+  function channelOfName(name) {
+    const n = String(name || '').toLowerCase();
+    if (/pick ?-?up|take ?-?out|to ?go|carry ?out/.test(n)) return 'takeout';
+    if (/drive/.test(n)) return 'drive_thru';
+    if (/\btable\b|dine|\bbar\b|booth|patio/.test(n)) return 'dine_in';
+    return null;
+  }
+  // WATCH OUT: every new order starts on Pay later. Carrying the last order's payment over would let the next order be
+  // recorded as paid (cash, say) by a cook who never looked at the payment box.
+  function resetDraft() { clearStoredDraft(); D.lines = []; D.customer = ''; D.channel = 'dine_in'; D.note = ''; D.rush = false; D.orderId = null; D.pay = ''; D.tip = ''; D.allergy = ''; }
   // The half-built order is also kept in the browser, so a reload or a closed tab brings it back. Uses the store's own draft
   // calls (saveDraft, loadDraft, clearDraft) when this copy has them, and a plain browser-storage key until then.
   const KEY_DRAFT = 'smokebox.v1.orderdraft';
@@ -250,7 +258,7 @@
     let built = null, closed = false;
     const page = h('div', { class: 'ord-page', dataset: { name: 'order' } });
     // The page's own back button asks first when the order has items, like Esc does.
-    const backBtn = h('button', { type: 'button', class: 'btn btn-ghost ord-page-back', 'aria-label': 'Back to the board' }, ico('chevron-left', 22), h('span', null, 'Board'));
+    const backBtn = h('button', { type: 'button', class: 'btn btn-ghost ord-page-back', }, ico('chevron-left', 22), h('span', null, 'Back to the board'));
     const bar = h('header', { class: 'ord-page-bar' }, backBtn, h('h1', { class: 'ord-page-title' }, 'New ticket'), SB.guide && SB.guide.link ? SB.guide.link('taking-an-order', 'taking an order') : null);
     const body = h('div', { class: 'sheet-body ord-host' }), footer = h('footer', { class: 'sheet-foot' });
     page.append(bar, body, footer);
@@ -371,9 +379,9 @@
     // A kitchen with no dishes yet gets a friendly first step instead of a blank menu: the same setup wizard the welcome card opens.
     if (!menuNow.length) {
       setHidden(sticky, true); // no search box or category tabs for a menu with nothing in it
-      const firstDish = h('button', { type: 'button', class: 'btn btn-primary ord-first-dish' }, ico('plus', 20), h('span', null, 'Add your first dish'));
+      const firstDish = h('button', { type: 'button', class: 'btn btn-primary ord-first-dish' }, ico('plus', 20), h('span', null, 'Add my menu'));
       firstDish.addEventListener('click', () => { host.close('setup'); try { SB.sheets.open('dishes'); } catch (e) { console.error('[smokebox] setup failed', e); } });
-      tilesEl.appendChild(h('div', { class: 'empty ord-nodishes' }, ico('receipt', 40), h('h3', null, 'No dishes yet'), h('p', null, 'Add your first dish and it shows up here, ready to tap.'), firstDish));
+      tilesEl.appendChild(h('div', { class: 'empty ord-nodishes' }, ico('receipt', 40), h('h3', null, 'No dishes yet'), h('p', null, 'Add your dishes and they show up here, ready to tap.'), firstDish));
     }
 
     // RIGHT: order pane.
@@ -391,7 +399,7 @@
     notice.append(ico('info', 20), noticeText, noticeX);
 
     /* customer */
-    const custInput = h('input', { class: 'input ord-cust-input', type: 'text', autocomplete: 'off', autocapitalize: 'words', spellcheck: 'false', enterkeyhint: 'done', placeholder: 'Or type a name' });
+    const custInput = h('input', { class: 'input ord-cust-input', type: 'text', autocomplete: 'off', autocapitalize: 'words', spellcheck: 'false', enterkeyhint: 'done', placeholder: 'Customer name' });
     const custCount = h('span', { class: 'ord-counter num', hidden: true });
     const custField = SB.ui.field({ label: 'Customer', control: custInput, hint: 'Leave it blank for Walk-up.' });
     // The quick names come from the owner's list (settings.service.chips) when there is one; no list means the standard names,
@@ -401,7 +409,14 @@
     const chipsEl = h('div', { class: 'ord-chips', role: 'group', 'aria-label': 'Quick names' });
     chipList.forEach((nm) => {
       const b = h('button', { type: 'button', class: 'chip', 'aria-pressed': 'false' }, h('span', null, nm));
-      b.addEventListener('click', () => { D.customer = D.customer === nm ? '' : nm; custInput.value = D.customer; paintCustomer(); touched(); });
+      b.addEventListener('click', () => {
+        D.customer = D.customer === nm ? '' : nm; custInput.value = D.customer;
+        // A quick name that says how the food leaves (Pickup, Takeout, Drive-thru, Table 4) sets the order type too, so a
+        // Pickup ticket never reads Dine-in. A name that says nothing about it (Jake) leaves the type alone.
+        const ch = D.customer ? channelOfName(D.customer) : null;
+        if (ch && !D.orderId && C.channelById[ch]) { D.channel = ch; channelSeg.setValue(ch); }
+        paintCustomer(); touched();
+      });
       chipsEl.appendChild(b); view.chipBtns.set(nm, b);
     });
     // Names of recent orders that are not quick names, as one-tap buttons; rebuilt only when the list changes.
@@ -455,7 +470,7 @@
     // Picking an order in the list makes this round part of it.
     orderSel.addEventListener('change', () => { D.orderId = orderSel.value || null; touched(); });
     const orderInfo = h('p', { class: 'ord-order-info t-muted', hidden: true });
-    const orderBox = h('div', { class: 'ord-block ord-orderbox' }, h('div', { class: 'ord-label' }, 'Order'), orderSeg, orderSel, orderInfo);
+    const orderBox = h('div', { class: 'ord-block ord-orderbox' }, h('div', { class: 'ord-label' }, 'New or open order'), orderSeg, orderSel, orderInfo);
 
     /* payment: take it now at the counter, or leave the order open */
     // Chooses how the guest pays right now, or leaves the order open to pay later.
@@ -576,8 +591,11 @@
     });
     noteField.querySelector('.field-label').after(tplRow);
 
-    const details = h('div', { class: 'ord-details', dataset: { add: 'false' } }, orderBox, custField, channelBox, payBox);
-    orderPane.append(head, notice, allergyBox, linesBox, details, plan, noteField, rushBox);
+    // Who the order is for sits high, under the allergy question, so its buttons are in view without scrolling;
+    // channel and payment follow the lines. Both halves hide the same boxes when adding to an open order.
+    const who = h('div', { class: 'ord-details ord-who', dataset: { add: 'false' } }, orderBox, custField);
+    const details = h('div', { class: 'ord-details', dataset: { add: 'false' } }, channelBox, payBox);
+    orderPane.append(head, notice, allergyBox, who, linesBox, details, plan, noteField, rushBox);
     root.append(paneSeg, menuPane, orderPane);
 
     // Footer: total, inline error, Send.
@@ -840,7 +858,7 @@
       const adding = !!D.orderId;
       orderSeg.setValue(adding ? 'add' : 'new');
       orderSeg.setCount('add', list.length);
-      details.dataset.add = adding ? 'true' : 'false';
+      details.dataset.add = who.dataset.add = adding ? 'true' : 'false';
       const sig = list.map((o) => o.id + ':' + orderName(o) + ':' + o.rounds).join('|');
       if (orderSel.dataset.sig !== sig) {
         orderSel.dataset.sig = sig; U.clear(orderSel);
@@ -990,7 +1008,6 @@
         const info = res.info || {};
         const zones = Array.isArray(info.zones) ? info.zones.length : 0;
         lastSent = { num: info.num, channel: D.channel, items: items.map((it) => ({ menuId: it.menuId, qty: it.qty, mods: (it.mods || []).slice() })) };
-        payDefault = D.pay;
         resetDraft();
         host.close('sent');
         const where = addedTo ? ' added to ' + orderName(addedTo) + ' as round ' + info.round + ', sent to ' : ' sent to ';
@@ -999,10 +1016,13 @@
         SB.ui.toast('Ticket #' + info.num + (oneStation ? (addedTo ? ' added to ' + orderName(addedTo) + ' as round ' + info.round + ', sent' : ' sent') : where + zones + ' ' + U.plural(zones, 'station')) + '.' + (info.paid ? ' Paid ' + U.fmtMoney(info.total) + ' by ' + payWord + '.' : ''), { tone: 'ok' });
         return;
       }
-      const words = SB.engine.describe(res.report, res.info, st().settings);
+      let words = SB.engine.describe(res.report, res.info, st().settings);
+      // A dish taken off the menu (on another tablet, say) while this order was open: name it, so the cook knows which line to remove.
+      const gone = res.report === 'unknownMenu' && res.info ? menuById(res.info.menuId) : null;
+      if (gone) words = (gone.short || gone.name) + ' was taken off the menu. Remove it from this order, then send.';
       showError(words);
       setPane('order');
-      if (res.report === 'itemUnavailable') {
+      if (res.report === 'itemUnavailable' || res.report === 'unknownMenu') {
         paintTiles(); syncLines();
         const bad = D.lines.find((l) => l.menuId === (res.info && res.info.menuId));
         const v = bad && view.lineViews.get(bad.key);

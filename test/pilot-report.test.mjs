@@ -146,3 +146,15 @@ test('pilot report: counter-service auto tickets give no ticket time, and a fres
   const t = P.toText(P.build(fresh, { from: T0, to: T0 + HR, batchesCounted: 4 }));
   assert.ok(/0 batches logged of 4/.test(t) && /Tickets: Smokebox tickets were not used/.test(t), t);
 });
+
+test('rates over 100 percent never pass the gate: the observer count is flagged as too low', () => {
+  let s = E.newState({ now: T0, empty: true });
+  for (let k = 0; k < 6; k++) { const r = E.apply(s, 'addBatch', { ing: 'pork', tempF: 160, cookedG: 5000 }, T0 + k * MIN); s = r.state; }
+  for (let k = 0; k < 6; k++) s = E.apply(s, 'pullBatch', { ing: 'pork', g: 500 }, T0 + (10 + k) * MIN).state;
+  const r = P.build(s, { from: T0, to: T0 + HR, cutsCounted: 2, batchesCounted: 2 });
+  assert.ok(r.pulls.tapRate > 100, String(r.pulls.tapRate));
+  assert.equal(r.gate.pullTap.pass, false); assert.equal(r.gate.pullTap.over, true);
+  const t = P.toText(r);
+  assert.match(t, /more taps than cuts/); assert.match(t, /more than the observer counted/);
+  assert.match(P.toCsv(r), /cost per week at this rate \(rough guess from one service\)/);
+});

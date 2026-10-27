@@ -71,6 +71,7 @@
       ev.forEach((t) => {
         const live = cl.filter((c) => c.startT <= t && (c.endT === null || t <= c.endT));
         const foods = new Set(live.map((c) => c.ing || c.items[0]));
+        // Spells come sorted by start (B.clusterSpells), so overlapping spells of one food credit the one that began first.
         if (foods.size === 1) live[0].refused++; else loose++;
       });
       return { cl, recorded, loose, total: ev.length };
@@ -237,8 +238,18 @@
     const base = B.memoP((p) => {
       const ds = ctx.dataset(), S = B.settings(ds);
       const so = M.sellOutClock(p);
-      return { ds, S, so, protein: so.proteins.map((x) => x.ing), today: U.serviceDate(ctx.now(), S.dayStartHour) };
+      const today = U.serviceDate(ctx.now(), S.dayStartHour);
+      return { ds, S, so, protein: so.proteins.map((x) => x.ing), today, pastSig: pastSig(ds, B.dayMs(today) + S.dayStartHour * HOUR) };
     });
+    // A cheap fingerprint of everything dated before today: counts and grams that change when a past day is edited
+    // (a backdated batch or reading, a voided ticket, a discard), but not when today's service moves on.
+    function pastSig(ds, todayMs) {
+      let nt = 0, nv = 0, nb = 0, gb = 0, ne = 0;
+      for (const t of ds.tickets || []) if (t && t.createdAt < todayMs) { nt++; if (t.status === 'voided') nv++; }
+      for (const x of ds.batches || []) if (x && x.enteredAt < todayMs) { nb++; gb += (isNum(x.remainingG) ? x.remainingG : 0) + (x.status === 'discard' ? 1e9 : 0); }
+      for (const e of ds.events || []) if (e && e.t < todayMs) ne += e.reverted ? 1e6 : 1;
+      return [nt, nv, nb, Math.round(gb), ne].join(':');
+    }
     // Chart color slot of a protein: its place in the protein list, or 6 for any other food.
     const ingSlot = (b, ing) => { const i = b.protein.indexOf(ing); return i >= 0 ? i + 1 : 6; };
 
@@ -246,7 +257,8 @@
     // are remembered.
     function burn(p, day, ing) {
       const b = base(p);
-      const stamp = (b.ds.counts ? b.ds.counts.sample : 0) + ':' + (b.ds.range ? b.ds.range.from : 0);
+      // WATCH OUT: the stamp must change when a past day is edited, or the story shows stale numbers.
+      const stamp = (b.ds.counts ? b.ds.counts.sample : 0) + ':' + (b.ds.range ? b.ds.range.from : 0) + ':' + b.pastSig;
       const key = day + '|' + ing;
       const past = day < b.today;
       if (past) { const c = usageCache.get(key); if (c && c.stamp === stamp) return c.v; }
@@ -289,7 +301,7 @@
         const sb = burn(p, d.date, ing);
         if (sb && sb.intakeG > 0) rows.push({ date: d.date, intakeG: sb.intakeG, usedG: sb.usedG, wasteG: sb.wasteG });
       });
-      const v = { n: rows.length, medianIntake: B.median(rows.map((r) => r.intakeG)), medianUsed: B.median(rows.map((r) => r.usedG)), rows };
+      const v = { n: rows.length, medianIntake: B.median(rows.map((r) => r.intakeG)), medianUsed: B.median(rows.map((r) => r.usedG)), medianWaste: B.median(rows.map((r) => r.wasteG || 0)), rows };
       m.set(ing, v);
       return v;
     }
@@ -311,6 +323,7 @@
       const open = st.day >= b.today && isNum(sb.closeMs) && ctx.now() < sb.closeMs;
       const was = open ? 'has been' : 'was';
       parts.push((open ? 'So far today ' : 'That day ') + fmt.g(sb.intakeG) + ' ' + was + ' ' + (sb.tcs ? 'cooked' : 'restocked') + (sb.tcs && nb ? ' in ' + nb + ' ' + B.plural(nb, 'batch', 'batches') + ', the last at ' + fmt.clock(sb.batches[nb - 1].enteredAt) : '') + '; ' + fmt.g(sb.usedG) + ' ' + was + ' served' + (sb.wasteG > 0 ? ' and ' + fmt.g(sb.wasteG) + ' ' + was + ' thrown away' : '') + '.');
+      if (sb.overdrawnG > 0) parts.push(fmt.g(sb.overdrawnG) + ' more was used than was counted in' + (sb.openingAssumed ? ', so the day started with more than the par level the chart assumes.' : '.'));
       const typ = typicalDay(p, st.ing);
       if (typ.n >= MIN_DAYS) parts.push('A typical day in this range cooks ' + fmt.g(typ.medianIntake) + ' and serves ' + fmt.g(typ.medianUsed) + '.');
       let busy = null;
@@ -320,10 +333,11 @@
         const left = isNum(sb.endG) ? ' ' + fmt.g(sb.endG) + (open ? ' is in the cabinet now.' : ' was left at close.') : '';
         return { tone: 'good', word: open ? 'Not out yet' : 'Lasted', title: open ? name + ' has not run out so far today.' : name + ' lasted all day on ' + dayLabel(st.day) + '.', body: parts.join(' ') + left, extra: '' };
       }
-      // The most likely reason, in order: less cooked than a normal day uses, a lot thrown away, or simply
-      // more orders than usual.
+      // The most likely reason, in order: less cooked than a normal day cooks, a lot thrown away, or simply
+      // more orders than usual. WATCH OUT: compare cooked with cooked; a normal day's served grams leave out its
+      // waste, so comparing with them would flag a normal cook as short.
       let why = '';
-      if (typ.n >= MIN_DAYS && sb.intakeG < typ.medianUsed * 0.95) why = 'You cooked ' + fmt.g(typ.medianUsed - sb.intakeG) + ' less than a normal day uses, so it ran out early.';
+      if (typ.n >= MIN_DAYS && sb.intakeG < typ.medianIntake * 0.95) why = 'You cooked ' + fmt.g(typ.medianIntake - sb.intakeG) + ' less than a normal day, so it ran out early.';
       else if (sb.wasteG > 0 && sb.wasteG >= 0.1 * sb.intakeG) why = fmt.g(sb.wasteG) + ' of what was cooked was thrown away before it could be served, which cut the day short.';
       else if (typ.n >= MIN_DAYS) why = 'You cooked about the usual amount, so guests simply ordered more than usual that day.';
       const early = row.hoursBeforeClose >= 3;
@@ -374,8 +388,11 @@
           if (suggest > tp.medianIntake * 1.03) parts.push(srcWord + ': ' + fmt.g(suggest - tp.medianIntake) + ' more than usual, and ' + topUp + '.');
           else parts.push(srcWord + ': keep the amount and ' + topUp + '. It looks like timing, not quantity.');
         } else {
-          parts.push('Never sold out. A normal day: cooks ' + fmt.g(tp.medianIntake) + ', serves ' + fmt.g(tp.medianUsed) + '.');
-          if (suggest < tp.medianIntake * 0.85) parts.push(srcWord + ': ' + fmt.g(tp.medianIntake - suggest) + ' less than usual would still cover it.');
+          const wasted = tp.medianWaste > 0 ? ' and throws away ' + fmt.g(tp.medianWaste) : '';
+          parts.push('Never sold out. A normal day: cooks ' + fmt.g(tp.medianIntake) + ', serves ' + fmt.g(tp.medianUsed) + wasted + '.');
+          // WATCH OUT: the suggestion is what guests ate. Food thrown away during service (past its hold limit) is cooked food that
+          // never reached a plate, so cutting by the whole gap is only safe when that waste goes too; the text says so.
+          if (suggest < tp.medianIntake * 0.85) parts.push(srcWord + ': ' + fmt.g(tp.medianIntake - suggest) + ' less than usual would still cover what guests ate' + (tp.medianWaste > 0 ? ', as long as less is thrown away. Check the Thrown-out log first: food that passed its hold limit during service needs a later, smaller batch, not less food.' : '.'));
           else parts.push(srcWord + ': the cook count looks about right.');
         }
         out.parts = parts; out.text = parts.join(' ');

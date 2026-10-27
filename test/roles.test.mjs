@@ -19,3 +19,8 @@ test('front: everything except the cabinet key', () => {
   for (const k of ['n', 'o', 'r', '8', 'd', 'z', '?', '3', 'Escape']) assert.equal(F.roleAllows('front', k), true, k);
   assert.equal(F.roleAllows('front', 'h'), false);
 });
+
+test('bump-bar keys: Enter and the arrows work on kitchen and front devices', () => {
+  for (const role of ['kitchen', 'front']) for (const k of ['Enter', 'ArrowRight', 'ArrowLeft', 'ArrowUp', 'ArrowDown']) assert.equal(F.roleAllows(role, k), true, role + ' ' + k);
+  assert.equal(F.roleAllows('kitchen', 'Tab'), false);
+});

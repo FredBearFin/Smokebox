@@ -69,3 +69,28 @@ test('restore #5: a refused backup changes nothing and keeps no copy', () => {
   assert.equal(taxOf(), 5);
   S.destroy();
 });
+
+test('restore undo (Nia 4): undoing a restore puts back the names and setup lists the restore overwrote', () => {
+  const clock = { real: T0 }, storage = memStorage(), C = SB.config;
+  boot(clock, storage);
+  // The backup has a renamed station and one hidden station.
+  C.saveCustom({ rename: { zones: { pit: 'Firebox' } }, add: {} }); C.applyCustom(C.customSpec());
+  storage.set('smokebox.v1.setup.hiddenStations', ['fry']);
+  S.dispatch('updateSettings', { patch: { service: { taxRatePct: 5 } } });
+  const backup = S.exportAll();
+  // The kitchen being replaced has no names and no hidden stations.
+  C.saveCustom({ rename: {}, add: {} }); C.applyCustom(C.customSpec());
+  storage.remove('smokebox.v1.setup.hiddenStations');
+  S.dispatch('updateSettings', { patch: { service: { taxRatePct: 9 } } });
+  clock.real += 1000;
+  assert.equal(S.importAll(backup), 'ok');
+  assert.equal(C.zoneById.pit.name, 'Firebox');
+  assert.deepEqual(storage.get('smokebox.v1.setup.hiddenStations', null), ['fry']);
+  assert.equal(S.beforeRestoreInfo().trimmed, false, 'a whole copy fit');
+  assert.equal(S.undoRestore(), 'ok');
+  assert.equal(taxOf(), 9);
+  assert.notEqual(C.zoneById.pit.name, 'Firebox', 'the rename the restore brought is undone');
+  assert.deepEqual(C.customSpec(), { rename: {}, add: {} });
+  assert.deepEqual(storage.get('smokebox.v1.setup.hiddenStations', null), [], 'the hidden-station list the restore brought is undone');
+  S.destroy();
+});

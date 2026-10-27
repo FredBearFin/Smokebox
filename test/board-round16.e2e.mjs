@@ -1,7 +1,7 @@
 // Keep-awake, sound and readings (browser, about 40 s). Run: node test/board-round16.e2e.mjs
 // Covers: the screen wake lock (asked for at start, again when the page returns, again after the system takes it back, let go
 // when the board closes), the calm lines for a screen that cannot stay awake, sound that is off or not yet allowed, and a board that
-// was in the background, the "Checked" stamp, and the Test the sound button. The wake lock is a stub; sound uses the real browser.
+// was in the background, the "Updated" stamp, and the Test the sound button. The wake lock is a stub; sound uses the real browser.
 // Needs dist/smokebox.html.
 import { toolRequire } from '../tools/_deps.mjs';
 import path from 'node:path';
@@ -51,7 +51,8 @@ const strip = (p) => p.evaluate(() => { const e = document.querySelector('.fl-st
   await p.evaluate(() => { const sn = __wl.sentinels[__wl.sentinels.length - 1]; sn.listeners.forEach((f) => f()); });
   await p.waitForTimeout(1500);
   check('it is asked for again after the system takes it back', (await p.evaluate(() => __wl.calls)) > b2, await p.evaluate(() => __wl.calls));
-  check('the board shows a Checked stamp', /Checked \d/.test(await p.evaluate(() => document.querySelector('.fl-dock') ? document.querySelector('.fl-dock').innerText : '')), await p.evaluate(() => document.querySelector('.fl-checked') && document.querySelector('.fl-checked').textContent));
+  // The stamp shows on laptops and wall screens (1200 px and wider); at 1024 it is in the page but not drawn.
+  check('the board keeps an Updated stamp', /Updated \d/.test(await p.evaluate(() => document.querySelector('.fl-checked') ? document.querySelector('.fl-checked').textContent : '')), await p.evaluate(() => document.querySelector('.fl-checked') && document.querySelector('.fl-checked').textContent));
   const rel = await p.evaluate(() => { SB.floor.unmount(); return __wl.released; });
   check('the wake lock is let go when the board closes', rel >= 1, rel);
   await ctx.close();
@@ -64,7 +65,7 @@ const strip = (p) => p.evaluate(() => { const e = document.querySelector('.fl-st
   await p.evaluate(() => SB.floor.setWelcome(false));
   await p.waitForTimeout(1500);
   const s = await strip(p);
-  check('with the sound bar up, the sleep line waits behind it and the bar says so (one notice at a time)', /Tap here to turn on warning sounds/.test(s) && /\(1 more notice\)/.test(s) && !/may go to sleep/.test(s), s);
+  check('with the sound bar up, the sleep line waits behind it and the bar says so (one notice at a time)', /Tap to turn on sound/.test(s) && /\(1 more notice\)/.test(s) && !/may go to sleep/.test(s), s);
   await p.click('.fl-strip-sound >> nth=0'); await p.waitForTimeout(1200);
   const s2 = await strip(p);
   check('once sound is allowed the sleep line shows: a screen that cannot stay awake gets a calm line', /may go to sleep/.test(s2), s2);
@@ -80,7 +81,7 @@ const strip = (p) => p.evaluate(() => { const e = document.querySelector('.fl-st
   await p.evaluate(() => SB.floor.setWelcome(false));
   await p.waitForTimeout(800);
   const s0 = await strip(p);
-  check('sound on but not yet allowed: a bar asks for one tap', /Tap here to turn on warning sounds/.test(s0), s0);
+  check('sound on but not yet allowed: a bar asks for one tap', /Tap to turn on sound/.test(s0), s0);
   await p.evaluate(() => SB.floor.setSound(false));
   await p.waitForTimeout(1500);
   const s1 = await strip(p);

@@ -179,8 +179,10 @@
       if (first >= t0) { out.firstTicket.minutes = Math.round((first - t0) / MIN); out.firstTicket.from = t0; }
     }
     // The gate numbers in one place. Only the two the app can count are given a verdict; the rest are for the observer.
-    out.gate.pullTap = out.pulls.tapRate == null || !out.batches.cookAheadOn ? null : { rate: out.pulls.tapRate, pass: out.pulls.tapRate >= 50 };
-    out.gate.batches = out.batches.rate == null ? null : { rate: out.batches.rate };
+    // WATCH OUT: a rate over 100 percent means the app logged more than the observer counted, so the observer's count is
+    // off; it is flagged (over) and never passes the gate.
+    out.gate.pullTap = out.pulls.tapRate == null || !out.batches.cookAheadOn ? null : { rate: out.pulls.tapRate, pass: out.pulls.tapRate >= 50 && out.pulls.tapRate <= 100, over: out.pulls.tapRate > 100 };
+    out.gate.batches = out.batches.rate == null ? null : { rate: out.batches.rate, over: out.batches.rate > 100 };
     return out;
   }
 
@@ -197,8 +199,8 @@
     if (r.excluded.demoClock) L.push('WARNING: the demo clock or demo orders were on; demo pulls cannot be told apart, so do not trust these numbers.');
     L.push('');
     L.push('THE GATES, IN PLAIN WORDS');
-    L.push('1. Pull taps: ' + (!r.batches.cookAheadOn ? 'cook-ahead is turned off in this kitchen, so there are no pulls to count and this gate does not apply.' : r.gate.pullTap ? r.gate.pullTap.rate + ' percent of the observer\'s cuts got a tap. ' + (r.gate.pullTap.pass ? 'That is at or above the 50 percent gate.' : 'That is below the 50 percent gate.') : 'enter the number of cuts the observer counted to get the rate (the gate needs at least 50 percent).'));
-    L.push('2. Batches: ' + (r.batches.cookAheadOn ? r.batches.n + ' batches logged' + (r.batches.observerCount ? ' of ' + r.batches.observerCount + ' the observer counted (' + r.batches.rate + ' percent).' : '. Enter the observer\'s batch count to compare.') : 'cook-ahead is turned off in this kitchen, so there are no batches or pulls to count.'));
+    L.push('1. Pull taps: ' + (!r.batches.cookAheadOn ? 'cook-ahead is turned off in this kitchen, so there are no pulls to count and this gate does not apply.' : r.gate.pullTap ? r.gate.pullTap.rate + ' percent of the observer\'s cuts got a tap. ' + (r.gate.pullTap.over ? 'That is more taps than cuts, so the observer\'s count looks too low: recount before using this gate.' : r.gate.pullTap.pass ? 'That is at or above the 50 percent gate.' : 'That is below the 50 percent gate.') : 'enter the number of cuts the observer counted to get the rate (the gate needs at least 50 percent).'));
+    L.push('2. Batches: ' + (r.batches.cookAheadOn ? r.batches.n + ' batches logged' + (r.batches.observerCount ? ' of ' + r.batches.observerCount + ' the observer counted (' + r.batches.rate + ' percent' + (r.batches.rate > 100 ? ', more than the observer counted, so check that count' : '') + ').' : '. Enter the observer\'s batch count to compare.') : 'cook-ahead is turned off in this kitchen, so there are no batches or pulls to count.'));
     if (r.costs.ingredientsTotal && r.costs.ingredientsWithoutCost.length) L.push('3. Discard cost: ' + usd(r.discards.cost) + ', but ' + r.costs.ingredientsWithoutCost.length + ' of ' + r.costs.ingredientsTotal + ' cooked-ahead ingredients have no cost per kg (' + r.costs.ingredientsWithoutCost.slice(0, 6).join(', ') + '), so the cost is too low. To fix it, open Settings, Dishes and prices, and type the cost per kg for each one; it takes about a minute each.');
     else L.push('3. Discard cost: ' + usd(r.discards.cost) + ' from ' + r.discards.n + ' discards' + (r.discards.costUnknownN ? ' (' + r.discards.costUnknownN + ' had no cost on record)' : '') + '. Ask the owner to say their own weekly figure and compare it with the price.');
     L.push('4. Warnings: ' + r.sounds.firstSounds + ' shown (sounded), ' + r.sounds.acknowledged + ' tapped. The app cannot know a warning was heard; the observer writes that down.');
@@ -230,7 +232,7 @@
     add('window', 'demo kitchen', r.demo ? 'yes' : 'no');
     for (const k of Object.keys(r.excluded)) add('excluded', k, r.excluded[k]);
     add('batches', 'logged', r.batches.n); add('batches', 'observer count', r.batches.observerCount); add('batches', 'logged vs observer', r.batches.rate, '%');
-    add('gate', 'pull-tap at least 50%', r.gate.pullTap ? (r.gate.pullTap.pass ? 'yes' : 'no') : '');
+    add('gate', 'pull-tap at least 50%', r.gate.pullTap ? (r.gate.pullTap.over ? 'check the observer count (over 100%)' : r.gate.pullTap.pass ? 'yes' : 'no') : '');
     add('costs', 'discards with no cost', r.discards.costUnknownN); add('costs', 'ingredients with no cost per kg', r.costs.ingredientsWithoutCost.length); add('costs', 'cooked-ahead ingredients', r.costs.ingredientsTotal);
     add('warnings', 'shown', r.sounds.firstSounds); add('warnings', 'tapped', r.sounds.acknowledged); add('warnings', 'heard', '', 'observer writes this down');
     add('first ticket', 'minutes after first record', r.firstTicket.minutes, 'min');
@@ -241,7 +243,7 @@
     for (const l of [1, 2, 3, 4]) add('sounds', 'level ' + l, r.sounds.byLevel[l]);
     for (const k of Object.keys(r.keeps)) add('keeps', k, r.keeps[k]);
     add('discards', 'batches', r.discards.n); add('discards', 'grams', r.discards.g, 'g'); add('discards', 'cost', r.discards.cost, '$'); add('discards', 'batches with no cost recorded', r.discards.costUnknownN);
-    add('warnings', 'distinct', r.sounds.warnings); add('warnings', 'acknowledged', r.sounds.warningsAcked); add('warnings', 'acknowledged rate', r.sounds.ackRate, '%'); add('undo', 'undos', r.undos); add('undo', 'refused taps', r.refused); add('discards', 'cost per week at this rate', r.discards.perWeekCost, '$');
+    add('warnings', 'distinct', r.sounds.warnings); add('warnings', 'acknowledged', r.sounds.warningsAcked); add('warnings', 'acknowledged rate', r.sounds.ackRate, '%'); add('undo', 'undos', r.undos); add('undo', 'refused taps', r.refused); add('discards', 'cost per week at this rate' + (r.window.hours < 12 ? ' (rough guess from one service)' : ''), r.discards.perWeekCost, '$');
     for (const id of Object.keys(r.discards.byIng)) add('discards ' + id, 'cost', r.discards.byIng[id].cost, '$');
     for (const k of Object.keys(r.discards.byReason)) add('discards by reason', k, r.discards.byReason[k].cost, '$');
     for (const k of Object.keys(r.taps.jobs)) { add('taps', k, r.taps.jobs[k].n); add('taps', k + ' per hour', r.taps.jobs[k].perHour, '/h'); }

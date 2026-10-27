@@ -1,0 +1,4 @@
+# The engine is built with one fixed compiler so the WebAssembly bytes committed to the repo can be rebuilt exactly.
+[toolchain]
+channel = "1.97.0"
+targets = ["wasm32-unknown-unknown"]

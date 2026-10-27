@@ -23,7 +23,7 @@
     b = b || {};
     const name = b.name ? String(b.name).toLowerCase() : 'cooked food';
     if (!isNum(b.onHandG) || b.onHandG <= 0) return { tone: 'bad', text: 'No ' + name + ' is ready to serve right now.' };
-    const kg = (U.weightText || U.fmtG)(b.onHandG) + ' on hand. ';
+    const kg = (O.weightText || U.weightText || U.fmtG)(b.onHandG) + ' on hand. ';
     if (isNum(b.shortfallAt) && b.shortfallAt > now) return { tone: 'warn', text: kg + 'At the current pace it runs out around ' + U.fmtTime(b.shortfallAt) + ' (an estimate from the last 2 hours of sales).' };
     if (b.rateKnown) return { tone: 'good', text: kg + 'At the current pace it should last until close (an estimate from the last 2 hours of sales).' };
     return { tone: 'info', text: kg + 'Not enough sales yet to estimate when it runs out.' };

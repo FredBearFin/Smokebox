@@ -189,6 +189,8 @@ export default function (h) {
     const end = await snap(page);
     t.check('Done removes the card, the rings and the tour', end.cards === 0 && end.rings === 0 && !end.active, end);
     t.check('focus goes back to the board', end.focus === 'fl-board', end.focus);
+    const left = await page.evaluate((tid) => ({ demo: SB.store.isDemo(), there: SB.store.getState().tickets.some((x) => x.id === tid) }), id);
+    t.check('the demo keeps the walkthrough ticket (a real kitchen removes it, see 13g)', left.demo && left.there, left);
     await t.clean(page, 'full walkthrough');
   });
 
@@ -334,6 +336,21 @@ export default function (h) {
     t.check('Large text makes the caption sentence bigger (at least 20 px)', fs >= 20, fs);
     await big.evaluate(() => SB.tour.stop());
     await t.clean(big, 'large text walkthrough');
+  });
+
+  h.test('13g-tour-real-kitchen', 'Walkthrough in a real kitchen: stopping it removes its ticket, so it never reaches the reports', { owner: 'board', timeout: 60000 }, async (t) => {
+    const page = await t.open({ w: 1280, h: 800 });
+    if (!(await page.evaluate(() => !!(window.SB && SB.tour)))) t.skip('SB.tour is not built yet');
+    await page.evaluate(() => SB.store.dispatch('addMenuItem', { name: 'Brisket plate', zone: 'pit', cat: 'meat', price: 12, prepSec: 60, track: 'one', prepGuess: false }));
+    t.check('this is a real kitchen', !(await page.evaluate(() => SB.store.isDemo())));
+    t.check('the walkthrough starts', await page.evaluate(() => SB.tour.start()));
+    const id = await newestId(page);
+    t.check('its ticket is on the board', !!id && (await slipOf(page, id).count()) === 1, id);
+    await page.evaluate(() => SB.tour.stop());
+    await settle(page, 200);
+    const end = await page.evaluate((tid) => ({ there: SB.store.getState().tickets.some((x) => x.id === tid), orders: SB.store.getState().orders.length, leftovers: SB.store.demoLeftovers().tickets }), id);
+    t.check('the ticket and its order are gone and nothing is left for the clean-up offer', !end.there && end.orders === 0 && end.leftovers === 0, end);
+    await t.clean(page, 'real-kitchen walkthrough');
   });
 
   h.test('13f-tour-busy-board', 'Walkthrough: with other tickets on the board the new ticket is found and the card sits beside it', { owner: 'board', timeout: 120000 }, async (t) => {

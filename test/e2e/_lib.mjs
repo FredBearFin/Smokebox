@@ -13,7 +13,7 @@ export const ZONES = ['pit', 'sides', 'fry', 'cold', 'expo'];
 export const ZONE_CODE = { pit: 'PIT', sides: 'HOT', fry: 'FRY', cold: 'CLD', expo: 'EXP' };
 export const OFFICE_PAGES = [
   { id: 'pace', title: 'Speed' }, { id: 'tickets', title: 'Tickets' }, { id: 'stations', title: 'Stations' }, { id: 'money', title: 'Sales and money' },
-  { id: 'safety', title: 'Safety' }, { id: 'stock', title: 'Stock and 86' }, { id: 'data', title: 'Menu and settings' },
+  { id: 'safety', title: 'Safety' }, { id: 'stock', title: 'Stock and 86' }, { id: 'data', title: 'Menu, prices and shop' },
 ];
 
 export const head = (page) => page.locator('.fl-head');

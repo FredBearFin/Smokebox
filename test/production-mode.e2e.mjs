@@ -10,9 +10,9 @@ await withPage({ w: 1280, h: 800 }, async (page, logs) => {
   const vis = (sel) => page.locator(sel).first().isVisible().catch(() => false);
   check('settings: no Specs link, no clock speed', !(await page.locator('.mn-link:has-text("Specs")').count()) && !(await page.locator('.dm-speed:visible').count()));
   await page.evaluate(() => SB.sheets.closeAll()); await page.waitForTimeout(300);
-  // In a real kitchen the Demo sheet only explains the demo and offers 'Try the demo'; no clock speed, nothing to reset.
+  // In a real kitchen the Demo sheet only explains the demo and offers 'Watch the demo'; no clock speed, nothing to reset.
   await page.evaluate(() => SB.sheets.open('demo')); await page.waitForTimeout(300);
-  check('demo sheet (real kitchen): no clock speed, offers Try the demo', !(await page.locator('.dm-speed:visible').count()) && (await page.locator('button:has-text("Try the demo")').count()) >= 1);
+  check('demo sheet (real kitchen): no clock speed, offers Watch the demo', !(await page.locator('.dm-speed:visible').count()) && (await page.locator('button:has-text("Watch the demo")').count()) >= 1);
   await page.evaluate(() => SB.sheets.closeAll()); await page.waitForTimeout(300);
   // The demo is its own mode (a ?demo tab): there the clock speeds show and the sheet says it is for practice.
   const demo = await page.context().newPage();

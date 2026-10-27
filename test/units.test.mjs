@@ -12,7 +12,7 @@ test('defaults are F and kg and the helpers match the old formats', () => {
   assert.deepEqual(E.defaultSettings().ui.tempUnit + E.defaultSettings().ui.weightUnit, 'Fkg');
   assert.equal(U.tempText(135), '135 °F');
   assert.equal(U.weightText(850), U.fmtG(850));
-  assert.equal(U.weightText(2400), '2.40 kg');
+  assert.equal(U.weightText(2400), '2.4 kg');
   assert.equal(U.tempText(NaN), '-');
   assert.equal(U.weightText(undefined), '-');
 });
@@ -27,8 +27,8 @@ test('Celsius and pounds convert both ways without drifting the stored value', (
   assert.equal(U.tempTextC(85), '85 °C');
   assert.equal(U.tempStored(57.2), 135);
   assert.equal(U.tempShown(165), 74);
-  assert.equal(U.weightText(453.59237), '1.00 lb');
-  assert.equal(U.weightText(226.796185), '8.0 oz');
+  assert.equal(U.weightText(453.59237), '1 lb');
+  assert.equal(U.weightText(226.796185), '8 oz');
   assert.equal(U.weightText(2400), '5.29 lb');
   assert.equal(U.weightStored(U.weightShown(9000)), 9000);
   assert.equal(U.unitLabel('temp'), '°C');

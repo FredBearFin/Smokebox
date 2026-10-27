@@ -16,7 +16,7 @@
         h('span', { style: 'flex:1' }),
         h('button', { type: 'button', class: 'btn btn-sm', id: 'office-theme', onClick: () => SB.theme.setOffice(SB.theme.office() === 'ember' ? 'paper' : 'ember') }, 'Ember or Paper'),
         h('button', { type: 'button', class: 'btn btn-sm', id: 'office-sheet', onClick: () => SB.sheets.open('help') }, 'Open a sheet'),
-        h('button', { type: 'button', class: 'btn btn-primary', id: 'back-to-line', onClick: () => SB.shell.extinguish() }, SB.icons.svg('door', { size: 20 }), h('span', null, 'Back to the line')));
+        h('button', { type: 'button', class: 'btn btn-primary', id: 'back-to-line', onClick: () => SB.shell.extinguish() }, SB.icons.svg('door', { size: 20 }), h('span', null, 'Back to the board')));
       frame = h('div', { id: 'office-frame', style: 'display:flex;flex-direction:column;min-height:100%' }, nav, h('div', { style: 'padding:16px 16px 0' }, title), body);
       el.appendChild(frame);
       SB.gallery && SB.gallery.render(body);

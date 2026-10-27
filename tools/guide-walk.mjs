@@ -41,11 +41,11 @@ const seen = (page, text, scope) => page.evaluate(([t, sc]) => {
 async function blank(browser) {
   console.log('Blank kitchen');
   const p = await fresh(browser);
-  check('welcome: Add your first dish', await seen(p, 'Add your first dish'));
-  check('welcome: Show me how it works', await seen(p, 'Show me how it works'));
+  check('welcome: Add my menu', await seen(p, 'Add my menu'));
+  check('welcome: Watch the demo', await seen(p, 'Watch the demo'));
   await p.click('[data-act="first-dish"]'); await p.waitForTimeout(500);
   const sh = '.sheet-root';
-  for (const t of ['Dishes and prices', 'What is it called?', 'Price in dollars', 'Where is it made?', 'Kitchen', 'Prep', 'Fryer', 'Cold and drinks', 'Save and add another', 'Save and finish', 'Tax, hours and PIN']) check('dishes sheet: ' + t, await seen(p, t, sh));
+  for (const t of ['Dishes and prices', 'What is it called?', 'Price the customer pays', 'Which station makes it?', 'Kitchen', 'Prep', 'Fryer', 'Cold and drinks', 'Save and add another', 'Save and finish', 'Tax, hours and PIN']) check('dishes sheet: ' + t, await seen(p, t, sh));
   await p.fill(sh + ' input >> nth=0', 'Hush puppies'); await p.fill(sh + ' input >> nth=1', '5.50');
   check('price read-back: Reads as', await has(p, 'Reads as $5.50', sh));
   check('dishes sheet: Have a menu file? Import it', await seen(p, 'Have a menu file? Import it', sh));
@@ -62,7 +62,7 @@ async function blank(browser) {
   check('no Cabinet tab while Cooking ahead is No', !(await seen(p, 'Cabinet', '.fl-head')));
   // Menu list.
   await p.click('button.fl-menu'); await p.waitForTimeout(500);
-  for (const t of ['Dishes and prices', 'Tax, hours and PIN', 'Guide', 'Set up this tablet: first steps', 'Help and about', 'Back office', 'Show me how it works']) check('menu: ' + t, await seen(p, t, sh));
+  for (const t of ['Dishes and prices', 'Tax, hours and PIN', 'Guide', 'Set up this device: first steps', 'Help and about', 'Back office', 'Show me how it works']) check('menu: ' + t, await seen(p, t, sh));
   await p.keyboard.press('Escape'); await p.waitForTimeout(300);
   // Order, cook, pay.
   await p.click('.fl-new'); await p.waitForTimeout(600);
@@ -77,11 +77,11 @@ async function blank(browser) {
   await p.click('text=Tip or discount'); await p.waitForTimeout(500);
   for (const t of ['Take payment', 'Cash', 'Card', 'Other', 'Mark paid']) check('take payment: ' + t, await seen(p, t));
   await p.keyboard.press('Escape'); await p.keyboard.press('Escape'); await p.waitForTimeout(300);
-  check('header: Recall and 86 board', (await seen(p, 'Recall', '.fl-head')) && (await seen(p, '86 board', '.fl-head')));
+  check('header: Recall and Sold out', (await seen(p, 'Recall', '.fl-head')) && (await seen(p, 'Sold out', '.fl-head')));
   // Back office: backup.
   await p.click('button:has-text("Back office")'); await p.waitForTimeout(2200);
-  for (const t of ['Sales and money', 'Safety', 'Menu and settings']) check('back office nav: ' + t, await seen(p, t, '#sb-office'));
-  await p.click('#sb-office nav >> text=Menu and settings'); await p.waitForTimeout(1400);
+  for (const t of ['Sales and money', 'Safety', 'Menu, prices and shop']) check('back office nav: ' + t, await seen(p, t, '#sb-office'));
+  await p.click('#sb-office nav >> text=Menu, prices and shop'); await p.waitForTimeout(1400);
   for (const t of ['Data, backup and reset', 'Back up now', 'Restore from a backup', 'Replacing this device', 'Danger zone: erase data']) check('data page: ' + t, await has(p, t, '#sb-office'));
   for (const t of ['Sales by day (for your accountant)', 'Download backup (JSON)', 'Copy backup', 'Choose a backup file', 'Check pasted backup', 'Erase tickets and records', 'Erase everything']) check('data page: ' + t, await seen(p, t, '#sb-office'));
   await p.close();
@@ -136,6 +136,7 @@ async function cooked(browser) {
   for (const t of ['What do you cook ahead?', 'Hot or cold', 'How long may it stay, in hours?', 'Usual batch size, in kg', 'Which dishes use it?', 'Save cooked-ahead item']) check('cooked-ahead form: ' + t, await seen(p, t, '.sheet-root:last-of-type'));
   await p.fill('.sheet-root:last-of-type input >> nth=0', 'Pulled pork');
   await p.click('.sheet-root:last-of-type input[type=checkbox] >> nth=0').catch(() => {});
+  await p.fill('.sheet-root:last-of-type [aria-label^="Grams of it in one"]:enabled >> nth=0', '150').catch(() => {}); // a ticked dish needs its grams
   await tap(p, 'Save cooked-ahead item'); await p.waitForTimeout(700);
   // With no dish picked the first save warns once; a second tap keeps the item anyway.
   if (!(await seen(p, 'Log a first batch', '.sheet-root:last-of-type'))) { await tap(p, 'Save cooked-ahead item'); await p.waitForTimeout(700); }
@@ -209,26 +210,26 @@ async function settings(browser) {
   await p.close();
   const q = await fresh(browser);
   await tap(q, 'Back office'); await q.waitForTimeout(2200);
-  await q.click('#sb-office nav >> text=Menu and settings'); await q.waitForTimeout(1400);
+  await q.click('#sb-office nav >> text=Menu, prices and shop'); await q.waitForTimeout(1400);
   for (const t of ['Temperatures', 'Weights']) check('units: ' + t, await seen(q, t, '#sb-office'));
   await q.close();
 }
 
-// The Try the demo walk: the welcome button asks first, the demo has a bar with Back to my kitchen, and your own kitchen stays empty.
+// The Watch the demo walk: the welcome button asks first, the demo has a bar with Back to my kitchen, and your own kitchen stays empty.
 async function tryDemo(browser) {
-  console.log('Try the demo');
+  console.log('Watch the demo');
   const p = await fresh(browser);
-  check('welcome: Try the demo', await seen(p, 'Try the demo'));
-  await tap(p, 'Try the demo'); await p.waitForTimeout(700);
-  for (const t of ['Try the demo?', 'Not now']) check('demo dialog: ' + t, await seen(p, t, '.sheet-host'));
-  await p.evaluate(() => { const b = [...document.querySelectorAll('.sheet-host button')].find((x) => x.textContent.trim() === 'Try the demo'); if (b) b.click(); });
+  check('welcome: Watch the demo', await seen(p, 'Watch the demo'));
+  await tap(p, 'Watch the demo'); await p.waitForTimeout(700);
+  for (const t of ['Watch the demo?', 'Not now']) check('demo dialog: ' + t, await seen(p, t, '.sheet-host'));
+  await p.evaluate(() => { const b = [...document.querySelectorAll('.sheet-host button')].find((x) => x.textContent.trim() === 'Watch the demo'); if (b) b.click(); });
   await p.waitForTimeout(2200);
-  check('demo bar: You are trying the demo', await has(p, 'You are trying the demo.'));
+  check('demo bar: Demo: it runs by itself', await has(p, 'Demo: it runs by itself.'));
   check('demo bar: Back to my kitchen', await seen(p, 'Back to my kitchen'));
   check('demo: sample tickets on the board', (await p.evaluate(() => document.querySelectorAll('.fl-slip').length)) > 0);
   await tap(p, 'Back to my kitchen'); await p.waitForTimeout(2200);
   check('back in your own kitchen: empty menu', (await p.evaluate(() => SB.store.getState().menu.length)) === 0);
-  check('your own kitchen shows Add your first dish again', await seen(p, 'Add your first dish'));
+  check('your own kitchen shows Add my menu again', await seen(p, 'Add my menu'));
   await p.close();
 }
 
@@ -237,6 +238,8 @@ async function startOver(browser) {
   console.log('Start over with an empty menu');
   const p = await fresh(browser);
   await addDish(p, { name: 'Fries', short: 'Fries', zone: 'fry', price: 4 });
+  // One real ticket, so the careful steps show (a kitchen with only dishes gets a one-step confirm).
+  await p.evaluate(() => SB.store.dispatchEx('createTicket', { customer: 'Ann', items: [{ menuId: SB.store.getState().menu[0].id, qty: 1 }] }, { source: 'ui' }));
   await p.click('button.fl-menu'); await p.waitForTimeout(500);
   check('menu: Start over with an empty menu', await tap(p, 'Start over with an empty menu')); await p.waitForTimeout(600);
   const sh = '.sheet-root:last-of-type';
@@ -287,7 +290,7 @@ async function recipes(browser) {
   await tap(p, 'Latte'); await p.waitForTimeout(200);
   for (const t of ['Takeout', 'Dine-in', 'Cash', 'Card', 'Pay later', 'Allergy', 'Rush ticket', 'Send to kitchen']) check('order screen: ' + t, await seen(p, t));
   await tap(p, 'Cash'); await tap(p, 'Send to kitchen'); await p.waitForTimeout(900);
-  check('card: Recall and 86 board in the header', (await seen(p, 'Recall')) && (await seen(p, '86 board')));
+  check('card: Recall and Sold out in the header', (await seen(p, 'Recall')) && (await seen(p, 'Sold out')));
   check('cafe: Done on the ticket', await seen(p, 'Done'));
   await p.evaluate(() => document.querySelector('.fl-slip .fl-row button').click()); await p.waitForTimeout(500);
   check('cafe: Bump', await seen(p, 'Bump'));
@@ -296,7 +299,7 @@ async function recipes(browser) {
   await p.evaluate(() => SB.sheets.closeAll && SB.sheets.closeAll()); await p.evaluate(() => document.querySelector('button.fl-menu').click()); await p.waitForTimeout(500);
   check('settings: How you serve', await tap(p, 'How you serve')); await p.waitForTimeout(500);
   const hs = '.sheet-root:last-of-type';
-  for (const t of ['Counter service', 'Order buttons', 'Add button', 'Reset to the starting list', 'Currency symbol', 'Your own']) check('how you serve: ' + t, await has(p, t, hs));
+  for (const t of ['Counter service', 'Order buttons', 'Add button', 'Use the starting list', 'Currency symbol', 'Your own']) check('how you serve: ' + t, await has(p, t, hs));
   await p.evaluate(() => document.querySelector('.sheet-root:last-of-type [role=switch]').click()); await p.waitForTimeout(400);
   check('how you serve: Undo bar after a change', await has(p, 'Undo', hs));
   await p.evaluate(() => SB.sheets.closeAll()); await p.waitForTimeout(400);
@@ -366,7 +369,7 @@ async function pinCode(browser) {
   await p.close();
 }
 
-// The import walk: paste a file, check it, and see the preview words the Import a menu page names.
+// The import walk: paste a file, preview it, and see the preview words the Import or export your menu page names.
 async function importMenu(browser) {
   console.log('Import a menu');
   const p = await fresh(browser);
@@ -377,7 +380,7 @@ async function importMenu(browser) {
   const is = '.sheet-root:last-of-type';
   check('import: intro names Lightspeed', await has(p, 'Lightspeed', is));
   await p.fill(is + ' textarea', 'Name,Price,Description,Calories\nLatte,450,Hot or iced,120\nScone,325,Fresh daily,300\nBagel,1400,With cream cheese,280');
-  check('import: Check it', await tap(p, 'Check it')); await p.waitForTimeout(700);
+  check('import: Preview', await tap(p, 'Preview')); await p.waitForTimeout(700);
   for (const t of ['Read as', 'These prices are in cents', 'Ignored column: Calories', 'Notes and descriptions in your file are not kept', 'Put all these dishes at', 'Import ']) check('import preview: ' + t, await has(p, t, is));
   check('import: tapping cents works', await tap(p, 'These prices are in cents')); await p.waitForTimeout(600);
   check('import preview: These prices are in dollars', await has(p, 'These prices are in dollars', is));
@@ -399,9 +402,10 @@ async function coldItem(browser) {
   const cs = '.sheet-root:last-of-type';
   await p.fill(cs + ' input >> nth=0', 'House potato salad');
   await p.evaluate(() => { const b = [...document.querySelectorAll('.sheet-root:last-of-type button, .sheet-root:last-of-type [role=radio]')].find((e) => e.getClientRects().length && e.textContent.trim().indexOf('Cold') === 0); if (b) b.click(); }); await p.waitForTimeout(300);
-  await p.fill('input[aria-label="Days it may stay in the fridge"]', '3');
-  await p.fill('input[aria-label="Hours it may be out of the fridge"]', '2');
+  await p.fill('input[aria-label="How many days may it stay in the fridge?"]', '3');
+  await p.fill('input[aria-label="How many hours may it be out of the fridge?"]', '2');
   await p.click(cs + ' input[type=checkbox] >> nth=0').catch(() => {});
+  await p.fill(cs + ' [aria-label^="Grams of it in one"]:enabled >> nth=0', '150').catch(() => {}); // a ticked dish needs its grams
   await tap(p, 'Save cooked-ahead item'); await p.waitForTimeout(700);
   if (!(await seen(p, 'Log a first batch', cs))) { await tap(p, 'Save cooked-ahead item'); await p.waitForTimeout(700); }
   check('cold: Log a first batch', await tap(p, 'Log a first batch')); await p.waitForTimeout(700);
@@ -451,7 +455,7 @@ async function restoreUndo(browser) {
   const backup = await p.evaluate(() => SB.store.exportAll());
   await addDish(p, { name: 'Wings', short: 'Wings', zone: 'fry', price: 9 });
   await tap(p, 'Back office'); await p.waitForTimeout(1200);
-  await p.click('#sb-office nav >> text=Menu and settings'); await p.waitForTimeout(1500);
+  await p.click('#sb-office nav >> text=Menu, prices and shop'); await p.waitForTimeout(1500);
   await p.evaluate((t) => { const b = [...document.querySelectorAll('button')].find((e) => e.textContent.trim() === 'Check pasted backup'); let n = b; let a = null; while (n && !a) { n = n.parentElement; a = n && n.querySelector('textarea'); } if (a) { const d = a.closest('details'); if (d) d.open = true; a.value = t; a.dispatchEvent(new Event('input', { bubbles: true })); } }, backup);
   await p.evaluate(() => { const b = [...document.querySelectorAll('button')].find((e) => e.textContent.trim() === 'Check pasted backup'); if (b) { b.scrollIntoView({ block: 'center' }); b.click(); } }); await p.waitForTimeout(1200);
   await p.evaluate(() => { const b = [...document.querySelectorAll('button')].find((e) => e.getClientRects().length && e.textContent.trim() === 'Replace everything with this backup'); if (b) { b.scrollIntoView({ block: 'center' }); b.click(); } }); await p.waitForTimeout(800);
@@ -503,7 +507,7 @@ async function closeMonth(browser) {
   let tx = await vis(p);
   check('closemonth step 1: This moves out of your kitchen', /This moves out of your kitchen: [\d,]+ days? of history \(.* up to, not including, .*\), with [\d,]+ orders?, [\d,]+ tickets? and [\d,]+ activity records?\./.test(tx), tx.slice(0, 600));
   check('closemonth step 1: This stays (last 35 days, safety records)', /This stays: the last 35 days, today, every open order and open ticket.*your menu and settings, the end-of-day totals, and all food-safety records \(/.test(tx));
-  check('closemonth step 1: the history-gone warning with 7 days', /After step 3 the history is gone from this tablet\. Your files are the only copy of it\. For 7 days Smokebox also keeps your kitchen as it was, and you can undo\./.test(tx));
+  check('closemonth step 1: the history-gone warning with 7 days', /After step 3 the history leaves this device\. For 7 days you can still undo it here; after that, the files you save in step 2 are the only copy\./.test(tx));
   await p.evaluate(() => { const i = document.getElementById('cm-before'); const d = new Date(); i.value = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); i.dispatchEvent(new Event('change', { bubbles: true })); }); await p.waitForTimeout(400);
   check('closemonth step 1: You picked X, but the last 35 days always stay', /You picked .*, but the last 35 days always stay, so it stops at /.test(await vis(p)));
   check('closemonth: Next: save the files', await btn(p, 'Next: save the files')); await p.waitForTimeout(500);
@@ -547,17 +551,17 @@ async function closeMonth(browser) {
   check('closemonth refusal: back at step 2 with Save the files again, then continue.', tx.indexOf('2. Save the month files now') >= 0 && tx.indexOf('Save the files again, then continue.') >= 0);
   await q.context().close();
   const hb = await open(saved); await hb.evaluate(() => { SB.store.isHubClient = () => true; SB.sheets.open('closemonth'); }); await hb.waitForTimeout(700);
-  check('closemonth refusal: hub tablet', (await vis(hb)).indexOf("This tablet works through the main computer, so the month cannot be closed here. Do this on the main computer's own screen or the main tablet. Nothing was removed.") >= 0);
+  check('closemonth refusal: hub tablet', (await vis(hb)).indexOf("This device works through the main computer, so the month cannot be closed here. Do this on the main computer's own screen or the main tablet.") >= 0);
   await hb.context().close();
   const dm = await open(null, FILE + '?demo'); await dm.evaluate(() => SB.sheets.open('closemonth')); await dm.waitForTimeout(700);
-  check('closemonth refusal: demo', (await vis(dm)).indexOf('You are in the demo, so there is no real history to close here. Tap Back to my kitchen first. Nothing was removed.') >= 0);
+  check('closemonth refusal: demo', (await vis(dm)).indexOf('You are in the demo, so there is no real history to close here. Tap Back to my kitchen first.') >= 0);
   await dm.context().close();
   const nw = await open(null); await nw.evaluate(() => SB.sheets.open('closemonth')); await nw.waitForTimeout(700);
-  check('closemonth refusal: nothing to close', (await vis(nw)).indexOf('There is nothing to close yet. Only finished days older than 35 days can be moved out, and none are left before that date. Nothing was removed.') >= 0);
+  check('closemonth refusal: nothing to close', (await vis(nw)).indexOf('There is nothing to close yet. Finished days can be moved out once they are older than the recent days that always stay.') >= 0);
   await nw.context().close();
 }
 
-// The Readings and Tablet checks walk: the three logs on the Readings sheet and the five checks on Tablet checks: screen, sound, home screen.
+// The Readings and Device checks walk: the three logs on the Readings sheet and the five checks on Device checks: screen, sound, home screen.
 async function readingsAndChecks(browser) {
   console.log('Readings and tablet checks');
   const p = await fresh(browser);
@@ -574,7 +578,7 @@ async function readingsAndChecks(browser) {
   check('readings: the entry is listed', await p.evaluate(() => !/No readings yet/.test(document.querySelector('.sheet-root:last-of-type').innerText)), await p.evaluate(() => document.querySelector('.sheet-root:last-of-type').innerText.slice(-300)));
   await p.evaluate(() => SB.sheets.closeAll()); await p.waitForTimeout(300);
   await p.evaluate(() => document.querySelector('button.fl-menu').click()); await p.waitForTimeout(400);
-  check('settings: Tablet checks: screen, sound, home screen', await tap(p, 'Tablet checks: screen, sound, home screen')); await p.waitForTimeout(700);
+  check('settings: Device checks: screen, sound, home screen', await tap(p, 'Device checks: screen, sound, home screen')); await p.waitForTimeout(700);
   for (const t of ['Screen stays awake', 'Sound is on', 'Volume is loud enough', 'Added to the home screen', 'Full screen', 'Test the sound']) check('tablet checks: ' + t, await has(p, t, rs));
   await p.close();
 }
@@ -597,7 +601,7 @@ async function notices(browser) {
   await p.keyboard.press('Escape'); await p.evaluate(() => SB.sheets.closeAll()); await p.waitForTimeout(300);
   await tap(p, 'Back office'); await p.waitForTimeout(800);
   check('PIN set: the back office asks for the PIN', await padUp(p)); await enter(p, '1234'); await p.waitForTimeout(1200);
-  await p.click('#sb-office nav >> text=Menu and settings'); await p.waitForTimeout(1500);
+  await p.click('#sb-office nav >> text=Menu, prices and shop'); await p.waitForTimeout(1500);
   await tap(p, 'Erase tickets and records'); await p.waitForTimeout(800);
   await p.fill('input[aria-label="Type ERASE to confirm"]', 'ERASE'); await p.waitForTimeout(300);
   await p.evaluate(() => { const b = [...document.querySelectorAll('button')].reverse().find((e) => e.getClientRects().length && e.textContent.trim() === 'Erase tickets and records'); if (b) { b.scrollIntoView({ block: 'center' }); b.click(); } });

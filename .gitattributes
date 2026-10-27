@@ -13,3 +13,4 @@
 /package-lock.json export-ignore
 /dist/* export-ignore
 /dist/smokebox.html -export-ignore
+/engine export-ignore

@@ -5,7 +5,6 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import vm from 'node:vm';
-import { execFileSync } from 'node:child_process';
 import { loadSB, ROOT } from './_load.mjs';
 
 const SB = await loadSB(['00-util', '10-config', '20-engine', '30-store']);
@@ -163,19 +162,16 @@ test('two tabs: one upgrades the save from plain to compact while the other is o
   } finally { A.destroy(); B.destroy(); }
 });
 
-// The previous build's four files, read from git, as a store in its own context (what a downgrade runs). Null when git or the ref is not there.
+// The previous build's four files (test/fixtures/prev-build, copied from commit 7ffe92f) as a store in its own context: what a downgrade runs.
 function previousBuild() {
-  try {
-    const ctx = { console, setTimeout, clearTimeout, setInterval, clearInterval };
-    ctx.globalThis = ctx; vm.createContext(ctx);
-    for (const f of ['00-util.js', '10-config.js', '20-engine.js', '30-store.js']) vm.runInContext(execFileSync('git', ['show', 'kds/night/a5-history:src/js/' + f], { cwd: ROOT, encoding: 'utf8', maxBuffer: 1e8, stdio: ['ignore', 'pipe', 'ignore'] }), ctx, { filename: 'old-' + f });
-    return ctx.SB.store;
-  } catch (e) { return null; }
+  const ctx = { console, setTimeout, clearTimeout, setInterval, clearInterval };
+  ctx.globalThis = ctx; vm.createContext(ctx);
+  for (const f of ['00-util.js', '10-config.js', '20-engine.js', '30-store.js']) vm.runInContext(fs.readFileSync(path.join(ROOT, 'test/fixtures/prev-build', f), 'utf8'), ctx, { filename: 'old-' + f });
+  return ctx.SB.store;
 }
 
-test('downgrade: the previous build sets a compact save aside and uses the last-good copy; the newer build can bring the parked copy back', (t) => {
+test('downgrade: the previous build sets a compact save aside and uses the last-good copy; the newer build can bring the parked copy back', () => {
   const Old = previousBuild();
-  if (!Old) return t.skip('the previous build is not available from git here');
   const b = mem(); const clock = boot(K, b);
   clock.t += 1000; S.dispatch('closeDay', {}); S.flush();
   const compactText = b.m.get('smokebox.v1.state');
@@ -254,5 +250,42 @@ test('a damaged before-restore copy is refused by Undo restore without touching 
   const before = body(S.getState());
   assert.equal(S.undoRestore(), 'invalidBackup');
   same(body(S.getState()), before, 'the kitchen is untouched');
+  S.destroy();
+});
+
+test('a compact save that parses but will not unpack is parked whole, with its packed body, and a newer format number too', () => {
+  for (const tweak of [(o) => { o.p = Array.isArray(o.p) ? o.p.slice(0, 2) : 'x'; }, (o) => { o.fmt = 3; }]) {
+    const b = mem(); const clock = boot(K, b);
+    S.destroy();
+    const saved = JSON.parse(b.m.get('smokebox.v1.state'));
+    assert.equal(saved.fmt, 2);
+    tweak(saved);
+    b.m.set('smokebox.v1.state', JSON.stringify(saved));
+    S.init({ storage: b, mode: 'real', blank: true, noTimers: true, noSync: true, now: () => clock.t });
+    assert.ok(S.status().corrupt, 'reported');
+    const parked = JSON.parse(b.m.get('smokebox.v1.corrupt'));
+    assert.ok(parked.p !== undefined && parked.fmt === saved.fmt, 'the packed body is kept in the parked copy');
+    S.destroy();
+  }
+});
+
+test('Close the month right after a restore leaves the restore\'s undo copy alone; the month backup file is the way back', () => {
+  const b = mem(); const clock = boot(K, b, null, K.t + 35 * DAY);
+  const pre = S.getState().tickets.length;
+  // a restore over this kitchen: the kitchen as it was is kept for Undo restore
+  assert.equal(S.importAll(JSON.stringify({ v: 1, state: K.s })), 'ok');
+  assert.equal(S.beforeRestoreInfo().reason, 'before restore');
+  const takenAt = S.beforeRestoreInfo().takenAt;
+  const before = '2099-01-01';
+  const ex = S.closeMonthExport({ before, keepDays: 1 });
+  const backup = ex.files[0];
+  clock.t += 60e3;
+  const pr = S.closeMonthPrune({ before, keepDays: 1, confirmBackupSaved: { filename: backup.name, chars: backup.chars, sha256: backup.sha256 } });
+  assert.equal(pr.ok, true, JSON.stringify(pr));
+  assert.equal(pr.info.copyKept, false); assert.equal(pr.info.restoreCopyKept, true);
+  const info = S.beforeRestoreInfo();
+  assert.equal(info.reason, 'before restore'); assert.equal(info.takenAt, takenAt);
+  assert.equal(S.undoRestore(), 'ok');
+  assert.equal(S.getState().tickets.length, pre, 'Undo restore still gives back the kitchen from before the restore');
   S.destroy();
 });

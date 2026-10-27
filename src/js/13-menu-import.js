@@ -88,9 +88,9 @@
     for (const d of ['\t', ';', ',']) if (count[d] > n) { best = d; n = count[d]; }
     return best;
   }
-  // Takes off a leading byte-order mark and the apostrophe a spreadsheet guard puts before = + - @.
+  // Takes off a leading byte-order mark and the apostrophe a spreadsheet guard puts before = + - @, a tab or a carriage return.
   const stripBom = (t) => String(t == null ? '' : t).replace(/^﻿/, '');
-  const unguard = (s) => (/^'[=+\-@]/.test(s) ? s.slice(1) : s);
+  const unguard = (s) => (/^'[=+\-@\t\r]/.test(s) ? s.slice(1) : s);
 
   /* ---------- column and format detection ---------- */
 
@@ -238,7 +238,7 @@
   function newRow(line) {
     return { name: '', price: null, station: undefined, category: undefined, description: undefined, line, problems: [], ok: false, priceText: '', priceError: null, stationText: '', categoryText: '', fromCents: false, rounded: false };
   }
-  // Gives a row its price from text. cents: true reads a whole-number price as cents (Clover).
+  // Gives a row its price from text. cents: true reads a whole-number price as cents (the owner chose cents, or the header says so).
   function setPrice(row, text, cents) {
     row.priceText = clean(text);
     const r = readPrice(text);
@@ -359,7 +359,8 @@
   }
 
   // Reads menu text and says what it found. opts: format (force 'lines', 'csv', 'square', 'toast' or 'clover'),
-  // existing (the dishes already on the menu), priceUnit ('dollars' or 'cents'; Clover is read as cents unless told),
+  // existing (the dishes already on the menu), priceUnit ('dollars' or 'cents'; with neither, prices are dollars unless the price
+  // column's header says cents, for every brand including Clover, and summary.maybeCents asks when the numbers look like cents),
   // zones and categories (override the config lists). Returns { format, label, rows, summary, error? }; never throws.
   M.parse = function parse(text, opts) {
     opts = opts || {};
@@ -403,10 +404,14 @@
       if (!S.priceUnit) S.priceUnit = opts.priceUnit === 'cents' ? 'cents' : 'dollars';
       // What each price was read as, in the owner's words, so the preview can show "Read as $12.00".
       for (const r of res.rows) r.readAs = typeof r.price === 'number' ? cs() + r.price.toFixed(2) : '';
-      // Whole numbers that are too big to be dollars: the file is probably in cents, so say so once.
+      // Whole numbers that are too big to be dollars: the file is probably in cents, so say so once. Two signs: some price is above the
+      // limit, or (two dishes or more) no price is under 100, as in a cents file of cheap dishes (450, 899) that would otherwise read as
+      // $450.00 and $899.00 with no warning.
       const whole = res.rows.filter((r) => r.priceText && /^[+-]?\d+$/.test(r.priceText.replace(/[$€£\s]/g, '')));
-      S.maybeCents = S.priceUnit === 'dollars' && whole.length > 0 && whole.length === res.rows.filter((r) => r.priceText).length && whole.some((r) => r.price > LIMITS.priceMax);
-      if (S.maybeCents) S.notes.push('Every price is a whole number and some are above ' + cs() + LIMITS.priceMax + '. If the file is in cents (1400 is ' + cs() + '14.00), read it again with prices in cents.');
+      const allWhole = whole.length > 0 && whole.length === res.rows.filter((r) => r.priceText).length;
+      const over = whole.some((r) => r.price > LIMITS.priceMax), noneSmall = whole.length >= 2 && whole.every((r) => r.price >= 100);
+      S.maybeCents = S.priceUnit === 'dollars' && allWhole && (over || noneSmall);
+      if (S.maybeCents) S.notes.push('Every price is a whole number and ' + (over ? 'some are above ' + cs() + LIMITS.priceMax : 'none is under ' + cs() + '100') + '. If the file is in cents (1400 is ' + cs() + '14.00), read it again with prices in cents.');
       S.ignoredText = S.ignoredColumns.length ? 'Ignored: ' + S.ignoredColumns.join(', ') : '';
       for (const r of res.rows) { if (r.ok) S.ok++; if (r.problems.some((p) => p.level === 'error')) S.errors++; if (r.problems.some((p) => p.level === 'warn')) S.warnings++; }
       // Station and category words the file used that match none of the kitchen's, so a screen can offer to add them.
@@ -448,11 +453,11 @@
 
   /* ---------- export ---------- */
 
-  // One spreadsheet cell: quoted when it has a comma, quote or line break; text starting with = + - @ gets an apostrophe so a
-  // spreadsheet cannot run it as a formula (the importer takes the apostrophe off again).
+  // One spreadsheet cell: quoted when it has a comma, quote or line break; text starting with = + - @, a tab or a carriage return
+  // (the same rule as 36-csv.js) gets an apostrophe so a spreadsheet cannot run it as a formula (the importer takes it off again).
   function cell(v) {
     let s = v == null ? '' : String(v);
-    if (/^[=+\-@\t]/.test(s)) s = "'" + s;
+    if (/^[=+\-@\t\r]/.test(s)) s = "'" + s;
     return /[",\r\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
   }
   // Writes the menu as CSV the importer can read back: Name, Price, Station, Category. Archived dishes are left out.

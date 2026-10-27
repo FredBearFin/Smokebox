@@ -27,9 +27,15 @@
 .ox-money { display: grid; justify-items: end; gap: 2px; text-align: right; }
 .ox-total { font: var(--w-heavy) var(--fs-6) / 1 var(--font-display); }
 .ox-sub { font-size: var(--fs-1); color: var(--ink3); }
-.ox-acts { grid-column: 1 / -1; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--sp-2); }
-.ox-acts .btn { min-height: 48px; }
-.ox-acts .ox-take { min-width: 160px; }
+/* The buttons sit in columns, two across on a narrow screen and four on a wide one, so every card lines up. */
+.ox-acts { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--sp-2); }
+.ox-acts .btn { min-height: 48px; min-width: 0; }
+/* Wide: one row. The first three buttons say the same on every card, so sized to their words they still line up. */
+@media (min-width: 760px) { .ox-row:not(.ox-row-paid) .ox-acts { grid-template-columns: auto auto auto minmax(0, 1fr); } .ox-row:not(.ox-row-paid) .ox-acts .btn { white-space: nowrap; } }
+.ox-row-paid .ox-acts { display: flex; justify-content: flex-end; }
+/* Close the day has its own line in the footer: a short note on the left saying what it is for. */
+.sheet-foot.ox-foot { align-items: center; justify-content: space-between; }
+.ox-foot-note { flex: 1 1 220px; margin: 0; font-size: var(--fs-2); color: var(--ink2); }
 .ox-acts [hidden] { display: none; }
 
 /* The Take payment box. */
@@ -55,15 +61,17 @@
 @media (max-width: 520px) {
   .ox-row { grid-template-columns: minmax(0, 1fr); }
   .ox-money { justify-items: start; text-align: left; }
-  .ox-acts { justify-content: stretch; }
-  .ox-acts .btn { flex: 1 1 100%; }
+  .ox-acts { grid-template-columns: minmax(0, 1fr); }
   .ox-pay-go { min-width: 0; flex: 1 1 auto; }
 }
 
-/* The "Paid by Cash" switch beside the one-tap Pay button: small label, the method in bold, a down arrow. */
-.ox-acts .ox-how { min-width: 140px; gap: var(--sp-1); }
+/* The "Pay with Cash" switch beside the one-tap Pay button: small label, the method in bold, a down arrow. */
+.ox-acts .ox-how { gap: var(--sp-1); }
 .ox-how-k { color: var(--ink2); font-weight: var(--w-semi); }
 .ox-how-v { font-weight: var(--w-heavy); }
 
 /* A closed-day sale keeps a quiet, dashed Reopen button that explains itself; a tap still gives the full reason. */
 .ox-acts .ox-reopen.is-shut { border-style: dashed; color: var(--muted, inherit); white-space: normal; text-align: center; }
+
+/* Rows below the visible part of a long list are not drawn until they scroll near, which keeps a sheet with 200 orders quick to open on a slow tablet. */
+.ox-list > .ox-row { content-visibility: auto; contain-intrinsic-size: auto 150px; }

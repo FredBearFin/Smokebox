@@ -3,7 +3,7 @@
 Print this card and keep it by the tablet.
 
 - [ ] Orders: every open order paid or cancelled, then Close the day
-- [ ] If you cook ahead: every batch left in the cabinet decided (keep, or throw out with a reason)
+- [ ] If you cook ahead: every batch left in the cabinet decided (keep it, or throw it out)
 - [ ] If you cook ahead: surfaces wiped and Sanitize logged
 - [ ] Food kept over a day: labeled with a date, as your local rule says
 - [ ] Final cooler and freezer readings written down

@@ -19,4 +19,4 @@ Closing does not lock new orders, and closing again later includes them. A paid 
 - If your health department asks, save or print the thrown-out log. Open it from the **Settings** button on the board.
 - Keep a copy of the backup off this device (see Backup and restore).
 - Which weekday sells best? In **Back office**, open **Sales and money** and look at **Best day of the week**.
-- For your accountant: in **Menu and settings**, under Spreadsheet files, tap **Sales by day (for your accountant)**. It saves one row for each day: sales, tax, tips and cash, card and other.
+- For your accountant: in **Menu, prices and shop**, under Spreadsheet files, tap **Sales by day (for your accountant)**. It saves one row for each day: sales, tax, tips and cash, card and other.

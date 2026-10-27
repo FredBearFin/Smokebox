@@ -5,7 +5,8 @@
  * LEAN rules (see docs/comment-style.md). This is a floor, not a goal:
  *  - the file starts with a header comment that has "WHAT THIS FILE IS" (the template has "READ ME FIRST")
  *  - every NAMED function has a comment directly above it (or at the top of its body) of at least --min-words words
- *  - no more than --max-gap lines of code in a row without any note (skipped between "audit:data-start" and "audit:data-end")
+ *  - no more than --max-gap lines of code in a row without any note (skipped between "audit:data-start" and "audit:data-end", which must pair up)
+ *  - a named function is also one handed to a name through a wrapper call or a choice (const f = debounce(() => {...})) when it spans 3+ lines
  *  - no "</script" in the file
  *  Inline callbacks are not checked.
  */
@@ -62,10 +63,18 @@ function auditJs(file, src) {
   // 2. functions
   let named = 0, inline = 0, covered = 0;
   const stmtOf = (anc) => { for (let i = anc.length - 2; i >= 0; i--) { const t = anc[i].type; if (t !== 'BlockStatement' && (/Statement$|Declaration$/.test(t) || t === 'Property' || t === 'MethodDefinition' || t === 'PropertyDefinition')) return anc[i]; } return null; };
+  // A function is named when it is what a name is given to: directly, or (when it spans three lines or more) through one wrapper call or
+  // choice in between (const f = debounce(() => {...}), const f = ok ? () => {...} : null), so wrapping a real function does not hide it.
+  // One-line choices such as "opts.now || (() => Date.now())" stay inline.
+  const namesIt = (p, child) => p && ((p.type === 'VariableDeclarator' && p.init === child) || (p.type === 'AssignmentExpression' && p.right === child)
+      || (p.type === 'Property' && p.value === child) || p.type === 'MethodDefinition' || p.type === 'PropertyDefinition');
   const check = (node, state, anc) => {
-    const parent = anc[anc.length - 2];
-    const isNamed = node.type === 'FunctionDeclaration' || (parent && ((parent.type === 'VariableDeclarator' && parent.init === node) || (parent.type === 'AssignmentExpression' && parent.right === node)
-      || (parent.type === 'Property' && parent.value === node) || parent.type === 'MethodDefinition' || parent.type === 'PropertyDefinition')) ;
+    let parent = anc[anc.length - 2];
+    const wrap = parent && node.loc.end.line - node.loc.start.line >= 2
+      && ((parent.type === 'CallExpression' && parent.callee.type === 'Identifier' && parent.arguments.length === 1) || parent.type === 'ConditionalExpression' || parent.type === 'LogicalExpression');
+    const viaWrap = wrap && namesIt(anc[anc.length - 3], parent);
+    if (viaWrap) parent = anc[anc.length - 3];
+    const isNamed = node.type === 'FunctionDeclaration' || viaWrap || namesIt(parent, node);
     const iife = parent && parent.type === 'CallExpression' && parent.callee === node;
     if (iife) return;
     const len = node.loc.end.line - node.loc.start.line + 1;
@@ -84,20 +93,21 @@ function auditJs(file, src) {
   walk.ancestor(ast, { FunctionDeclaration: check, FunctionExpression: check, ArrowFunctionExpression: check });
 
   // 3. gaps
-  let inData = false, run = 0, runStart = 0, codeLines = 0, flagged = false;
+  let run = 0, runStart = 0, codeLines = 0, flagged = false;
+  const dm = { inData: false, at: 0 };
   for (let i = 0; i < lines.length; i++) {
     const n = i + 1, t = lines[i].trim();
-    if (/audit:data-start/.test(t)) { inData = true; run = 0; continue; }
-    if (/audit:data-end/.test(t)) { inData = false; run = 0; continue; }
+    if (dataMark(t, n, dm, problems)) { run = 0; continue; }
     if (commentLines.has(n)) { run = 0; flagged = false; continue; }
     if (!t) continue;
     codeLines++;
     if (noteLines.has(n)) { run = 0; flagged = false; continue; }
-    if (inData) continue;
+    if (dm.inData) continue;
     if (!run) runStart = n;
     run++;
     if (run > MAX_GAP && !flagged) { problems.push([runStart, `more than ${MAX_GAP} lines of code in a row with no note (starting here)`]); flagged = true; }
   }
+  dataUnclosed(dm, problems);
   // Tool scripts are never placed inside the page, so only files under src/ must avoid a closing script tag.
   if (!file.replace(/\\/g, '/').startsWith('tools/') && /<\/script/i.test(src)) problems.push([0, 'contains "</script" (the build refuses it)']);
   return { problems, named, inline, covered, commentLines: commentLines.size, codeLines };
@@ -111,16 +121,36 @@ function auditCssLike(file, src, isHtml) {
   const head = cm[0];
   if (!head || head.startLine > 3 || !new RegExp(isHtml ? 'READ ME FIRST' : 'WHAT THIS FILE IS', 'i').test(head.text)) problems.push([1, isHtml ? 'needs a "READ ME FIRST" comment at the top' : 'file header with "WHAT THIS FILE IS" is missing']);
   const commentLines = new Set(); for (const c of cm) for (let l = c.startLine; l <= c.endLine; l++) commentLines.add(l);
-  const lines = src.split('\n'); let run = 0, runStart = 0, codeLines = 0, flagged = false, inData = false;
+  const lines = src.split('\n'); let run = 0, runStart = 0, codeLines = 0, flagged = false;
+  const dm = { inData: false, at: 0 };
   const gap = isHtml ? 60 : MAX_GAP;
   for (let i = 0; i < lines.length; i++) {
     const n = i + 1, t = lines[i].trim();
-    if (/audit:data-start/.test(t)) { inData = true; continue; } if (/audit:data-end/.test(t)) { inData = false; continue; }
+    if (dataMark(t, n, dm, problems)) continue;
     if (commentLines.has(n)) { run = 0; flagged = false; continue; }
-    if (!t) continue; codeLines++; if (inData) continue; if (!run) runStart = n; run++;
+    if (!t) continue; codeLines++; if (dm.inData) continue; if (!run) runStart = n; run++;
     if (run > gap && !flagged) { problems.push([runStart, `more than ${gap} lines in a row with no note (starting here)`]); flagged = true; }
   }
+  dataUnclosed(dm, problems);
   return { problems, named: 0, inline: 0, covered: 0, commentLines: commentLines.size, codeLines };
+}
+
+// Reads one line for the "audit:data-start" / "audit:data-end" markers and keeps track of being inside a data block. A start inside a block
+// and an end with no start are problems. Returns true when the line is a marker.
+function dataMark(t, n, dm, problems) {
+  if (/audit:data-start/.test(t)) {
+    if (dm.inData) problems.push([n, 'audit:data-start inside another data block (the one at line ' + dm.at + ' has no audit:data-end)']);
+    dm.inData = true; dm.at = n; return true;
+  }
+  if (/audit:data-end/.test(t)) {
+    if (!dm.inData) problems.push([n, 'audit:data-end with no audit:data-start before it']);
+    dm.inData = false; return true;
+  }
+  return false;
+}
+// WATCH OUT: a data block that is never closed would switch the gap rule off for the rest of the file, so it is a problem of its own.
+function dataUnclosed(dm, problems) {
+  if (dm.inData) problems.push([dm.at, 'audit:data-start has no audit:data-end, so the gap rule would be off to the end of the file']);
 }
 
 let bad = 0, T = { named: 0, covered: 0, inline: 0, cl: 0, code: 0 };

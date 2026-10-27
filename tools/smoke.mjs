@@ -64,8 +64,8 @@ await withPage({ w: 1280, h: 800 }, async (page, logs) => {
     await until(page, () => document.querySelector('.fl-start-demo'), undefined, 4000);
     // The demo is its own mode with its own saved data, entered by a page reload.
     await page.click('.fl-start-demo');
-    // One plain question first (Try the demo?), then the page reloads into the demo.
-    await page.locator('.sheet-root button:has-text("Try the demo"), .dialog button:has-text("Try the demo"), [role="dialog"] button:has-text("Try the demo")').last().click({ timeout: 4000 });
+    // One plain question first (Watch the demo?), then the page reloads into the demo.
+    await page.locator('.sheet-root button:has-text("Watch the demo"), .dialog button:has-text("Watch the demo"), [role="dialog"] button:has-text("Watch the demo")').last().click({ timeout: 4000 });
     await page.waitForLoadState('load');
     const s = await until(page, () => { const st = typeof SB !== 'undefined' && SB.store && SB.store.isDemo && SB.store.isDemo() ? SB.store.getState() : null; return st && st.batches.length > 0 && st.tickets.length > 0 ? { b: st.batches.length, t: st.tickets.length } : false; }, undefined, 15000);
     await until(page, () => !!localStorage.getItem('smokebox.demo.state'), undefined, 4000); // saved a moment after the first tickets

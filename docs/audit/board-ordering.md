@@ -297,3 +297,32 @@ Headless Chromium with a stubbed clock and storage only (`test/board-review-fixe
 - **Reopening a paid order of a closed day:** the Orders drawer shows the engine's sentence ("That sale belongs to a day that is already closed, so it cannot be opened again: it would move to another day and count twice. Make the correction in your own records, or ask whoever keeps the books.") and the order stays paid. The Reopen button is still shown; a tap gets the reason.
 - **Start over** (needs a saved backup and the PIN): unchanged on the board side; Settings still opens as before.
 - **Not checked:** a real device with a really full browser store; the clock notice on the 390 px phone and at Night; the Orders drawer reason on the phone; what happens when the board is not showing (office pages) and the clock jumps.
+
+## Slow tablet
+
+Emulated, not a real tablet. `test/board-slow.e2e.mjs` runs Chromium with the CPU slowed 4x and 6x (CDP `Emulation.setCPUThrottlingRate`), an 800x1280 touch screen, voice on, a cabinet of 10 batches, 60 and then 200 open tickets and a saved history (the app keeps about 1,470 tickets of a 5,000-ticket history, 3.4 MB, because the browser's storage is about 5 MB). Numbers are the median milliseconds from tap to the next painted frame, from one run on a shared machine, so read them as sizes, not promises. The test only warns when a number is high; it fails only on page errors.
+
+Before and after the fixes below (200 open tickets):
+
+| Action | 4x before | 4x after | 6x before | 6x after |
+| --- | --- | --- | --- | --- |
+| Orders drawer open | 656 | 267 | 1751 | 422 |
+| Station tab switch | 550 | 343 | 653 | 532 |
+| Start / Bump / New ticket Send | 96 / 85 / 189 | 58 / 43 / 240 | 73 / 72 / 548 | 96 / 92 / 296 |
+| Pay (quick pay) | 236 | 112 | 342 | 183 |
+| Burst of 12 tickets | 173 | 71 | 158 | 117 |
+
+At 60 open tickets after the fixes, 4x / 6x: Start 146 / 146, Done 199 / 182, Bump 121 / 132, Station tab 225 / 398, Orders drawer 126 / 239, Send 168 / 206, Pay 65 / 119, burst of 12 tickets 147 / 219. Boot to the first painted board with the saved history: 1.1 s unthrottled, 1.9 s at 4x, 3.2 s at 6x.
+
+What was slow and what changed (my files, no change of behavior):
+- Orders drawer built every open order's row in one go, then the sheet's focus forced a layout of the whole list (800 ms of a 1.3 s open at 6x). Rows now build 16, then 30 per frame, and rows below the visible part use `content-visibility: auto`.
+- The per-second tick read the header position (a forced layout every second while the board had just been rewritten). The reading now waits for the next frame and shares its layout.
+- "N more tickets below" read the position of every ticket on every change; it now halves the list (a few reads).
+- A station switch built the first 36 tickets and then all the rest in one task. It now builds 18, then 30 at a time.
+
+Still slow, and not mine:
+- The saved copy is written whole and synchronously: `SB.store.flush()` took 41 ms at 1x and 135 to 463 ms at 6x with 1,470 tickets of history (JSON.stringify of 3.4 MB plus the storage write). A Done tap that finishes a ticket costs 165 to 246 ms of script at 6x, which looks like this save. Idea: keep history in a separate saved key that is written only when it changes, or save from an idle callback.
+- Boot at 6x: JSON.parse of the saved state (`get` 128 to 177 ms), `validateBackup` (86 to 170 ms), `repairTicket` (30 to 68 ms), `checkInvariants` (26 ms at 4x). `importAll` of a 11.9 MB backup took 982 ms unthrottled. Profile hint: CDP `Profiler` with a 500 microsecond interval while booting, as the test does.
+- The browser keeps only about 1,470 of 5,000 tickets of history; the rest is trimmed at save time.
+
+Not checked: a real tablet, memory pressure, thermal throttling, a 5,000-ticket history held whole.

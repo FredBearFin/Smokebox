@@ -36,6 +36,7 @@ function build(opts) {
   const r = rng(opts.seed || 5);
   const k = { now: at(opts.from, 7), log: { voidedOrders: 0, reopened: [], refusedReopen: [], closes: [], counterDays: [] } };
   k.s = E.newState({ now: k.now, blank: true });
+  k.s.settings.pacing.enabled = false;   // the script starts every dish at once; pacing has its own tests
   // Applies one action at time t (never earlier than the last one) and fails on any refusal unless `allow` names it.
   const go = (type, p, t, allow) => { k.now = Math.max(k.now + 1000, t == null ? k.now : t); const res = E.apply(k.s, type, p, k.now); if (res.report !== 'ok' && res.report !== allow) assert.fail(type + ' -> ' + res.report + ' ' + JSON.stringify(res.info)); if (res.report === 'ok') k.s = res.state; return res; };
   go('updateSettings', { patch: { service: { taxRatePct: 8.25 }, modules: { cookAhead: true } } });
@@ -191,7 +192,7 @@ test('the thrown-out log CSV and the pilot report agree with the batches and the
   assert.equal(S.batches.filter((b) => b.status === 'discard').length, list.length, 'and no discard is listed twice');
   const out = parseCsv(SB.discardsPure.csv(list, rec, ''));
   assert.equal(out.length, list.length + 1); assert.deepEqual(out[0], ['Date', 'Food', 'Amount', 'Why', 'Initials']);
-  assert.ok(out.slice(1).every((r) => /^Slaw mix/.test(r[1]) && r[2] === '3.00 kg' && r[3].length > 0), JSON.stringify(out[1]));
+  assert.ok(out.slice(1).every((r) => /^Slaw mix/.test(r[1]) && r[2] === '3 kg' && r[3].length > 0), JSON.stringify(out[1]));
   const rep = SB.pilot.build(S, { from: at(0, 0), to: K.now + MIN, now: K.now });
   assert.equal(rep.discards.n, list.length, 'the pilot report counts the same discards');
   assert.equal(rep.discards.g, S.batches.filter((b) => b.status === 'discard').reduce((a, b) => a + (b.wasteG || 0), 0), 'and the same grams');

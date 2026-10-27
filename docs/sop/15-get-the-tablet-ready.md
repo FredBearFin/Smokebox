@@ -4,7 +4,7 @@ Five quick checks so the board keeps working during service.
 
 ## Open it
 
-Tap **Settings**, then **Tablet checks: screen, sound, home screen**. Each check shows a check mark, or a plain line saying what to do. A check mark means you or the tablet confirmed it. It is not a promise it stays that way all day. For the longer first-time list, open **Set up this tablet: first steps**.
+Tap **Settings**, then **Device checks: screen, sound, home screen**. Each check shows a check mark, or a plain line saying what to do. A check mark means you or the device confirmed it. It is not a promise it stays that way all day. For the longer first-time list, open **Set up this device: first steps**. It has two help links at the top: **Help with setup** and **No sound?**.
 
 ## The five checks
 

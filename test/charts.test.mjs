@@ -157,6 +157,12 @@ describe('binValues (histogram)', () => {
     assert.equal(b.counts.reduce((a, c) => a + c, 0), 4);
     assert.equal(b.overflow, 2);
   });
+  it('counts overflow against the given max, not the bin edge it rounds up to', () => {
+    // max 95 with 10-wide bins rounds the last edge up to 100; 97 is still above the max the caller asked for.
+    const b = M.binValues([5, 50, 97, 120], 10, 0, 95);
+    assert.equal(b.hi, 100); assert.equal(b.cap, 95);
+    assert.equal(b.overflow, 2);
+  });
   it('drops values below min and counts them as under', () => {
     const b = M.binValues([-3, 1, 2], 1, 0, 5);
     assert.equal(b.under, 1); assert.equal(b.total, 2);
@@ -228,9 +234,10 @@ describe('named formats', () => {
   it('int, num and compact group thousands and never print NaN', () => {
     assert.equal(F.int.full(12345.6), '12,346'); assert.equal(F.num.full(NaN), '-'); assert.equal(F.num.full(null), '-');
     assert.equal(F.compact.axis(15000), '15K'); assert.equal(F.compact.axis(2e6), '2M'); assert.equal(F.compact.axis(NaN), '-');
+    assert.equal(F.compact.axis(999950), '1M', 'rounds up into the next unit, never 1000K'); assert.equal(F.compact.axis(999950000), '1B');
   });
   it('g switches to kg at 1000', () => {
-    assert.equal(F.g.full(700), '700 g'); assert.equal(F.g.full(9800), '9.80 kg'); assert.equal(F.g.axis(14000), '14 kg'); assert.equal(F.g.axis(500), '500 g');
+    assert.equal(F.g.full(700), '700 g'); assert.equal(F.g.full(9800), '9.8 kg'); assert.equal(F.g.axis(14000), '14 kg'); assert.equal(F.g.axis(500), '500 g');
   });
   it('hour formats decimal hours 0-30 as clock time, past midnight wraps', () => {
     assert.equal(F.hour.axis(13), '1 pm'); assert.equal(F.hour.axis(0), '12 am'); assert.equal(F.hour.axis(12), '12 pm'); assert.equal(F.hour.axis(25), '1 am');

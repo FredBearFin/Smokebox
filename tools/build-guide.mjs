@@ -34,10 +34,13 @@ function parsePage(file, text) {
     }
     if (list) { page.blocks.push({ t: list.t, x: list.items }); list = null; }
   };
-  for (const raw of lines) {
+  for (const [i, raw] of lines.entries()) {
     const line = raw.trimEnd();
     let m;
     if (!line.trim()) { flush(); continue; }
+    // WATCH OUT: Markdown this reader does not understand would quietly become plain text (or replace the title), so it stops instead.
+    const odd = /^(- \[[xX]\] |\d+\) |[*+] |#{3,} |```|# )/.exec(line);
+    if (odd && !(odd[1] === '# ' && !page.title)) throw new Error(file + ':' + (i + 1) + ': "' + odd[1].trim() + '" is not understood by the Guide (it knows one "# " title, "## ", "1. ", "- " and "- [ ] "); write it another way.');
     if ((m = /^# (.+)$/.exec(line))) { flush(); page.title = m[1].trim(); continue; }
     if ((m = /^## (.+)$/.exec(line))) { flush(); page.blocks.push({ t: 'h', x: m[1].trim() }); continue; }
     if ((m = /^!\[([^\]]*)\]\(fig:([a-z0-9-]+)(?: "([^"]*)")?\)$/.exec(line))) { flush(); page.blocks.push({ t: 'fig', id: m[2], alt: m[1].trim(), cap: (m[3] || '').trim() }); continue; }

@@ -12,6 +12,10 @@ say() { echo "harden-remove: $*"; }
 strip() {
   [ -f "$1" ] || return 0
   awk '
+    NR == 1 && /^# smokebox-harden$/ { lead = 1; next }                                  # harden.sh puts marker, import and one blank line at the top
+    lead == 1 && /^import \/etc\/caddy\/harden-log\.caddy$/ { lead = 2; next }
+    lead == 2 && /^$/ { lead = 0; next }
+    { lead = 0 }
     /^[[:space:]]*import smokebox_log[[:space:]]*$/ { next }
     /^import \/etc\/caddy\/harden-log\.caddy$/ { next }
     /^# smokebox-harden$/ { held = 0; next }           # the blank line harden.sh put before its marker goes too

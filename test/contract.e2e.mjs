@@ -4,7 +4,7 @@
 // Part 1 reuses tools/contract-check.mjs (static scan + live page + contract list) and turns every kind of problem into one test, so a failure names
 // the kind of breakage and lists file:line and owner. Part 2 is behaviour that only shows when the files run together: no horizontal scroll from 280 to
 // 2560 px on the floor, in every sheet and on every office page; Esc closes a sheet and gives focus back; [ and ] step through the office pages;
-// "Back to the line" really returns to the floor; every office page opens with a plain headline and has charts.
+// "Back to the board" really returns to the floor; every office page opens with a plain headline and has charts.
 import test, { before, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
@@ -118,7 +118,7 @@ describe('behaviour across files', () => {
     });
   });
 
-  test('the office: [ and ] step through the pages, every page opens with a headline and charts, Back to the line returns to the floor', async () => {
+  test('the office: [ and ] step through the pages, every page opens with a headline and charts, Back to the board returns to the floor', async () => {
     await withPage({ file: path.join(ROOT, DIST_FILE), w: 1280, h: 800, query: '?demo', hash: '#/office/pace', reducedMotion: 'reduce' }, async (page, logs) => {
       await page.waitForFunction(() => window.SB && SB.office && SB.office.isMounted && SB.office.isMounted(), null, { timeout: 20000 });
       await page.waitForTimeout(900);
@@ -149,7 +149,7 @@ describe('behaviour across files', () => {
       await page.waitForFunction(() => !SB.shell.inOffice(), null, { timeout: 8000 });
       // The office is emptied when its closing fade ends (about 150 to 550 ms), so wait for that instead of a fixed time.
       await page.waitForFunction(() => !SB.office.isMounted(), null, { timeout: 4000 }).catch(() => {});
-      assert.equal(await page.evaluate(() => SB.office.isMounted()), false, 'the office is still mounted after Back to the line');
+      assert.equal(await page.evaluate(() => SB.office.isMounted()), false, 'the office is still mounted after Back to the board');
       assert.equal(await page.evaluate(() => !!document.querySelector('#sb-floor') && !document.querySelector('#sb-floor').inert), true, 'the floor is still inert after leaving the office');
       assert.deepEqual(logs.pageErrors, []);
       assert.deepEqual(logs.errors, []);

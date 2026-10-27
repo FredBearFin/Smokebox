@@ -1,5 +1,5 @@
 /*
- * WHAT THIS FILE IS: The look of the back office page "Menu and settings" (84-office-data.js). Every class starts with od-.
+ * WHAT THIS FILE IS: The look of the back office page "Menu, prices and shop" (84-office-data.js). Every class starts with od-.
  * PARTS: headline, contents list, panels, number fields, lists and bills of materials, settings grids, notes and cards,
  *   PIN, data (counts, export, import), about, small screens.
  * Colours and sizes come only from the shared tokens (--ink, --paper, --amber, --sp-3 ...) so Ember and Paper both work.
@@ -7,7 +7,7 @@
  * USES / USED BY: 00-tokens.css, 10-base.css, 30-office.css  /  84-office-data.js.
  */
 
-/* the shared frame keeps a filter bar for the charts; this page has no charts, only the data banner is useful here */
+/* the shared frame keeps a filter bar for the charts; this page has no charts or range, so it shows none of it */
 .of[data-page="data"] .of-fsum,
 .of[data-page="data"] .of-fbody,
 .of[data-page="data"] .of-filters[data-open="true"] .of-fbody { display: none; }
@@ -15,7 +15,7 @@
 
 .od {
   --od-sticky-top: 0px;       /* set from the height of the frame's sticky bar */
-  --od-toc-h: 62px;           /* height of the table-of-contents strip on narrow pages */
+  --od-toc-h: 0px;            /* the narrow contents strip scrolls away with the page, so panels need no room for it */
   --od-gap: var(--sp-5);
   container: od / inline-size;
   min-width: 0;
@@ -47,8 +47,10 @@
   border-top: 1px solid var(--line-soft); border-bottom: 1px solid var(--line-soft);
   overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: thin;
 }
-.od-toc { -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 32px), transparent); mask-image: linear-gradient(to right, #000 calc(100% - 32px), transparent); }   /* a soft right edge says the strip scrolls */
-.od-toc-list { display: flex; gap: var(--sp-2); width: max-content; min-width: 100%; }
+/* On a narrow page the contents wrap onto as many rows as they need (nothing hides off the edge), so the strip
+   scrolls away with the page instead of sticking. */
+.od-toc { position: static; overflow: visible; }
+.od-toc-list { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2); list-style: none; margin: 0; padding: 0; }
 .od-toc-link {
   display: inline-flex; align-items: center; min-height: 44px; padding: 0 var(--sp-4); white-space: nowrap;
   font: var(--w-medium) var(--fs-2)/1 var(--font-body); color: var(--ink2); text-decoration: none;
@@ -61,7 +63,7 @@
   .od { --od-toc-h: 0px; }
   .od-layout { grid-template-columns: 184px minmax(0, 1fr); gap: var(--sp-8); align-items: start; }
   .od-toc {
-    top: calc(var(--od-sticky-top) + var(--sp-4)); margin: 0; padding: 0; overflow: visible;
+    position: sticky; top: calc(var(--od-sticky-top) + var(--sp-4)); margin: 0; padding: 0; overflow: visible;
     background: transparent; -webkit-backdrop-filter: none; backdrop-filter: none; border: 0; -webkit-mask-image: none; mask-image: none;
   }
   .od-toc-list { display: grid; gap: 2px; width: auto; min-width: 0; }
@@ -268,6 +270,11 @@
 
 /* Settings groups: a small heading in the contents list, and the closed Advanced fold. */
 .od-toc-group { list-style: none; padding: var(--sp-2) var(--sp-3) 0; font: var(--w-bold) var(--fs-1, 0.75rem) / 1.2 var(--font-body); letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink3); }
+/* In the wrapping strip a group name is quiet text after a thin rule, so it never looks like a button. */
+@container od (max-width: 899.98px) {
+  .od-toc-group { display: flex; align-items: center; gap: var(--sp-2); padding: 0 0 0 var(--sp-1); font-size: 11px; }
+  .od-toc-group:not(:first-child) { margin-left: var(--sp-2); padding-left: var(--sp-3); border-left: 2px solid var(--line); }
+}
 .od-adv { border: var(--bw-thin) solid var(--line-soft); border-radius: var(--r-panel); padding: 0 var(--sp-3); }
 .od-adv > summary { min-height: 48px; display: flex; align-items: center; cursor: pointer; font-weight: var(--w-bold); }
 

@@ -46,15 +46,15 @@ export default function (h) {
     t.check('5 quick taps within 2.5 s open the office', await officeOpen(page), await hashOf(page));
     t.check('the address says #/office (Pace is the office home, #/office/pace also works) and the page is Speed', /^#\/office(\/pace)?$/.test(await hashOf(page)) && /^Speed$/.test(await page.locator('#sb-office .of-title').first().innerText().catch(() => '')), await hashOf(page));
     const frame = await page.evaluate(() => ({ nav: !!document.querySelector('#sb-office nav[aria-label]'), main: !!document.querySelector('#sb-office main'), back: !!document.querySelector('#sb-office [data-back-to-line]'), floorInert: document.getElementById('sb-floor') && (document.getElementById('sb-floor').inert || document.getElementById('sb-floor').hasAttribute('inert') || document.getElementById('sb-floor').closest('[inert]') != null) }));
-    t.check('the office has a nav landmark, a main landmark and a Back to the line button', frame.nav && frame.main && frame.back, frame);
+    t.check('the office has a nav landmark, a main landmark and a Back to the board button', frame.nav && frame.main && frame.back, frame);
     t.check('the floor underneath is inert (keys and taps cannot reach it)', !!frame.floorInert, frame);
     await t.shot(page, 'door-open');
 
-    // exit 1: Back to the line
+    // exit 1: Back to the board
     await page.locator('#sb-office [data-back-to-line]').first().click();
     await page.waitForFunction(() => !SB.shell.inOffice(), null, { timeout: 5000 }).catch(() => {});
     await wait(900);
-    t.check('Back to the line leaves the office and returns the board address', !(await officeOpen(page)) && !/office/.test(await hashOf(page)), await hashOf(page));
+    t.check('Back to the board leaves the office and returns the board address', !(await officeOpen(page)) && !/office/.test(await hashOf(page)), await hashOf(page));
     t.check('the board is visible and usable again (New ticket reachable)', await head(page).getByRole('button', { name: 'New ticket' }).isVisible());
     const focusOn = await page.evaluate(() => document.activeElement && (document.activeElement.matches('[data-brand]') || !!document.activeElement.closest('[data-brand]')));
     t.check('focus goes back to the flame after leaving', focusOn, await page.evaluate(() => document.activeElement && document.activeElement.className));

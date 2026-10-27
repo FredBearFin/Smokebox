@@ -332,7 +332,7 @@ async function testBoard86() {
     // filter
     await dispatch(page, 'toggle86', { menuId: 'tea', on: true }); await page.waitForTimeout(200);
     await tapSeg(page, TOP, 'off');
-    check('"Off the menu" shows only items that are 86', await page.evaluate(() => { const v = Array.from(document.querySelectorAll('.bd-row')).filter((r) => !r.hidden); return v.length === 1 && v[0].dataset.menu === 'tea'; }));
+    check('"Out now" shows only items that are 86', await page.evaluate(() => { const v = Array.from(document.querySelectorAll('.bd-row')).filter((r) => !r.hidden); return v.length === 1 && v[0].dataset.menu === 'tea'; }));
     await tapSeg(page, TOP, 'all');
     await dispatch(page, 'toggle86', { menuId: 'tea', on: false });
 

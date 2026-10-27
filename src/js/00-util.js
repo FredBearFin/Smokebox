@@ -115,6 +115,8 @@
     // A reader for packed data with the given tables. It never touches this packer's own tables or remembered rows: a copy written by another tab
     // (or an earlier page) is numbered by that writer's tables, and mixing the two numberings would damage the next save.
     const reader = (dictR, schemasR) => {
+      // Which schemas hold a key named __proto__ (indexed by schema number + 1).
+      const protoKey = [false].concat(schemasR.map((k) => k.indexOf('__proto__') >= 0));
       // Reads a packed string back: a reference becomes the table entry, a doubled marker loses one marker.
       const decStr = (str) => {
         if (str.charCodeAt(0) !== 1) return str;
@@ -135,8 +137,7 @@
         if (!keys || keys.length !== v.length - 1) throw new Error('packed object does not match its keys');
         const o = {};
         // A key named __proto__ is set as plain data (assigning it would change the prototype); the common case takes the quick path.
-        if (keys.hasProto === undefined) keys.hasProto = keys.indexOf('__proto__') >= 0;
-        if (!keys.hasProto) { for (let i = 0; i < keys.length; i++) o[keys[i]] = dec(v[i + 1]); return o; }
+        if (!protoKey[tag]) { for (let i = 0; i < keys.length; i++) o[keys[i]] = dec(v[i + 1]); return o; }
         for (let i = 0; i < keys.length; i++) {
           if (keys[i] === '__proto__') Object.defineProperty(o, '__proto__', { value: dec(v[i + 1]), enumerable: true, writable: true, configurable: true });
           else o[keys[i]] = dec(v[i + 1]);
@@ -145,7 +146,37 @@
       };
       return dec;
     };
+    // JSON text of packed values, remembered like the packed tree: an unchanged object, and a long array that was not changed, cost one lookup.
+    const textCache = new WeakMap();
+    // The JSON text of the packed form of one value; key is the key it sits under. Equal to JSON.stringify(enc(v, key)).
+    const txt = (v, key) => {
+      if (v && typeof v === 'object') {
+        const hit = textCache.get(v);
+        if (hit !== undefined) return hit;
+        let t;
+        if (Array.isArray(v)) {
+          if (!v.length) return '[]';
+          const parts = new Array(v.length);
+          for (let i = 0; i < v.length; i++) parts[i] = txt(v[i], undefined);
+          t = '[0,' + parts.join(',') + ']';
+          if (v.length >= 16) textCache.set(v, t);
+        } else { t = JSON.stringify(enc(v, key)); textCache.set(v, t); }
+        return t;
+      }
+      return JSON.stringify(enc(v, key));
+    };
     return {
+      // The packed tree as JSON text, built mostly from remembered pieces: the same text as JSON.stringify of pack(state), far cheaper on a big
+      // kitchen where little changed since the last save.
+      packText(state) {
+        const keys = Object.keys(state).filter((k) => state[k] !== undefined && typeof state[k] !== 'function' && typeof state[k] !== 'symbol'), sk = keys.join('\u0002');
+        let si = schemaIdx.get(sk);
+        if (si === undefined) { si = schemas.length; schemas.push(keys); schemaIdx.set(sk, si); }
+        const parts = new Array(keys.length);
+        for (let i = 0; i < keys.length; i++) parts[i] = txt(state[keys[i]], keys[i]);
+        const x = '[' + (si + 1) + (parts.length ? ',' + parts.join(',') : '') + ']';
+        return '{"d":' + JSON.stringify(dict) + ',"s":' + JSON.stringify(schemas) + ',"x":' + x + '}';
+      },
       // The packed tree and the tables it needs: { d, s, x }.
       pack(state) { const x = enc(state, undefined); return { d: dict.slice(), s: schemas.map((k) => k.slice()), x }; },
       // The original state from a packed tree and its tables, without changing this packer. Throws when the packed data is damaged.
@@ -344,7 +375,7 @@
     return Math.round(parseFloat(t) * 100) / 100;
   };
   /** Grams for display. User preference: weights in grams, not cups. 850 -> "850 g", 2400 -> "2.40 kg". */
-  U.fmtG = (g) => { if (!U.isNum(g)) return '-'; return Math.abs(g) >= 1000 ? (g / 1000).toFixed(2) + ' kg' : Math.round(g) + ' g'; };
+  U.fmtG = (g) => { if (!U.isNum(g)) return '-'; return Math.abs(g) >= 1000 ? (g / 1000).toFixed(2).replace(/\.?0+$/, '') + ' kg' : Math.round(g) + ' g'; };   // 14 kg, 2.5 kg, 1.25 kg: no trailing zeros
   // Fraction to percent text: 0.874 gives "87%" (d = number of decimals). Not a number gives "-".
   U.fmtPct = (x, d = 0) => (U.isNum(x) ? (x * 100).toFixed(d) + '%' : '-');
   // Number with thousands commas and d decimals. Not a number gives "-".
@@ -388,7 +419,7 @@
     if (!U.isNum(g)) return '-';
     if (U.units.weight !== 'lb') return U.fmtG(g);
     const lb = g / G_PER_LB;
-    return Math.abs(lb) < 1 ? (lb * 16).toFixed(1) + ' oz' : lb.toFixed(2) + ' lb';
+    return Math.abs(lb) < 1 ? (lb * 16).toFixed(1).replace(/\.0$/, '') + ' oz' : lb.toFixed(2).replace(/\.?0+$/, '') + ' lb';
   };
 
   /* ---------- dates (all local time). The "service day" runs from dayStartHour (4 am) so a 12:45 am sale belongs to last night. ---------- */
@@ -452,11 +483,16 @@
     raw(key) {
       try { const raw = ls ? ls.getItem(key) : mem.get(key); return raw == null ? null : String(raw); } catch (e) { return null; }
     },
-    // Saves a value as text. Returns false if the value cannot be turned into text or the browser refused it
-    // (then it is kept in memory only, so the page still works until it is closed).
+    // Saves a value as text. Returns false if the value cannot be turned into text or the browser refused it.
+    // WATCH OUT: a refused value is NOT readable back through get(); the caller keeps its own copy (the store keeps the
+    // kitchen in memory and shows the failed save), and the last value the browser accepted stays what get() returns.
     set(key, val) {
       let raw; try { raw = JSON.stringify(val); } catch (e) { return false; }
-      try { if (ls) ls.setItem(key, raw); else mem.set(key, raw); return true; } catch (e) { mem.set(key, raw); return false; }
+      try { if (ls) ls.setItem(key, raw); else mem.set(key, raw); return true; } catch (e) { return false; }
+    },
+    // Saves text that is already JSON (the caller built it), skipping the step that turns a value into text. Same answers as set.
+    setText(key, raw) {
+      try { if (ls) ls.setItem(key, raw); else mem.set(key, raw); return true; } catch (e) { return false; }
     },
     // Deletes a saved value from the browser and from memory.
     remove(key) { try { if (ls) ls.removeItem(key); } catch (e) { /* ignore */ } mem.delete(key); },
@@ -473,11 +509,11 @@
   // The settings that belong to the device, not to a kitchen (look, sound, which station this tablet shows). They
   // are the same in the demo and the real kitchen. Every other smokebox.v1 key is kitchen data and gets its own
   // copy in the demo (smokebox.demo.<name>), so the demo can never read or write the real kitchen's data.
-  const SHARED_KEYS = ['theme', 'otheme', 'textsize', 'density', 'hints', 'zone', 'role', 'sound', 'volume', 'speech', 'voicelevel', 'callouts', 'far', 'wall', 'dock'].map((k) => 'smokebox.v1.' + k);
+  const SHARED_KEYS = ['theme', 'otheme', 'textsize', 'density', 'hints', 'zone', 'role', 'sound', 'volume', 'speech', 'voicelevel', 'voicename', 'cloudKitchen', 'deviceId', 'callouts', 'far', 'wall', 'dock', 'countervisit'].map((k) => 'smokebox.v1.' + k);
   // The kitchen-data keys, listed so a test can prove every key in the code is classified. A key that is in neither list
   // is treated as kitchen data (the safe side).
-  const DATA_KEYS = ['state', 'sid', 'writer', 'histtrim', 'histnotice', 'outbox', 'corrupt', 'names', 'sample', 'welcome', 'lastbackup', 'dlog', 'alertlog', 'lastbatch', 'initials', 'pinlock', 'paymethod',
-    'setup.draft', 'setup.examples', 'setup.hiddenStations', 'setup.lastZone', 'setup.hiddenCategories', 'setup.lastCategory', 'setup.cookAheadSkipped', 'setup.serveSkipped', 'setup.serveAnswer', 'readings', 'lastproduct', 'lastgood', 'corruptat', 'dropped', 'droppedat', 'orderdraft', 'office.startCash', 'pinrecovery', 'demoLeftoversKept'].map((k) => 'smokebox.v1.' + k);
+  const DATA_KEYS = ['state', 'pacingFix1', 'sid', 'writer', 'histtrim', 'histnotice', 'sleepSnap', 'outbox', 'corrupt', 'names', 'sample', 'welcome', 'lastbackup', 'dlog', 'alertlog', 'lastbatch', 'initials', 'pinlock', 'paymethod',
+    'setup.draft', 'setup.examples', 'setup.hiddenStations', 'setup.lastZone', 'setup.hiddenCategories', 'setup.lastCategory', 'setup.cookAheadSkipped', 'setup.serveSkipped', 'setup.serveAnswer', 'readings', 'lastproduct', 'lastgood', 'lastgood2', 'corruptat', 'dropped', 'droppedat', 'corrupt.prev', 'corruptat.prev', 'dropped.prev', 'droppedat.prev', 'orderdraft', 'office.startCash', 'pinrecovery', 'demoLeftoversKept'].map((k) => 'smokebox.v1.' + k);
   const MODE_KEY = 'smokebox.mode'; // sessionStorage: this tab is in the demo (per tab, gone when the tab closes)
   // Which kitchen this tab shows, decided once at load: a ?demo address or the tab's own saved choice means the demo.
   function detectMode() {
@@ -515,6 +551,8 @@
       raw: (key) => (typeof base.raw === 'function' ? base.raw(keyFor(key, m())) : null),
       // Saves a value through the translated key.
       set: (key, val) => base.set(keyFor(key, m()), val),
+      // Saves text that is already JSON through the translated key (false when the storage cannot).
+      setText: (key, raw) => (typeof base.setText === 'function' ? base.setText(keyFor(key, m()), raw) : base.set(keyFor(key, m()), JSON.parse(raw))),
       // Deletes a value through the translated key.
       remove: (key) => base.remove(keyFor(key, m())),
       // Every saved key with this prefix, exactly as named in the browser (not translated).

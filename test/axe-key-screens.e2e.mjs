@@ -1,5 +1,5 @@
 // Quick accessibility check with axe-core on seven key screens (browser, about 40 s). Run: node test/axe-key-screens.e2e.mjs
-// Opens the board, New ticket, the Settings sheet, Dishes and prices, the Tablet checks, Close the month (stand-in counts) and a first-run (blank) board, in Day
+// Opens the board, New ticket, the Settings sheet, Dishes and prices, the Device checks, Close the month (stand-in counts) and a first-run (blank) board, in Day
 // at phone width and in Night with Large text at desktop width. Fails on any serious or critical axe violation (WCAG 2.0 A/AA,
 // 2.1 AA, 2.2 AA tags). No rule is turned off. The full audit is tools/a11y-axe.mjs. Needs dist/smokebox.html and axe-core.
 import { withPage } from '../tools/pw.mjs';
@@ -16,7 +16,7 @@ const SCREENS = [
   ['New ticket', true, async (page) => { await page.evaluate(() => { location.hash = '#/new'; }); await page.waitForTimeout(700); }],
   ['Settings sheet', true, sheet('menu')],
   ['Dishes and prices', true, sheet('dishes')],
-  ['Tablet checks', true, sheet('ready')],
+  ['Device checks', true, sheet('ready')],
   ['Close the month (save the files step)', true, async (page) => {
     await page.evaluate(() => {
       SB.store.closeMonthPreview = () => ({ ok: true, report: 'ok', preview: { tickets: 412, orders: 398, events: 3120, days: ['2026-08-01'], from: '2026-08-01', before: '2026-08-29', safetyEventsKept: 640, openTicketsKept: 2, openOrdersKept: 1, uncoveredDays: [] } });

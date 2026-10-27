@@ -35,6 +35,7 @@ function start(storage, quotaBytes) {
 
 test('adaptive keep window: a quiet kitchen keeps 35 days, a busy one fewer, never fewer than 3', () => {
   const s = E.newState({ now: T0, blank: true });
+  s.settings.pacing.enabled = false;   // the busy days start every dish at once
   assert.equal(E.adaptiveKeepDays(s, T0, null), 35, 'no history');
   // 10 days with 200 tickets a day and the browser space nearly used
   const day0 = new Date(T0 - 9 * DAY);

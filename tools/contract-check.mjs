@@ -65,7 +65,7 @@ const PAGE_TABLE = [
   { id: 'pace', title: 'Speed', icon: 'gauge', order: 1 }, { id: 'tickets', title: 'Tickets', icon: 'receipt', order: 2 },
   { id: 'stations', title: 'Stations', icon: 'layers', order: 3 }, { id: 'money', title: 'Sales and money', icon: 'dollar', order: 4 },
   { id: 'safety', title: 'Safety', icon: 'shield-check', order: 5 }, { id: 'stock', title: 'Stock and 86', icon: 'package', order: 6 },
-  { id: 'data', title: 'Menu and settings', icon: 'sliders', order: 7 },
+  { id: 'data', title: 'Menu, prices and shop', icon: 'sliders', order: 7 },
 ];
 const PAGE_FILE = { pace: '81-office-pace.js', tickets: '81-office-pace.js', stations: '81-office-pace.js', money: '82-office-money.js', safety: '83-office-safety.js', stock: '85-office-stock.js', data: '84-office-data.js' };
 const SHEET_NAMES = 'order hold board86 recall demo help specs menu'.split(' ');
@@ -635,6 +635,7 @@ export async function runBrowser(S) {
         } catch (e) { o.err = String(e && e.message || e); }
         return o;
       }, name);
+      if (r.__err) r.name = name;   // a failed inspection keeps its sheet's name, so the report can say which one
       await sleep(page, 300);
       r.focusInside = await ev(() => { const dlg = document.querySelectorAll('.sheet[role=dialog],.sheet[role=alertdialog]'); const d = dlg[dlg.length - 1]; return d ? d.contains(document.activeElement) : null; });
       r.dupIds = await ev(PAGE_FNS.dupIds);
@@ -685,6 +686,7 @@ export async function runBrowser(S) {
             counts: SB.office._debug && SB.office._debug.counts ? SB.office._debug.counts() : null,
           };
         });
+        if (r.__err || (info && info.__err)) r.inspectErr = r.__err || info.__err;   // reported as a problem, never as a clean page
         Object.assign(r, info && !info.__err ? info : {});
         r.ms = Date.now() - t1; r.errorsAfter = take('page:' + id);
         return r;
@@ -700,7 +702,7 @@ export async function runBrowser(S) {
       for (const id of ids.filter((x) => x !== 'pace')) {
         await visit(id, 350);
         const back = await visit('pace', 350);
-        R.smoke.leaks.push({ id, counts: back.counts });
+        R.smoke.leaks.push({ id, counts: back.counts, inspectErr: back.inspectErr });
       }
       R.probe = await ev(() => window.__probe || null);
       // themes and text size while the office is open (charts must follow, nothing may throw)
@@ -988,7 +990,8 @@ export function analyze(S, R, CSS, extras) {
       const f = s.name === 'order' ? '71-floor-order.js' : '72-floor-sheets.js';
       if (s.registered === false) continue;
       if (s.name === 'wizard') continue; // an old name kept for older links: it opens the dishes setup, not a plain dialog
-      if (s.__err) continue;
+      // WATCH OUT: an inspection that failed proves nothing, so it is a problem; skipping it would count the sheet as fine.
+      if (s.__err) { problem('smoke-inspect', f, 0, s.name + ':inspect', 'Could not inspect sheet "' + s.name + '": ' + s.__err, 'Run the check again; if it repeats, open the sheet by hand and read the console.'); continue; }
       if (s.err) problem('sheet-open', f, 0, s.name + ':err', 'SB.sheets.open("' + s.name + '") threw: ' + s.err, 'Fix the exception in the sheet function.');
       else {
         if (s.opened === false || s.dialog === false) problem('sheet-open', f, 0, s.name + ':notopen', 'SB.sheets.open("' + s.name + '") did not produce a dialog (opened=' + s.opened + ', dialog=' + s.dialog + ').', 'The sheet function must call SB.ui.sheet and return its handle.');
@@ -1003,9 +1006,10 @@ export function analyze(S, R, CSS, extras) {
     if (R.smoke.officeMounted === false) problem('office-mount', '80-office-core.js', 0, 'nomount', 'Navigating to #/office/pace did not mount the office within 8 s.', 'Check SB.office.mount and the shell ignition (PIN prompt? placeholder?).');
     for (const pg of R.smoke.pages) {
       const f = PAGE_FILE[pg.id];
+      if (pg.inspectErr) problem('smoke-inspect', f, 0, pg.id + ':inspect', 'Could not inspect office page "' + pg.id + '": ' + pg.inspectErr, 'Run the check again; if it repeats, open #/office/' + pg.id + ' and read the console.');
       if (pg.err) problem('office-page', f, 0, pg.id + ':err', 'Navigating to office page "' + pg.id + '" threw: ' + pg.err, 'Fix the exception.');
       if (pg.errs && pg.errs.length) problem('office-page', f, 0, pg.id + ':errorcard:' + pg.errs[0].title, 'Office page "' + pg.id + '" shows ' + pg.errs.length + ' error card' + (pg.errs.length > 1 ? 's' : '') + ': ' + pg.errs.slice(0, 3).map((e) => '"' + e.title + '"').join(', '), 'Open #/office/' + pg.id + ' and read the console error / the card\'s Technical details.');
-      if (pg.cur && pg.cur !== pg.id) note('office-page', f, 0, 'SB.office.navigate("' + pg.id + '") left the office on "' + pg.cur + '" (page not registered yet?).');
+      if (pg.cur && pg.cur !== pg.id) problem('office-page', f, 0, pg.id + ':landed:' + pg.cur, 'SB.office.navigate("' + pg.id + '") left the office on "' + pg.cur + '".', 'Check that the page is registered and that navigate does not fall back to another page.');
       if (pg.renderMs > 600) note('slow-page', f, 0, 'Office page "' + pg.id + '" took ' + pg.renderMs + ' ms to render synchronously on navigate (the contract wants metric calls < 150 ms and charts < 100 ms each; the machine is shared, so measure again on a quiet one).');
       if (pg.ms > 2500) note('slow-page', f, 0, 'Office page "' + pg.id + '" took ' + pg.ms + ' ms to navigate and settle (includes a ' + 900 + ' ms wait; the machine is shared).');
       if (pg.cards === 0 && pg.text < 200) note('empty-page', f, 0, 'Office page "' + pg.id + '" shows almost nothing yet (' + pg.cards + ' chart cards, ' + pg.text + ' characters).');
@@ -1013,6 +1017,7 @@ export function analyze(S, R, CSS, extras) {
     }
     const base = R.smoke.paceBaseline;
     if (base) for (const l of R.smoke.leaks) {
+      if (l.inspectErr) { problem('smoke-inspect', PAGE_FILE[l.id], 0, l.id + ':leak-inspect', 'Could not read the counts after leaving office page "' + l.id + '", so its leak check did not run: ' + l.inspectErr, 'Run the check again.'); continue; }
       if (!l.counts) continue;
       const grow = Object.keys(base).filter((k) => typeof base[k] === 'number' && l.counts[k] > base[k]);
       const f = PAGE_FILE[l.id];
@@ -1021,6 +1026,7 @@ export function analyze(S, R, CSS, extras) {
       else if (grow.length) note('leak', f, 0, 'Office page "' + l.id + '": ' + grow.map((k) => k + ' ' + base[k] + ' -> ' + l.counts[k]).join(', ') + ' after leaving it (probably a pending timeout).');
     }
     const a = R.smoke.afterClose;
+    if (a && a.__err) problem('smoke-inspect', '60-shell.js', 0, 'afterclose:inspect', 'Could not inspect the page after leaving the office, so the unmount and leak checks did not run: ' + a.__err, 'Run the check again.');
     if (a && !a.__err) {
       if (a.mounted) problem('leak', '60-shell.js', 0, 'unmount', 'After "Back to the line" the office is still mounted (SB.office.isMounted() is true).', 'The shell must call SB.office.unmount() after the close animation.');
       else if (a.counts) {
@@ -1029,7 +1035,8 @@ export function analyze(S, R, CSS, extras) {
       }
     }
     for (const m of R.smoke.misc) {
-      if (!m || m.__err) continue;
+      if (!m) continue;
+      if (m.__err) { problem('smoke-inspect', '45-sim.js', 0, 'misc:inspect:' + String(m.__err).slice(0, 40), 'A smoke step could not be inspected: ' + m.__err, 'Run the check again; the console output names the step.'); continue; }
       if (/^theme:/.test(m.name)) {
         if (m.err) problem('smoke', '60-shell.js', 0, m.name + ':err', m.name + ' threw: ' + m.err, 'Fix the exception in the theme change path.');
         if (m.errCards) problem('office-page', '80-office-core.js', 0, m.name + ':errcards', 'After "' + m.name + '" the office shows ' + m.errCards + ' error card(s).', 'Check SB.charts.refreshTheme and the pages\' theme handling.');
@@ -1037,10 +1044,10 @@ export function analyze(S, R, CSS, extras) {
       }
       const f = m.name === 'floor' ? '70-floor-board.js' : '45-sim.js';
       if (m.err) problem('smoke', f, 0, m.name + ':err', m.name + ' threw during the smoke run: ' + m.err, 'Fix the exception.');
-      else if (m.skipped) note('not-landed-yet', f, 0, m.name + ' not exercised: ' + m.skipped + '.');
+      else if (m.skipped) problem('smoke', f, 0, m.name + ':skipped', m.name + ' could not be exercised: ' + m.skipped + '.', 'The module the contract names is missing; restore it.');
       if (m.name === 'sim.live' && !m.skipped && !m.err && m.statusType !== 'object') note('smoke', f, 0, 'sim.live.status() returned ' + m.statusType + ', expected an object.');
       if (m.name === 'sim.sample' && !m.err) {
-        if (m.days !== 14) note('smoke', f, 0, 'SB.sim.sample() has ' + m.days + ' days (SPEC 11: 14).');
+        if (m.days !== 14) problem('contract', f, 0, 'sample-days:' + m.days, 'SB.sim.sample() has ' + m.days + ' days (SPEC 11: 14).', 'Make the sample cover 14 days, or change SPEC 11 on purpose.');
         if (m.datasetMs > 400) note('slow', f, 0, 'store.dataset({sample:true}) took ' + m.datasetMs + ' ms on the second call (should be memoised).');
       }
     }
@@ -1049,7 +1056,9 @@ export function analyze(S, R, CSS, extras) {
   // --- unit suite
   if (extras && extras.unit) {
     const u = extras.unit;
-    const perf = (n) => /performance|budget|throughput|(within|under|inside|below) \d+ ?(ms|s)\b|fast enough|stays inside/i.test(n);
+    // Only tests named "performance: ..." or "timing: ..." count as timing tests. A looser match on words like "within 60 s" or "throughput"
+    // hid real failures (for example "syncLatency ... inside 60 s" checks numbers, not speed).
+    const perf = (n) => /^(performance|timing):/i.test(n);
     const hard = u.ran ? (u.failing || []).filter((n) => !perf(n)) : [];
     if (u.ran && u.fail && !hard.length && u.failing.length) note('unit-perf', 'test/', 0, 'Only timing tests failed (the machine is shared, so this is probably load, not a bug): ' + u.failing.slice(0, 4).join(' ; ') + '. Full output: test/.out/contract/unit.txt');
     else if (u.ran && u.fail) problem('unit', 'test/', 0, 'unit:' + u.failing.slice(0, 3).join('|').slice(0, 100), 'node tools/test.mjs: ' + u.pass + ' passed, ' + u.fail + ' failed. First failures: ' + u.failing.slice(0, 4).join(' ; '), 'Run node tools/test.mjs <pattern> to see the diff; the test file name tells the owner.');
@@ -1097,7 +1106,11 @@ function runUnit(force, noUnit) {
   if (noUnit) return { ran: false, reason: 'Unit suite skipped (--no-unit).' };
   if (!force && !due) return { ran: false, reason: 'Unit suite not due (last run ' + Math.round((Date.now() - last) / 60000) + ' min ago; it runs every 25 min, or use --unit).' };
   const r = spawnSync(process.execPath, ['tools/test.mjs'], { cwd: ROOT, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
-  fs.mkdirSync(OUT_DIR, { recursive: true }); fs.writeFileSync(stamp, String(Date.now()));
+  fs.mkdirSync(OUT_DIR, { recursive: true });
+  // WATCH OUT: a run that could not start or was cut off (no exit status) is a failure, and only a clean pass is remembered for 25 min;
+  // otherwise a broken run would be cached as "done" and the next runs would say "not due" instead of showing it.
+  if (r.error || r.status === null) return { ran: true, pass: 0, fail: 1, failing: ['the unit suite did not finish (' + (r.error ? r.error.message : 'stopped by ' + r.signal) + ')'], status: r.status };
+  if (r.status === 0) fs.writeFileSync(stamp, String(Date.now()));
   const out = (r.stdout || '') + (r.stderr || '');
   const num = (re) => { const m = re.exec(out); return m ? +m[1] : 0; };
   try { fs.writeFileSync(path.join(OUT_DIR, 'unit.txt'), out); } catch (e) { /* ignore */ }

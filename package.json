@@ -1,7 +1,7 @@
 {
   "name": "smokebox",
   "private": true,
-  "version": "0.0.0",
+  "version": "0.2.0",
   "description": "Smokebox: offline single-file kitchen display. This file only lists dev tools; the app itself has no dependencies.",
   "type": "commonjs",
   "engines": { "node": ">=22" },

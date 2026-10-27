@@ -11,6 +11,8 @@ function ok(c, m) { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) fails++; }
 async function keypad(page, pin) { await page.waitForSelector('.keypad'); for (const d of pin) await page.locator('.keypad button', { hasText: new RegExp('^' + d + '$') }).first().click(); await page.waitForTimeout(400); }
 await withPage({ w: 1024, h: 800 }, async (page, logs) => {
   await page.evaluate(() => SB.store.dispatchEx('addMenuItem', { name: 'Chili', price: 6 }, { source: 'ui' }));
+  // One real ticket, so Start over keeps its careful steps (an empty kitchen gets a one-step confirm instead).
+  await page.evaluate(() => { const id = SB.store.dispatchEx('addMenuItem', { name: 'Soup', zone: 'sides', cat: 'side', price: 5, prepSec: 60, track: 'one' }, { source: 'ui' }).info.id; SB.store.dispatchEx('createTicket', { customer: 'Ann', items: [{ menuId: id, qty: 1 }] }, { source: 'ui' }); });
   const menuBefore = await page.evaluate(() => SB.store.getState().menu.length);
   const first = await page.evaluate(async () => (await SB.shell.setPin('1234')).ok);
   ok(first === true, 'with no PIN, setting one needs nothing');

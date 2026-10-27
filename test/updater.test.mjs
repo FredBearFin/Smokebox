@@ -40,8 +40,9 @@ function setup(label) {
   fs.chmodSync(fakeSystemctl, 0o755);
   return { tmp, prefix, log, fakeSystemctl };
 }
+// Runs fn(port) while a stand-in health page answers 200 (ok true), 500 (ok false), or 200 with the given body (ok a string).
 async function withHealth(ok, fn) {
-  const srv = http.createServer((req, res) => { res.statusCode = ok ? 200 : 500; res.end('x'); });
+  const srv = http.createServer((req, res) => { res.statusCode = ok ? 200 : 500; res.end(typeof ok === 'string' ? ok : 'x'); });
   await new Promise((r) => srv.listen(0, '127.0.0.1', r));
   try { return await fn(srv.address().port); } finally { srv.closeAllConnections?.(); await new Promise((r) => srv.close(r)); }
 }
@@ -112,7 +113,59 @@ test('a new build that does not answer is rolled back to the old build and the s
     assert.match(r.stdout, /putting the previous version back/);
   });
   assert.equal(marker(t.prefix), 'OLD', 'the old build is back');
-  assert.equal(fs.readFileSync(t.log, 'utf8').trim().split('\n').length, 2, 'restarted for the new build and again after the rollback');
+  assert.deepEqual(fs.readFileSync(t.log, 'utf8').trim().split('\n'), ['restart smokebox', 'stop smokebox', 'restart smokebox'], 'restarted for the new build, stopped, and restarted after the rollback');
+});
+
+// A saved file beside the build, and the env that points the updater at it.
+function withData(t, text) { const f = path.join(t.tmp, 'data', 'state.json'); fs.mkdirSync(path.dirname(f), { recursive: true }); fs.writeFileSync(f, text); return f; }
+
+test('a new build that answers but had to set the saved file aside (dataProblem in /health) is rolled back and the saved file is put back', { skip }, async () => {
+  const t = setup('dataproblem');
+  const tgz = tarball(t.tmp, 'dp', (d) => makeTree(d, 'NEW'));
+  const file = withData(t, '{"kitchen":"real"}');
+  // what the new build would do: set the file aside and start empty (stood in for by the fake systemctl on its first restart)
+  fs.writeFileSync(t.fakeSystemctl, `#!/bin/bash\necho "$@" >> ${t.log}\nif [ "$*" = "restart smokebox" ] && [ ! -f ${t.tmp}/once ]; then touch ${t.tmp}/once; mv ${file} ${file}.bad-1; echo '{"empty":true}' > ${file}; fi\n`);
+  await withHealth('{"ok":true,"seq":0,"dataProblem":"The saved file was not a valid kitchen (state.json.bad-1)"}', async (port) => {
+    const r = await run({ SMOKEBOX_PREFIX: t.prefix, SMOKEBOX_UPDATE_URL: 'file://' + tgz, SMOKEBOX_SYSTEMCTL: t.fakeSystemctl, SMOKEBOX_HEALTH_URL: 'http://127.0.0.1:' + port + '/health', SMOKEBOX_LOCK: path.join(t.tmp, 'lock'), SMOKEBOX_DATA_FILE: file });
+    assert.notEqual(r.status, 0, r.stdout);
+    assert.match(r.stdout, /could not read the saved data/);
+  });
+  assert.equal(marker(t.prefix), 'OLD', 'the old build is back');
+  assert.equal(fs.readFileSync(file, 'utf8'), '{"kitchen":"real"}', 'the old build starts on the kitchen\'s data, not the empty file');
+  const kept = fs.readdirSync(path.dirname(file));
+  assert.ok(kept.some((f) => f.startsWith('state.json.from-new-build-')) && kept.includes('state.json.bad-1'), 'nothing was deleted: ' + kept);
+});
+
+test('a new build that rewrote the saved file and then failed is rolled back with the file from before the update (the newer one kept beside it)', { skip }, async () => {
+  const t = setup('newer');
+  const tgz = tarball(t.tmp, 'nw', (d) => makeTree(d, 'NEW'));
+  const file = withData(t, '{"v":1}');
+  fs.writeFileSync(t.fakeSystemctl, `#!/bin/bash\necho "$@" >> ${t.log}\nif [ "$*" = "restart smokebox" ] && [ ! -f ${t.tmp}/once ]; then touch ${t.tmp}/once; echo '{"v":2}' > ${file}; fi\n`);
+  await withHealth(false, async (port) => {
+    const r = await run({ SMOKEBOX_PREFIX: t.prefix, SMOKEBOX_UPDATE_URL: 'file://' + tgz, SMOKEBOX_SYSTEMCTL: t.fakeSystemctl, SMOKEBOX_HEALTH_URL: 'http://127.0.0.1:' + port + '/health', SMOKEBOX_LOCK: path.join(t.tmp, 'lock'), SMOKEBOX_DATA_FILE: file });
+    assert.notEqual(r.status, 0);
+  });
+  assert.equal(fs.readFileSync(file, 'utf8'), '{"v":1}', 'the old build gets a file it can read, so it does not refuse to start');
+  const newer = fs.readdirSync(path.dirname(file)).find((f) => f.startsWith('state.json.from-new-build-'));
+  assert.equal(fs.readFileSync(path.join(path.dirname(file), newer), 'utf8').trim(), '{"v":2}');
+});
+
+test('a good update leaves the saved file alone (a copy is kept as .before-update)', { skip }, async () => {
+  const t = setup('keepdata');
+  const tgz = tarball(t.tmp, 'kd', (d) => makeTree(d, 'NEW'));
+  const file = withData(t, '{"kitchen":"real"}');
+  await withHealth('{"ok":true,"seq":4}', async (port) => {
+    const r = await run({ SMOKEBOX_PREFIX: t.prefix, SMOKEBOX_UPDATE_URL: 'file://' + tgz, SMOKEBOX_SYSTEMCTL: t.fakeSystemctl, SMOKEBOX_HEALTH_URL: 'http://127.0.0.1:' + port + '/health', SMOKEBOX_SELF_DEST: path.join(t.tmp, 'self'), SMOKEBOX_LOCK: path.join(t.tmp, 'lock'), SMOKEBOX_DATA_FILE: file });
+    assert.equal(r.status, 0, r.stdout + r.stderr);
+  });
+  assert.equal(marker(t.prefix), 'NEW');
+  assert.equal(fs.readFileSync(file, 'utf8'), '{"kitchen":"real"}');
+  assert.equal(fs.readFileSync(file + '.before-update', 'utf8'), '{"kitchen":"real"}');
+});
+
+test('the beta\'s nightly update names its own saved file, so a rollback there never touches the real kitchen\'s file', () => {
+  assert.match(fs.readFileSync(path.join(ROOT, 'beta.sh'), 'utf8'), /export SMOKEBOX_DATA_FILE=\$DATA\/state\.json /);
+  assert.match(fs.readFileSync(SCRIPT, 'utf8'), /if \[ -z "\$DATA" \] && \[ -z "\$\{SMOKEBOX_PREFIX:-\}" \]; then DATA=\/var\/lib\/smokebox\/state\.json; fi/);
 });
 
 test('a second update while one is running does nothing', { skip }, async () => {
